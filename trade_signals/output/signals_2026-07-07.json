@@ -1,0 +1,16 @@
+{
+  "date": "2026-07-07",
+  "generated_at": "2026-07-07 18:00:00",
+  "signals": [
+    {
+      "stock": "000001",
+      "action": "buy",
+      "shares": 1000
+    },
+    {
+      "stock": "600519",
+      "action": "sell",
+      "shares": 200
+    }
+  ]
+}

@@ -1,14 +1,14 @@
 {
   "horizons": [
+    1,
     3,
-    4,
     5,
     10
   ],
   "weights": {
+    "1": 0.15,
     "3": 0.25,
-    "4": 0.25,
-    "5": 0.25,
+    "5": 0.35,
     "10": 0.25
   },
   "factor_names": [
@@ -56,7 +56,7 @@
       8
     ],
     "dropout": 0.2,
-    "alpha": 0.001,
+    "alpha": 0.0001,
     "early_stopping": true,
     "validation_fraction": 0.1,
     "n_iter_no_change": 20,
@@ -65,106 +65,124 @@
     "random_state": 42
   },
   "results_per_horizon": {
-    "3": {
-      "model_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\models\\mlp_horizon3.pt",
-      "predictions_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\data\\predictions_h3.parquet",
+    "1": {
       "train_ic": {
-        "mean_ic": 0.11753713494407887,
-        "std_ic": 0.12475446328734294,
-        "ir": 0.9421477344129915,
-        "hit_rate": 0.8320610687022901,
+        "mean_ic": 0.07685664679457037,
+        "std_ic": 0.11733127821910806,
+        "ir": 0.6550397128636567,
+        "hit_rate": 0.7484933708316593,
         "n_periods": 2489,
-        "min_ic": -0.3516906130400244,
-        "max_ic": 0.5319654372203222
+        "min_ic": -0.3361479630211477,
+        "max_ic": 0.5305649629141854
       },
       "test_ic": {
-        "mean_ic": 0.11617841844143938,
-        "std_ic": 0.10112733471099113,
-        "ir": 1.1488329913317927,
-        "hit_rate": 0.8960573476702509,
-        "n_periods": 279,
-        "min_ic": -0.2639513531447425,
-        "max_ic": 0.43690702753099336
+        "mean_ic": 0.07929224020412244,
+        "std_ic": 0.11457079898591997,
+        "ir": 0.6920807125894877,
+        "hit_rate": 0.7282608695652174,
+        "n_periods": 276,
+        "min_ic": -0.20477159571377818,
+        "max_ic": 0.3431307258657266
       },
-      "n_predictions": 137228,
-      "n_pred_dates": 279,
-      "weight": 0.25
+      "test_pearson_ic": {
+        "mean_ic": 0.09327300494624231,
+        "std_ic": 0.13415016176999492,
+        "ir": 0.6952880541893203,
+        "hit_rate": 0.7318840579710145,
+        "n_periods": 276,
+        "min_ic": -0.2339407519395038,
+        "max_ic": 0.4072929497420796
+      }
     },
-    "4": {
-      "model_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\models\\mlp_horizon4.pt",
-      "predictions_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\data\\predictions_h4.parquet",
+    "3": {
       "train_ic": {
-        "mean_ic": 0.1198973545407342,
-        "std_ic": 0.1234722728447799,
-        "ir": 0.9710467927601866,
-        "hit_rate": 0.8396946564885496,
+        "mean_ic": 0.10751523838233862,
+        "std_ic": 0.12333894902145638,
+        "ir": 0.8717054850502656,
+        "hit_rate": 0.8063479308959421,
         "n_periods": 2489,
-        "min_ic": -0.37885131755325274,
-        "max_ic": 0.6562253004804028
+        "min_ic": -0.3466558865345831,
+        "max_ic": 0.6654233642506053
       },
       "test_ic": {
-        "mean_ic": 0.12124145893648458,
-        "std_ic": 0.09732294606991837,
-        "ir": 1.2457643734847768,
-        "hit_rate": 0.8924731182795699,
-        "n_periods": 279,
-        "min_ic": -0.21394516658877133,
-        "max_ic": 0.33906366478627
+        "mean_ic": 0.10453088818088296,
+        "std_ic": 0.10958223405827854,
+        "ir": 0.9539036056272667,
+        "hit_rate": 0.8152173913043478,
+        "n_periods": 276,
+        "min_ic": -0.2454570330479233,
+        "max_ic": 0.39298036716257617
       },
-      "n_predictions": 137228,
-      "n_pred_dates": 279,
-      "weight": 0.25
+      "test_pearson_ic": {
+        "mean_ic": 0.12563229049370572,
+        "std_ic": 0.12803564090752464,
+        "ir": 0.9812290515610823,
+        "hit_rate": 0.8333333333333334,
+        "n_periods": 276,
+        "min_ic": -0.23734270025006451,
+        "max_ic": 0.5054432101310784
+      }
     },
     "5": {
-      "model_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\models\\mlp_horizon5.pt",
-      "predictions_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\data\\predictions_h5.parquet",
       "train_ic": {
-        "mean_ic": 0.12477896131286612,
-        "std_ic": 0.1262959120292776,
-        "ir": 0.9879889167270923,
-        "hit_rate": 0.8445158698272398,
+        "mean_ic": 0.12423415573233926,
+        "std_ic": 0.12699013202924725,
+        "ir": 0.9782977129571512,
+        "hit_rate": 0.8336681398151868,
         "n_periods": 2489,
-        "min_ic": -0.4280941530256746,
-        "max_ic": 0.7184862017090902
+        "min_ic": -0.328044208138614,
+        "max_ic": 0.7149792748958961
       },
       "test_ic": {
-        "mean_ic": 0.12415687144040728,
-        "std_ic": 0.09820490442129325,
-        "ir": 1.2642634517292703,
-        "hit_rate": 0.8888888888888888,
-        "n_periods": 279,
-        "min_ic": -0.20518100657271482,
-        "max_ic": 0.3640503696908771
+        "mean_ic": 0.11858492929996134,
+        "std_ic": 0.1103420280136063,
+        "ir": 1.074703188211645,
+        "hit_rate": 0.8586956521739131,
+        "n_periods": 276,
+        "min_ic": -0.1873567933194253,
+        "max_ic": 0.3965756072838176
       },
-      "n_predictions": 137227,
-      "n_pred_dates": 279,
-      "weight": 0.25
+      "test_pearson_ic": {
+        "mean_ic": 0.1400392871505149,
+        "std_ic": 0.12232506838712959,
+        "ir": 1.1448126618439651,
+        "hit_rate": 0.855072463768116,
+        "n_periods": 276,
+        "min_ic": -0.18508414124580896,
+        "max_ic": 0.41451846199041026
+      }
     },
     "10": {
-      "model_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\models\\mlp_horizon10.pt",
-      "predictions_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\data\\predictions_h10.parquet",
       "train_ic": {
-        "mean_ic": 0.1449648533598688,
-        "std_ic": 0.13134719798199052,
-        "ir": 1.1036767863121484,
-        "hit_rate": 0.8710325431900362,
+        "mean_ic": 0.1464987794745809,
+        "std_ic": 0.12909587527990973,
+        "ir": 1.1348060436240712,
+        "hit_rate": 0.875050220972278,
         "n_periods": 2489,
-        "min_ic": -0.2972222868399929,
-        "max_ic": 0.6391340260492298
+        "min_ic": -0.2898786350807042,
+        "max_ic": 0.6512329596493689
       },
       "test_ic": {
-        "mean_ic": 0.1458720987259213,
-        "std_ic": 0.09486489705558365,
-        "ir": 1.5376825701971857,
-        "hit_rate": 0.9379562043795621,
-        "n_periods": 274,
-        "min_ic": -0.1811405165902339,
-        "max_ic": 0.3506278172267927
+        "mean_ic": 0.14479553642425605,
+        "std_ic": 0.10595192425309745,
+        "ir": 1.3666154479494792,
+        "hit_rate": 0.9094202898550725,
+        "n_periods": 276,
+        "min_ic": -0.15000968665578593,
+        "max_ic": 0.39358016262667317
       },
-      "n_predictions": 134692,
-      "n_pred_dates": 274,
-      "weight": 0.25
+      "test_pearson_ic": {
+        "mean_ic": 0.164781039134075,
+        "std_ic": 0.09594542110608427,
+        "ir": 1.71744557722959,
+        "hit_rate": 0.9347826086956522,
+        "n_periods": 276,
+        "min_ic": -0.15104269018080665,
+        "max_ic": 0.4065329114925075
+      }
     }
   },
-  "generated_at": "2026-07-03 23:35:22"
+  "model_path": "C:\\Users\\cui\\Documents\\quantlab\\models\\mlp_multihead.pt",
+  "predictions_path": "C:\\Users\\cui\\Documents\\quantlab\\data\\predictions.parquet",
+  "generated_at": "2026-07-07 18:49:30"
 }

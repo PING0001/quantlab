@@ -1,8 +1,9 @@
-"""
-Multi-horizon MLP walk-forward training.
+﻿"""
+Multi-horizon MLP walk-forward training (single multi-head model).
 
-Trains three separate models for 3d, 4d, and 5d forward returns,
-persists each model + predictions, and reports per-horizon IC.
+Trains one MLP with shared backbone + per-horizon output heads for
+1d / 3d / 5d / 10d forward returns.  Persists a single model file and
+a single predictions parquet with all horizon columns.
 
 Usage:
     python run_mlp_multi.py
@@ -55,8 +56,8 @@ WARMUP_DAYS = 100
 TRAIN_WINDOW = 252
 MIN_TRAIN = 252
 
-HORIZONS = [3, 4, 5, 10]
-WEIGHTS = {3: 0.25, 4: 0.25, 5: 0.25, 10: 0.25}
+HORIZONS = [1, 3, 5, 10]
+WEIGHTS = {1: 0.15, 3: 0.25, 5: 0.35, 10: 0.25}
 
 MLP_KWARGS = dict(
     hidden_layer_sizes=(25, 12, 8),
@@ -66,7 +67,7 @@ MLP_KWARGS = dict(
     validation_fraction=0.1,
     n_iter_no_change=20,
     learning_rate=0.001,
-    batch_size=16384*2,
+    batch_size=16384 * 2,
     random_state=42,
 )
 
@@ -99,7 +100,7 @@ def main():
 
     # Restrict to the curated factors and drop NaN rows
     available = [f for f in SELECTED_FACTORS if f in factors_raw.columns]
-    missing  = [f for f in SELECTED_FACTORS if f not in factors_raw.columns]
+    missing = [f for f in SELECTED_FACTORS if f not in factors_raw.columns]
     if missing:
         print(f"  WARNING: {len(missing)} selected factors not in DB: {missing}")
     factor_cols = available
@@ -108,62 +109,72 @@ def main():
     print(f"  full date range: {factors_raw.index.get_level_values('date').min()} ~ {factors_raw.index.get_level_values('date').max()}")
     print(f"  total stocks: {factors_raw.index.get_level_values('code').nunique()}")
 
-    all_results = {}
+    t0 = time.time()
 
-    for horizon in HORIZONS:
-        print(f"\n{'='*60}")
-        print(f"=== Horizon = {horizon}d forward return ===")
-        print(f"{'='*60}")
-        t0 = time.time()
+    # ---- labels: all horizons at once ----
+    print(f"  computing labels for horizons {HORIZONS} ...")
+    label_dfs = {}
+    for h in HORIZONS:
+        label_dfs[h] = compute_forward_returns(kline, horizon=h)
+    labels_raw = pd.DataFrame({h: label_dfs[h] for h in HORIZONS})
 
-        # ---- labels ----
-        print(f"  computing labels ({horizon}d forward return) ...")
-        labels_raw = compute_forward_returns(kline, horizon=horizon)
+    # ---- align ----
+    common = factors_raw.index.intersection(labels_raw.index)
+    X = factors_raw.loc[common]
+    y = labels_raw.loc[common]
 
-        # ---- align ----
-        common = factors_raw.index.intersection(labels_raw.index)
-        X = factors_raw.loc[common]
-        y = labels_raw.loc[common]
+    # Drop rows where ANY horizon label is NaN
+    mask = y.notna().all(axis=1)
+    X, y = X.loc[mask], y.loc[mask]
 
-        # Drop NaN labels
-        mask = y.notna()
-        X, y = X.loc[mask], y.loc[mask]
+    print(f"  aligned samples: {len(X)}")
 
-        print(f"  aligned samples: {len(X)}")
+    # ---- strategy (multi-head) ----
+    strategy = MLPStrategy(
+        factor_names=factor_cols,
+        horizons=tuple(HORIZONS),
+        **MLP_KWARGS,
+    )
+    print(f"  strategy: {strategy.name}, horizons={HORIZONS}, hidden={MLP_KWARGS['hidden_layer_sizes']}")
 
-        # ---- strategy ----
-        strategy = MLPStrategy(
-            factor_names=factor_cols,
-            **MLP_KWARGS,
-        )
-        print(f"  strategy: {strategy.name}, hidden={MLP_KWARGS['hidden_layer_sizes']}")
+    # ---- walk-forward ----
+    print(f"  walk-forward: train_window={TRAIN_WINDOW}, test={TEST_START.date()}~{TEST_END.date()}, warmup={WARMUP_DAYS}")
+    preds = walk_forward(
+        strategy,
+        X, y,
+        train_window=TRAIN_WINDOW,
+        min_train=MIN_TRAIN,
+        warmup_days=WARMUP_DAYS,
+        test_start=TEST_START,
+        test_end=TEST_END,
+    )
+    t_pred = time.time()
 
-        # ---- walk-forward ----
-        print(f"  walk-forward: train_window={TRAIN_WINDOW}, test={TEST_START.date()}~{TEST_END.date()}, warmup={WARMUP_DAYS}")
-        preds = walk_forward(
-            strategy,
-            X, y,
-            train_window=TRAIN_WINDOW,
-            min_train=MIN_TRAIN,
-            warmup_days=WARMUP_DAYS,
-            test_start=TEST_START,
-            test_end=TEST_END,
-        )
-        t_pred = time.time()
+    if isinstance(preds, pd.DataFrame) and not preds.empty:
         n_pred = len(preds)
-        n_dates = preds.index.get_level_values("date").nunique() if isinstance(preds.index, pd.MultiIndex) else (1 if n_pred > 0 else 0)
+        n_dates = preds.index.get_level_values("date").nunique() if isinstance(preds.index, pd.MultiIndex) else 1
         print(f"  predictions: {n_pred} rows over {n_dates} dates ({t_pred - t0:.1f}s)")
+        print(f"  columns: {list(preds.columns)}")
+    else:
+        n_pred = 0
+        n_dates = 0
+        print(f"  predictions: NONE ({t_pred - t0:.1f}s)")
 
-        # ---- train-set IC (overfitting check) ----
-        train_mask = X.index.get_level_values("date") < TEST_START
-        preds_train = strategy.predict(X.loc[train_mask])
-        ric_train = rank_ic(preds_train, y)
+    # ---- train-set IC (overfitting check) ----
+    train_mask = X.index.get_level_values("date") < TEST_START
+    preds_train = strategy.predict(X.loc[train_mask])
+
+    all_results = {}
+    for h in HORIZONS:
+        col = f"pred_{h}d"
+        print(f"\n--- Horizon {h}d ---")
+        ric_train = rank_ic(preds_train[col], y[h])
         s_train = ic_summary(ric_train)
         print(f"  train-set Rank IC: mean_ic={s_train['mean_ic']:.4f}, ir={s_train['ir']:.3f}, hit_rate={s_train['hit_rate']:.2%}, {s_train['n_periods']} dates")
 
-        if n_pred > 0:
-            ric_test = rank_ic(preds, y)
-            pic_test = pearson_ic(preds, y)
+        if n_pred > 0 and col in preds.columns:
+            ric_test = rank_ic(preds[col], y.reindex(preds.index)[h])
+            pic_test = pearson_ic(preds[col], y.reindex(preds.index)[h])
             s_test = ic_summary(ric_test)
             p_test = ic_summary(pic_test)
             print(f"  test-set  Rank IC: mean_ic={s_test['mean_ic']:.4f}, ir={s_test['ir']:.3f}, hit_rate={s_test['hit_rate']:.2%}, {s_test['n_periods']} dates")
@@ -172,31 +183,25 @@ def main():
         else:
             s_test = {"n_periods": 0}
             p_test = {"n_periods": 0}
-            print(f"  test-set: NO predictions (check data range vs min_train)")
 
-        # ---- persist model ----
-        MODEL_DIR.mkdir(exist_ok=True)
-        model_path = MODEL_DIR / f"mlp_horizon{horizon}.pt"
-        saved = strategy.save(model_path)
-        print(f"  model saved: {saved}")
-
-        # ---- persist predictions ----
-        pred_path = ROOT / "data" / f"predictions_h{horizon}.parquet"
-        pred_df = preds.to_frame("prediction")
-        pred_df.to_parquet(pred_path)
-        print(f"  predictions saved: {pred_path} ({len(pred_df)} rows)")
-
-        # ---- collect results ----
-        all_results[horizon] = {
-            "model_path": str(model_path),
-            "predictions_path": str(pred_path),
+        all_results[h] = {
             "train_ic": s_train,
             "test_ic": s_test,
             "test_pearson_ic": p_test,
-            "n_predictions": n_pred,
-            "n_pred_dates": n_dates,
-            "weight": WEIGHTS[horizon],
         }
+
+    # ---- persist single model ----
+    MODEL_DIR.mkdir(exist_ok=True)
+    model_path = MODEL_DIR / "mlp_multihead.pt"
+    strategy.save(model_path)
+    print(f"\n  model saved: {model_path}")
+
+    # ---- persist single predictions parquet ----
+    DATA_DIR = ROOT / "data"
+    pred_path = DATA_DIR / "predictions.parquet"
+    if isinstance(preds, pd.DataFrame) and not preds.empty:
+        preds.to_parquet(pred_path)
+        print(f"  predictions saved: {pred_path} ({len(preds)} rows)")
 
     # ---- save combined meta ----
     meta = {
@@ -207,25 +212,24 @@ def main():
         "test_end": str(TEST_END.date()),
         "train_window": TRAIN_WINDOW,
         "mlp_kwargs": {k: (list(v) if isinstance(v, tuple) else v) for k, v in MLP_KWARGS.items()},
-        "results_per_horizon": {
-            str(h): all_results[h] for h in HORIZONS
-        },
+        "results_per_horizon": {str(h): all_results[h] for h in HORIZONS},
+        "model_path": str(model_path),
+        "predictions_path": str(pred_path),
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
-    META_PATH = ROOT / "data" / "predictions_multi_meta.json"
-    META_PATH.write_text(
-        json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
-    print(f"\n  combined meta saved: {META_PATH}")
+    META_PATH = DATA_DIR / "predictions_multi_meta.json"
+    META_PATH.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"  meta saved: {META_PATH}")
 
     # ---- final summary ----
-    print(f"\n{'='*60}")
-    print(f"=== Summary ===")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print("=== Summary ===")
+    print(f"{'=' * 60}")
     for h in HORIZONS:
         r = all_results[h]
         st = r["test_ic"]
-        print(f"  Horizon {h}d: train_ic={r['train_ic']['mean_ic']:.4f}, test_rank_ic={st.get('mean_ic', float('nan')):.4f}, test_pearson_ic={sp.get('mean_ic', float('nan')):.4f}, predictions={r['n_predictions']}")
+        print(f"  Horizon {h}d: train_ic={r['train_ic']['mean_ic']:.4f}, "
+              f"test_rank_ic={st.get('mean_ic', float('nan')):.4f}")
     print("\nDone.")
 
 

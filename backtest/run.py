@@ -1,6 +1,9 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
-MLP cross-sectional ranking to event-driven backtest.
+Multi-head MLP cross-sectional ranking to event-driven backtest.
+
+Trains one multi-head MLP (1d/3d/5d/10d), uses the 5d predictions for
+portfolio simulation.
 
 Run from project root:
     python backtest/run.py
@@ -15,7 +18,6 @@ import warnings
 import duckdb
 import numpy as np
 import pandas as pd
-# backtesting.py no longer used
 
 # -- project root --
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,7 +25,6 @@ sys.path.insert(0, str(ROOT))
 
 from strategies import MLPStrategy, walk_forward, rank_ic, ic_summary
 from strategies.labels import compute_forward_returns
-# MLPBacktestStrategy replaced by portfolio simulation
 from backtest.signals import run_portfolio, compute_benchmark
 
 # ============================================================================
@@ -35,7 +36,10 @@ TEST_END = pd.Timestamp("2026-06-26")
 WARMUP_DAYS = 100
 TRAIN_WINDOW = 252
 MIN_TRAIN = 252
-FORWARD_HORIZON = 5
+
+HORIZONS = [1, 3, 5, 10]
+FORWARD_HORIZON = 5  # column used for portfolio simulation
+
 TOP_K = 3
 REBAL_INTERVAL = 5
 CASH_PER_STOCK = 10000
@@ -77,12 +81,15 @@ def load_factors(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
     return df
 
 
-def load_labels(con: duckdb.DuckDBPyConnection) -> pd.Series:
-    """Compute 5-day forward returns as labels."""
+def load_labels(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
+    """Compute forward returns for all horizons, return DataFrame."""
     kline = con.execute(
         "SELECT code, date, close FROM daily_kline ORDER BY code, date"
     ).fetchdf()
-    return compute_forward_returns(kline, horizon=FORWARD_HORIZON)
+    labels = {}
+    for h in HORIZONS:
+        labels[h] = compute_forward_returns(kline, horizon=h)
+    return pd.DataFrame(labels)
 
 
 def load_ohlcv_map(con: duckdb.DuckDBPyConnection, codes: list[str]) -> dict[str, pd.DataFrame]:
@@ -111,36 +118,40 @@ def load_ohlcv_map(con: duckdb.DuckDBPyConnection, codes: list[str]) -> dict[str
     return ohlcv_map
 
 
+def load_or_train_predictions(factors: pd.DataFrame, labels: pd.DataFrame,
+                              factor_cols: list[str]) -> pd.DataFrame:
+    """Load cached multi-head predictions if valid; otherwise train and cache.
 
-def load_or_train_predictions(factors, labels, factor_cols):
-    """Load cached predictions if valid; otherwise train and cache."""
+    Returns a DataFrame with columns pred_1d, pred_3d, pred_5d, pred_10d
+    indexed by (date, code).
+    """
     if PRED_PATH.exists() and PRED_META_PATH.exists():
         try:
             cached_meta = json.loads(PRED_META_PATH.read_text(encoding="utf-8"))
             cached_factors = set(cached_meta.get("factor_names", []))
             cached_start = cached_meta.get("test_start")
             cached_end = cached_meta.get("test_end")
+            cached_horizons = cached_meta.get("horizons", [1, 3, 5, 10])
             current_factors = set(factor_cols)
-            current_start = str(TEST_START.date())
-            current_end = str(TEST_END.date())
             if (cached_factors == current_factors and
-                cached_start == current_start and
-                cached_end == current_end):
-                preds = pd.read_parquet(PRED_PATH)
-                if "prediction" in preds.columns:
-                    preds = preds["prediction"]
+                cached_start == str(TEST_START.date()) and
+                cached_end == str(TEST_END.date()) and
+                cached_horizons == HORIZONS):
+                pred_df = pd.read_parquet(PRED_PATH)
                 print("  [CACHE HIT] Loaded predictions from cache.")
-                return preds, True
+                return pred_df
             else:
                 print("  [CACHE STALE] Metadata mismatch, retraining ...")
         except Exception as e:
             print(f"  [CACHE ERROR] {e}, retraining ...")
 
-    print("  [TRAINING] Walk-forward MLP predictions ...")
+    print("  [TRAINING] Walk-forward multi-head MLP predictions ...")
+    print(f"  Horizons: {HORIZONS}")
     print(f"  Test period: {TEST_START.date()} ~ {TEST_END.date()}")
 
     strategy = MLPStrategy(
         factor_names=factor_cols,
+        horizons=tuple(HORIZONS),
         hidden_layer_sizes=(25, 12),
         alpha=0.001,
         early_stopping=True,
@@ -150,7 +161,7 @@ def load_or_train_predictions(factors, labels, factor_cols):
         random_state=42,
     )
 
-    preds = walk_forward(
+    pred_df = walk_forward(
         strategy, factors, labels,
         train_window=TRAIN_WINDOW,
         min_train=MIN_TRAIN,
@@ -159,23 +170,22 @@ def load_or_train_predictions(factors, labels, factor_cols):
         test_end=TEST_END,
     )
 
-    if len(preds) > 0:
+    if isinstance(pred_df, pd.DataFrame) and len(pred_df) > 0:
         import datetime as dt
         PRED_PATH.parent.mkdir(parents=True, exist_ok=True)
-        pred_df = preds.to_frame("prediction")
         pred_df.to_parquet(PRED_PATH)
         meta = {
             "factor_names": factor_cols,
+            "horizons": HORIZONS,
             "test_start": str(TEST_START.date()),
             "test_end": str(TEST_END.date()),
-            "horizon": FORWARD_HORIZON,
             "hidden_layer_sizes": [25, 12],
             "generated_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
         PRED_META_PATH.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
         print(f"  Predictions cached to {PRED_PATH}")
 
-    return preds, False
+    return pred_df
 
 
 # ============================================================================
@@ -184,7 +194,7 @@ def load_or_train_predictions(factors, labels, factor_cols):
 
 def main():
     print("=" * 60)
-    print("  MLP Event-Driven Backtest")
+    print("  Multi-Head MLP Event-Driven Backtest")
     print("=" * 60)
 
     # ---- 1. Load ----
@@ -194,18 +204,18 @@ def main():
     print("  Loading factors ...")
     factors = load_factors(con)
 
-    print("  Computing labels (5-day forward return) ...")
+    print("  Computing labels (all horizons) ...")
     labels = load_labels(con)
 
     common = factors.index.intersection(labels.index)
     factors = factors.loc[common]
     labels = labels.loc[common]
-    mask = labels.notna()
+    mask = labels.notna().all(axis=1)
     factors, labels = factors.loc[mask], labels.loc[mask]
 
-    # Restrict to curated factors (same as run_mlp.py)
+    # Restrict to curated factors
     available = [f for f in SELECTED_FACTORS if f in factors.columns]
-    missing  = [f for f in SELECTED_FACTORS if f not in factors.columns]
+    missing = [f for f in SELECTED_FACTORS if f not in factors.columns]
     if missing:
         print(f"  WARNING: {len(missing)} selected factors missing: {missing}")
     factor_cols = available
@@ -214,28 +224,33 @@ def main():
     print(f"  Date range: {factors.index.get_level_values('date').min().date()}"
           f" ~ {factors.index.get_level_values('date').max().date()}")
 
-    # ---- 2. MLP predictions (cache-aware) ----
+    # ---- 2. Multi-head MLP predictions (cache-aware) ----
     print(f"\n[2/5] MLP predictions ...")
-    preds, _from_cache = load_or_train_predictions(factors, labels, factor_cols)
+    pred_df = load_or_train_predictions(factors, labels, factor_cols)
 
-    if len(preds) == 0:
+    if not isinstance(pred_df, pd.DataFrame) or len(pred_df) == 0:
         print("  ERROR: No predictions generated. Check data and parameters.")
         con.close()
         return
 
-    n_preds = len(preds)
-    n_dates = preds.index.get_level_values("date").nunique()
-    n_codes = preds.index.get_level_values("code").nunique()
-    print(f"  Predictions: {n_preds} rows, {n_dates} dates, {n_codes} stocks")
+    # Extract the 5d column for portfolio simulation
+    preds_5d = pred_df["pred_5d"]
 
-    ric = rank_ic(preds, labels)
+    n_preds = len(preds_5d)
+    n_dates = preds_5d.index.get_level_values("date").nunique()
+    n_codes = preds_5d.index.get_level_values("code").nunique()
+    print(f"  Predictions (5d): {n_preds} rows, {n_dates} dates, {n_codes} stocks")
+
+    # IC on the 5d horizon
+    labels_5d = labels[FORWARD_HORIZON]
+    ric = rank_ic(preds_5d, labels_5d)
     ic_s = ic_summary(ric)
-    print(f"  Rank IC: mean={ic_s['mean_ic']:.4f}, IR={ic_s['ir']:.2f}, "
+    print(f"  Rank IC (5d): mean={ic_s['mean_ic']:.4f}, IR={ic_s['ir']:.2f}, "
           f"hit_rate={ic_s['hit_rate']:.2%}")
 
     # ---- 3. Build OHLCV map ----
     print(f"\n[3/5] Loading OHLCV data ...")
-    pred_codes = sorted(preds.index.get_level_values("code").unique())
+    pred_codes = sorted(preds_5d.index.get_level_values("code").unique())
     print(f"  {len(pred_codes)} stocks ...")
     ohlcv_map = load_ohlcv_map(con, pred_codes)
     con.close()
@@ -243,7 +258,7 @@ def main():
     # ---- 4. Portfolio backtest (long-short) ----
     print(f"\n[4/5] Running long-short portfolio backtest (top-{TOP_K}, rebal={REBAL_INTERVAL}d) ...")
     port_stats, equity_df, trade_df = run_portfolio(
-        preds, ohlcv_map,
+        preds_5d, ohlcv_map,
         test_start=str(TEST_START.date()),
         top_k=TOP_K,
         rebal_interval=REBAL_INTERVAL,
@@ -260,7 +275,7 @@ def main():
     n_covers = int((trade_df["action"] == "COVER").sum()) if n_trades > 0 else 0
     print(f"  Trades: {n_trades} total (BUY={n_buys}, SELL={n_sells}, SHORT={n_shorts}, COVER={n_covers})")
 
-    test_dates = sorted(preds.index.get_level_values("date").unique())
+    test_dates = sorted(preds_5d.index.get_level_values("date").unique())
     bench_df = compute_benchmark(ohlcv_map, test_dates)
 
     # ========================================================================
@@ -302,12 +317,10 @@ def main():
         print(f"\n  {'Excess Return:':<22} {excess:>+10.2%}")
 
     # IC consistency
-    print(f"\n  --- IC Consistency ---")
+    print(f"\n  --- IC Consistency (5d) ---")
     print(f"  Rank IC mean:  {ic_s['mean_ic']:.4f}")
     print(f"  Rank IC IR:    {ic_s['ir']:.2f}")
     print(f"  Rank IC hit:   {ic_s['hit_rate']:.2%}")
-
-
 
     # Save equity curve
     eq_path = ROOT / "backtest" / "equity.csv"

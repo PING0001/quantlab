@@ -1,7 +1,8 @@
-"""
-forecast_display -- Load three saved MLP models (3d / 4d / 5d) and predict scores
-for the latest trading day.  Outputs a self-contained HTML report with
-per-horizon predictions and a weighted-composite ranking.
+﻿"""
+forecast_display -- Load the multi-head MLP model and predict scores
+for the latest trading day across 1d/3d/5d/10d horizons.
+Outputs a self-contained HTML report with per-horizon predictions
+and a weighted-composite ranking.
 
 Usage (from project root):
     python forecast_display/generate.py
@@ -27,14 +28,9 @@ from strategies import MLPStrategy
 
 DB_PATH = ROOT / "data" / "ashare.duckdb"
 
-MODEL_PATHS = {
-    3: ROOT / "models" / "mlp_horizon3.pt",
-    4: ROOT / "models" / "mlp_horizon4.pt",
-    5: ROOT / "models" / "mlp_horizon5.pt",
-    10: ROOT / "models" / "mlp_horizon10.pt",
-}
-WEIGHTS = {3: 0.25, 4: 0.25, 5: 0.25, 10: 0.25}
-HORIZONS = [3, 4, 5, 10]
+MODEL_PATH = ROOT / "models" / "mlp_multihead.pt"
+WEIGHTS = {1: 0.15, 3: 0.25, 5: 0.35, 10: 0.25}
+HORIZONS = [1, 3, 5, 10]
 
 HERE = Path(__file__).resolve().parent
 HTML_DIR = HERE / "html"
@@ -53,20 +49,17 @@ def load_name_map(con):
 
 
 def load_and_predict():
-    print("=== forecast_display: Multi-horizon MLP prediction (3 loaded models) ===\n")
+    print("=== forecast_display: Multi-head MLP prediction ===\n")
 
-    for h in HORIZONS:
-        if not MODEL_PATHS[h].exists():
-            print(f"ERROR: No saved model at {MODEL_PATHS[h]}")
-            print("Run `python run_mlp_multi.py` first to train and persist all models.")
-            sys.exit(1)
+    if not MODEL_PATH.exists():
+        print(f"ERROR: No saved model at {MODEL_PATH}")
+        print("Run `python run_mlp_multi.py` first to train and persist the multi-head model.")
+        sys.exit(1)
 
-    models = {}
-    for h in HORIZONS:
-        print(f"[1/3] Loading model for horizon={h}d ...")
-        strat = MLPStrategy.load(MODEL_PATHS[h])
-        models[h] = strat
-        print(f"      layers={strat._config['hidden_layer_sizes']}, factors={len(strat.factor_names)}")
+    print(f"[1/3] Loading multi-head model from {MODEL_PATH} ...")
+    model = MLPStrategy.load(MODEL_PATH)
+    print(f"      horizons={model.horizons}, layers={model._config['hidden_layer_sizes']}, "
+          f"factors={len(model.factor_names)}")
 
     con = duckdb.connect(str(DB_PATH), read_only=True)
 
@@ -77,8 +70,7 @@ def load_and_predict():
     name_map = load_name_map(con)
     con.close()
 
-    ref_cols = models[3].factor_names
-    available_cols = [c for c in ref_cols if c in factors.columns]
+    available_cols = [c for c in model.factor_names if c in factors.columns]
     factors = factors[available_cols].dropna()
 
     all_dates = sorted(factors.index.get_level_values("date").unique())
@@ -89,36 +81,35 @@ def load_and_predict():
 
     print(f"\n[3/3] Predicting scores for {latest_date.date()} ...")
     X_latest = factors.xs(latest_date, level="date", drop_level=False)
+    pred_df = model.predict(X_latest)
+
+    if isinstance(pred_df.index, pd.MultiIndex):
+        pred_df.index = pred_df.index.droplevel("date")
+
+    # Build results table
+    results = pd.DataFrame({"code": pred_df.index})
+    results["name"] = results["code"].map(name_map).fillna(results["code"])
 
     for h in HORIZONS:
-        preds = models[h].predict(X_latest)
-        if isinstance(preds.index, pd.MultiIndex):
-            preds = preds.droplevel("date")
+        col = f"pred_{h}d"
+        if col in pred_df.columns:
+            results[f"score_{h}d"] = results["code"].map(pred_df[col].to_dict()).astype(float)
 
-        if h == 3:
-            all_codes = preds.index
-            results = pd.DataFrame({"code": all_codes})
-            results["name"] = results["code"].map(name_map).fillna(results["code"])
-
-        results[f"score_{h}d"] = results["code"].map(preds.to_dict()).astype(float)
-
-    results["composite"] = (
-        WEIGHTS[3] * results["score_3d"]
-        + WEIGHTS[4] * results["score_4d"]
-        + WEIGHTS[5] * results["score_5d"]
-    + WEIGHTS[10] * results["score_10d"]
+    results["composite"] = sum(
+        WEIGHTS[h] * results[f"score_{h}d"] for h in HORIZONS
+        if f"score_{h}d" in results.columns
     )
 
-    score_cols = [f"score_{h}d" for h in HORIZONS] + ["composite"]
+    score_cols = [f"score_{h}d" for h in HORIZONS if f"score_{h}d" in results.columns] + ["composite"]
     results = results.dropna(subset=score_cols).reset_index(drop=True)
 
     results = results.sort_values("composite", ascending=False).reset_index(drop=True)
     results["rank"] = range(1, len(results) + 1)
-    results = results[["rank", "code", "name", "score_3d", "score_4d", "score_5d", "score_10d", "composite"]]
 
-    named_count = sum(
-        1 for n in results["name"] if n.isdigit() is False
-    )
+    display_cols = ["rank", "code", "name"] + [f"score_{h}d" for h in HORIZONS] + ["composite"]
+    results = results[display_cols]
+
+    named_count = sum(1 for n in results["name"] if not n.isdigit())
     print(f"      predictions: {len(results)} stocks scored ({named_count} with names)")
 
     meta = {
@@ -128,11 +119,9 @@ def load_and_predict():
         "horizons": HORIZONS,
         "weights": WEIGHTS,
         "model_info": {
-            str(h): {
-                "layers": str(models[h]._config["hidden_layer_sizes"]),
-                "factor_count": len(models[h].factor_names),
-            }
-            for h in HORIZONS
+            "path": str(MODEL_PATH),
+            "layers": str(model._config["hidden_layer_sizes"]),
+            "factor_count": len(model.factor_names),
         },
         "positive_count": int((results["composite"] > 0).sum()),
         "negative_count": int((results["composite"] <= 0).sum()),
@@ -140,9 +129,9 @@ def load_and_predict():
 
     print(f"\n    Top 5 by composite score:")
     for _, row in results.head(5).iterrows():
+        scores = " ".join(f"{h}d={row[f'score_{h}d']:+.6f}" for h in HORIZONS)
         print(f"      {row['rank']:3d}. {row['code']:6s}  {row['name']:8s}  "
-              f"3d={row['score_3d']:+.6f} 4d={row['score_4d']:+.6f} 5d={row['score_5d']:+.6f} 10d={row['score_10d']:+.6f} "
-              f"composite={row['composite']:+.6f}")
+              f"{scores}  composite={row['composite']:+.6f}")
 
     return results, meta
 
@@ -236,8 +225,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <th>#</th>
       <th>Code</th>
       <th>Name</th>
+      <th>1d Pred</th>
       <th>3d Pred</th>
-      <th>4d Pred</th>
       <th>5d Pred</th>
       <th>10d Pred</th>
       <th>Composite</th>
@@ -247,8 +236,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </tbody>
   </table>
   <footer>
-    Composite = (3d + 4d + 5d + 10d) / 4 &middot;
-    Three independent MLP models &middot; For reference only
+    Composite = 0.15*1d + 0.25*3d + 0.35*5d + 0.25*10d &middot;
+    Single multi-head MLP model &middot; For reference only
   </footer>
 </div>
 <script>
@@ -265,17 +254,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
 
 def build_model_tags(meta):
-    tags = []
     info = meta["model_info"]
-    for h in meta["horizons"]:
-        i = info[str(h)]
-        tags.append(f'<span>Model {h}d: MLP{i["layers"]}, {i["factor_count"]} factors</span>')
-    return " ".join(tags)
+    return (
+        f'<span>Multi-head MLP: {info["layers"]}, '
+        f'{info["factor_count"]} factors</span>'
+    )
 
 
 def _score_cell(val):
     cls = "score-pos" if val > 0 else "score-neg"
-    px_per_unit = 1200  # 1% (0.01) -> 12px
+    px_per_unit = 1200
     max_px = 150
     bar_w = max(int(min(abs(val) * px_per_unit, max_px)), 0)
     bar_w = max(bar_w, 2) if val != 0 else 0
@@ -286,15 +274,14 @@ def _score_cell(val):
 
 def build_html(scored, meta):
     rows = []
-
     for _, r in scored.iterrows():
         row = (
             f"<tr>"
             f"<td>{r['rank']}</td>"
             f"<td>{r['code']}</td>"
             f"<td>{r['name']}</td>"
+            f"{_score_cell(r['score_1d'])}"
             f"{_score_cell(r['score_3d'])}"
-            f"{_score_cell(r['score_4d'])}"
             f"{_score_cell(r['score_5d'])}"
             f"{_score_cell(r['score_10d'])}"
             f"{_score_cell(r['composite'])}"
@@ -313,7 +300,7 @@ def build_html(scored, meta):
 
 
 def main():
-    print("Generating multi-horizon forecast HTML ...")
+    print("Generating multi-head forecast HTML ...")
     scored, meta = load_and_predict()
     html = build_html(scored, meta)
     HTML_DIR.mkdir(parents=True, exist_ok=True)
