@@ -119,6 +119,15 @@ def create_tables(con):
             PRIMARY KEY (code, date)
         )
     """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS daily_basic (
+            code        VARCHAR NOT NULL,
+            date        DATE    NOT NULL,
+            total_mv    DOUBLE,
+            circ_mv     DOUBLE,
+            PRIMARY KEY (code, date)
+        )
+    """)
     log.info("表结构已创建/确认 (stock_info, daily_raw)")
 
 
@@ -217,8 +226,45 @@ def main():
     view_count = con.execute("SELECT count(*) FROM daily_kline").fetchone()[0]
     log.info("完成！daily_raw: %d 行 / %d 只股票，daily_kline(view): %d 行",
              row_count, stock_count, view_count)
+
+    # ---- daily_basic（逐只拉取，relay 不支持批量） ----
+    log.info("拉取 daily_basic (total_mv, circ_mv) ...")
+    all_basic = []
+    for idx, stock in enumerate(stocks, 1):
+        df = fetch_daily_basic(pro, stock["full_code"])
+        if not df.empty:
+            all_basic.append(df)
+        if idx % 50 == 0 or idx == len(stocks):
+            log.info("  progress: %d/%d", idx, len(stocks))
+        time.sleep(REQ_INTERVAL)
+
+    if all_basic:
+        basic = pd.concat(all_basic, ignore_index=True)
+        con.execute("DELETE FROM daily_basic")
+        con.execute("INSERT INTO daily_basic SELECT * FROM basic")
+        log.info("daily_basic 写入 %d 行 / %d 只股票",
+                 len(basic), basic["code"].nunique())
+    else:
+        log.warning("daily_basic 未获取到任何数据")
+
     con.close()
 
 
 if __name__ == "__main__":
     main()
+def fetch_daily_basic(pro, full_code):
+    """拉取单只股票的 daily_basic（total_mv, circ_mv）。
+
+    quicksync relay 的 daily_basic 不支持批量（ts_code 逗号分隔）
+    也不支持 start_date/end_date 过滤，所以逐只全量拉取。
+    """
+    df = pro.daily_basic(ts_code=full_code)
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df["code"] = df["ts_code"].str.replace(r"[.](SH|SZ|BJ)$", "", regex=True)
+    df["trade_date"] = pd.to_datetime(df["trade_date"])
+    df["total_mv"] = pd.to_numeric(df["total_mv"], errors="coerce")
+    df["circ_mv"] = pd.to_numeric(df["circ_mv"], errors="coerce")
+    result = df[["code", "trade_date", "total_mv", "circ_mv"]].rename(columns={"trade_date": "date"})
+    result = result.drop_duplicates(subset=["code", "date"])
+    return result

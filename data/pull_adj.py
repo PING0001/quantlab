@@ -122,9 +122,40 @@ def ensure_data_gaps_table(con):
     )""")
 
 
+def ensure_daily_basic_table(con):
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS daily_basic (
+            code        VARCHAR NOT NULL,
+            date        DATE    NOT NULL,
+            total_mv    DOUBLE,
+            circ_mv     DOUBLE,
+            PRIMARY KEY (code, date)
+        )
+    """)
+    log.info("daily_basic 表已确认")
+
+
+def fetch_daily_basic(pro, full_code):
+    """拉取单只股票的 daily_basic（total_mv, circ_mv）。
+
+    quicksync relay 的 daily_basic 不支持批量与日期过滤，逐只全量拉取。
+    """
+    df = pro.daily_basic(ts_code=full_code)
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df["code"] = df["ts_code"].str.replace(r"[.](SH|SZ|BJ)$", "", regex=True)
+    df["trade_date"] = pd.to_datetime(df["trade_date"])
+    df["total_mv"] = pd.to_numeric(df["total_mv"], errors="coerce")
+    df["circ_mv"] = pd.to_numeric(df["circ_mv"], errors="coerce")
+    result = df[["code", "trade_date", "total_mv", "circ_mv"]].rename(columns={"trade_date": "date"})
+    result = result.drop_duplicates(subset=["code", "date"])
+    return result
+
+
 def main():
     con = duckdb.connect(str(DB_PATH))
     ensure_data_gaps_table(con)
+    ensure_daily_basic_table(con)
     stocks = load_stock_pool(STOCK_POOL)
     pro = _init_pro()
 
@@ -190,30 +221,55 @@ def main():
                     log.info("  %s: 标记 %d 个缺口（%s ~ %s）", code, len(dates), first_miss, today)
 
     if not all_daily:
-        log.info("无新数据")
-        con.close()
-        return
-
-    daily = pd.concat(all_daily, ignore_index=True)
-    adj = pd.concat(all_adj, ignore_index=True) if all_adj else pd.DataFrame()
-    if not adj.empty:
-        daily = daily.merge(adj, on=["code", "date"], how="left")
+        log.info("无新日线数据")
     else:
-        daily["adj_factor"] = None
-    if "turn" not in daily.columns:
-        daily["turn"] = None
+        daily = pd.concat(all_daily, ignore_index=True)
+        adj = pd.concat(all_adj, ignore_index=True) if all_adj else pd.DataFrame()
+        if not adj.empty:
+            daily = daily.merge(adj, on=["code", "date"], how="left")
+        else:
+            daily["adj_factor"] = None
+        if "turn" not in daily.columns:
+            daily["turn"] = None
 
-    log.info("合并写入 daily_raw（%d 行）...", len(daily))
-    con.execute("""
-        INSERT OR REPLACE INTO daily_raw
-            (code, date, open, high, low, close, volume, amount, pct_chg, turn, adj_factor)
-        SELECT code, date, open, high, low, close,
-               volume, amount, pct_chg, turn, adj_factor
-        FROM daily
-    """)
-    con.execute("CHECKPOINT")
-    row_count = con.execute("SELECT count(*) FROM daily_raw").fetchone()[0]
-    log.info("完成：daily_raw 当前 %d 行", row_count)
+        log.info("合并写入 daily_raw（%d 行）...", len(daily))
+        con.execute("""
+            INSERT OR REPLACE INTO daily_raw
+                (code, date, open, high, low, close, volume, amount, pct_chg, turn, adj_factor)
+            SELECT code, date, open, high, low, close,
+                   volume, amount, pct_chg, turn, adj_factor
+            FROM daily
+        """)
+        con.execute("CHECKPOINT")
+        row_count = con.execute("SELECT count(*) FROM daily_raw").fetchone()[0]
+        log.info("完成：daily_raw 当前 %d 行", row_count)
+
+    today_dt = datetime.now().date()
+    updated_count = 0
+    for idx, stock in enumerate(stocks, 1):
+        code = stock["code"]
+        full_code = stock["full_code"]
+
+        max_d = con.execute(
+            "SELECT MAX(date) FROM daily_basic WHERE code=?", (code,)
+        ).fetchone()[0]
+        if max_d is not None and max_d >= today_dt:
+            continue
+
+        df = fetch_daily_basic(pro, full_code)
+        if not df.empty:
+            con.execute("DELETE FROM daily_basic WHERE code=?", (code,))
+            con.execute("INSERT INTO daily_basic SELECT * FROM df")
+            log.info("  %s: %d 行更新", code, len(df))
+            updated_count += 1
+        elif max_d is None:
+            log.warning("  %s: daily_basic 无数据", code)
+
+        if idx % 50 == 0 or idx == len(stocks):
+            log.info("  progress: %d/%d (%d updated)", idx, len(stocks), updated_count)
+        time.sleep(REQ_INTERVAL)
+
+    log.info("daily_basic 增量更新完成，%d 只股票已刷新", updated_count)
     con.close()
 
 
