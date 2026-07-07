@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MLP Prediction -- 2026-06-30</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: #f4f5f7; color: #1a1a2e; line-height: 1.5; padding: 24px 16px;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  header { margin-bottom: 24px; }
+  header h1 { font-size: 22px; font-weight: 600; color: #0d0d1a; }
+  header .meta {
+    display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; font-size: 13px; color: #555;
+  }
+  header .meta span { background: #e8ecf1; padding: 3px 10px; border-radius: 4px; }
+  header .stats { display: flex; gap: 20px; margin-top: 14px; }
+  .stat-box {
+    background: #fff; border: 1px solid #e0e3e8; border-radius: 6px;
+    padding: 10px 18px; min-width: 100px; text-align: center;
+  }
+  .stat-box .val { font-size: 20px; font-weight: 700; }
+  .stat-box .lbl { font-size: 11px; color: #777; margin-top: 2px; }
+  .stat-box.pos .val { color: #0a8f4a; }
+  .stat-box.neg .val { color: #c0392b; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 14px; align-items: center; }
+  .toolbar input {
+    padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; width: 200px;
+  }
+  .toolbar input:focus { outline: none; border-color: #4a6cf7; }
+  .toolbar .hint { font-size: 12px; color: #999; }
+  table {
+    width: 100%; border-collapse: collapse; background: #fff;
+    border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  }
+  thead { background: #2c2c3a; color: #f0f0f5; }
+  th {
+    padding: 10px 14px; text-align: left; font-size: 13px; font-weight: 500; white-space: nowrap;
+  }
+  th:first-child { text-align: center; width: 50px; }
+  td {
+    padding: 8px 14px; font-size: 13px; border-bottom: 1px solid #eef0f4;
+  }
+  td:first-child { text-align: center; color: #888; font-size: 12px; }
+  tbody tr:hover { background: #f7f8fb; }
+  .score-pos { color: #0a8f4a; font-weight: 600; }
+  .score-neg { color: #c0392b; font-weight: 600; }
+  .score-bar {
+    display: inline-block; height: 8px; border-radius: 4px;
+    vertical-align: middle; margin-right: 6px;
+  }
+  .hidden { display: none; }
+  footer {
+    margin-top: 24px; font-size: 11px; color: #aaa; text-align: center;
+  }
+  footer a { color: #4a6cf7; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>MLP Strategy -- Next Trading Day Score Prediction</h1>
+    <div class="meta">
+      <span>Pred Date: 2026-06-30</span>
+      <span>Horizon: 5d</span>
+      <span>Model: MLP(25, 12)</span>
+      <span>Factors: 20</span>
+      <span>Train: from saved model</span>
+      <span>Generated: 2026-07-02 10:47:15</span>
+    </div>
+    <div class="stats">
+      <div class="stat-box"><div class="val">399</div><div class="lbl">Total</div></div>
+      <div class="stat-box pos"><div class="val">377</div><div class="lbl">Bullish (score &gt; 0)</div></div>
+      <div class="stat-box neg"><div class="val">22</div><div class="lbl">Bearish (score &le; 0)</div></div>
+    </div>
+  </header>
+  <div class="toolbar">
+    <input type="text" id="filter" placeholder="Search code or name..." oninput="doFilter()">
+    <span class="hint">Ranked by predicted score (descending)</span>
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>Code</th><th>Name</th><th>Predicted Score</th></tr></thead>
+    <tbody id="table-body">
+<tr><td>1</td><td>301578</td><td>辰奕智能</td><td class="score-pos"><span class="score-bar" style="width:100px;background:#0a8f4a;"></span>+0.021431</td></tr>
+<tr><td>2</td><td>688051</td><td>佳华科技</td><td class="score-pos"><span class="score-bar" style="width:99px;background:#0a8f4a;"></span>+0.021421</td></tr>
+<tr><td>3</td><td>688092</td><td>爱科科技</td><td class="score-pos"><span class="score-bar" style="width:80px;background:#0a8f4a;"></span>+0.017287</td></tr>
+<tr><td>4</td><td>300426</td><td>华智数媒</td><td class="score-pos"><span class="score-bar" style="width:79px;background:#0a8f4a;"></span>+0.017018</td></tr>
+<tr><td>5</td><td>300935</td><td>盈建科</td><td class="score-pos"><span class="score-bar" style="width:78px;background:#0a8f4a;"></span>+0.016809</td></tr>
+<tr><td>6</td><td>003017</td><td>大洋生物</td><td class="score-pos"><span class="score-bar" style="width:77px;background:#0a8f4a;"></span>+0.016677</td></tr>
+<tr><td>7</td><td>300254</td><td>仟源医药</td><td class="score-pos"><span class="score-bar" style="width:76px;background:#0a8f4a;"></span>+0.016306</td></tr>
+<tr><td>8</td><td>600540</td><td>新赛股份</td><td class="score-pos"><span class="score-bar" style="width:73px;background:#0a8f4a;"></span>+0.015801</td></tr>
+<tr><td>9</td><td>688517</td><td>金冠电气</td><td class="score-pos"><span class="score-bar" style="width:71px;background:#0a8f4a;"></span>+0.015381</td></tr>
+<tr><td>10</td><td>300417</td><td>南华仪器</td><td class="score-pos"><span class="score-bar" style="width:71px;background:#0a8f4a;"></span>+0.015260</td></tr>
+<tr><td>11</td><td>603117</td><td>万林物流</td><td class="score-pos"><span class="score-bar" style="width:70px;background:#0a8f4a;"></span>+0.015148</td></tr>
+<tr><td>12</td><td>688597</td><td>煜邦电力</td><td class="score-pos"><span class="score-bar" style="width:69px;background:#0a8f4a;"></span>+0.014929</td></tr>
+<tr><td>13</td><td>603023</td><td>威帝股份</td><td class="score-pos"><span class="score-bar" style="width:66px;background:#0a8f4a;"></span>+0.014302</td></tr>
+<tr><td>14</td><td>688296</td><td>和达科技</td><td class="score-pos"><span class="score-bar" style="width:66px;background:#0a8f4a;"></span>+0.014274</td></tr>
+<tr><td>15</td><td>003032</td><td>传智教育</td><td class="score-pos"><span class="score-bar" style="width:66px;background:#0a8f4a;"></span>+0.014256</td></tr>
+<tr><td>16</td><td>001373</td><td>翔腾新材</td><td class="score-pos"><span class="score-bar" style="width:66px;background:#0a8f4a;"></span>+0.014214</td></tr>
+<tr><td>17</td><td>600137</td><td>浪莎股份</td><td class="score-pos"><span class="score-bar" style="width:66px;background:#0a8f4a;"></span>+0.014154</td></tr>
+<tr><td>18</td><td>600992</td><td>贵绳股份</td><td class="score-pos"><span class="score-bar" style="width:66px;background:#0a8f4a;"></span>+0.014146</td></tr>
+<tr><td>19</td><td>301359</td><td>东南电子</td><td class="score-pos"><span class="score-bar" style="width:65px;background:#0a8f4a;"></span>+0.013987</td></tr>
+<tr><td>20</td><td>603836</td><td>海程邦达</td><td class="score-pos"><span class="score-bar" style="width:65px;background:#0a8f4a;"></span>+0.013970</td></tr>
+<tr><td>21</td><td>300175</td><td>朗源股份</td><td class="score-pos"><span class="score-bar" style="width:64px;background:#0a8f4a;"></span>+0.013870</td></tr>
+<tr><td>22</td><td>688021</td><td>奥福科技</td><td class="score-pos"><span class="score-bar" style="width:64px;background:#0a8f4a;"></span>+0.013817</td></tr>
+<tr><td>23</td><td>603177</td><td>德创环保</td><td class="score-pos"><span class="score-bar" style="width:64px;background:#0a8f4a;"></span>+0.013718</td></tr>
+<tr><td>24</td><td>603096</td><td>新经典</td><td class="score-pos"><span class="score-bar" style="width:63px;background:#0a8f4a;"></span>+0.013612</td></tr>
+<tr><td>25</td><td>000995</td><td>皇台酒业</td><td class="score-pos"><span class="score-bar" style="width:63px;background:#0a8f4a;"></span>+0.013557</td></tr>
+<tr><td>26</td><td>688217</td><td>睿昂基因</td><td class="score-pos"><span class="score-bar" style="width:62px;background:#0a8f4a;"></span>+0.013385</td></tr>
+<tr><td>27</td><td>688681</td><td>科汇股份</td><td class="score-pos"><span class="score-bar" style="width:61px;background:#0a8f4a;"></span>+0.013218</td></tr>
+<tr><td>28</td><td>301130</td><td>西点药业</td><td class="score-pos"><span class="score-bar" style="width:61px;background:#0a8f4a;"></span>+0.013137</td></tr>
+<tr><td>29</td><td>001366</td><td>播恩集团</td><td class="score-pos"><span class="score-bar" style="width:61px;background:#0a8f4a;"></span>+0.013119</td></tr>
+<tr><td>30</td><td>301037</td><td>保立佳</td><td class="score-pos"><span class="score-bar" style="width:61px;background:#0a8f4a;"></span>+0.013103</td></tr>
+<tr><td>31</td><td>300778</td><td>新城市</td><td class="score-pos"><span class="score-bar" style="width:59px;background:#0a8f4a;"></span>+0.012846</td></tr>
+<tr><td>32</td><td>002188</td><td>中天服务</td><td class="score-pos"><span class="score-bar" style="width:59px;background:#0a8f4a;"></span>+0.012706</td></tr>
+<tr><td>33</td><td>000952</td><td>广济药业</td><td class="score-pos"><span class="score-bar" style="width:59px;background:#0a8f4a;"></span>+0.012705</td></tr>
+<tr><td>34</td><td>002205</td><td>国统股份</td><td class="score-pos"><span class="score-bar" style="width:59px;background:#0a8f4a;"></span>+0.012685</td></tr>
+<tr><td>35</td><td>300025</td><td>华星创业</td><td class="score-pos"><span class="score-bar" style="width:59px;background:#0a8f4a;"></span>+0.012675</td></tr>
+<tr><td>36</td><td>300517</td><td>海波重科</td><td class="score-pos"><span class="score-bar" style="width:59px;background:#0a8f4a;"></span>+0.012658</td></tr>
+<tr><td>37</td><td>000590</td><td>古汉医药</td><td class="score-pos"><span class="score-bar" style="width:59px;background:#0a8f4a;"></span>+0.012648</td></tr>
+<tr><td>38</td><td>002629</td><td>仁智股份</td><td class="score-pos"><span class="score-bar" style="width:58px;background:#0a8f4a;"></span>+0.012593</td></tr>
+<tr><td>39</td><td>301353</td><td>普莱得</td><td class="score-pos"><span class="score-bar" style="width:58px;background:#0a8f4a;"></span>+0.012582</td></tr>
+<tr><td>40</td><td>002778</td><td>中晟高科</td><td class="score-pos"><span class="score-bar" style="width:58px;background:#0a8f4a;"></span>+0.012544</td></tr>
+<tr><td>41</td><td>002800</td><td>天顺股份</td><td class="score-pos"><span class="score-bar" style="width:58px;background:#0a8f4a;"></span>+0.012522</td></tr>
+<tr><td>42</td><td>002862</td><td>实丰文化</td><td class="score-pos"><span class="score-bar" style="width:58px;background:#0a8f4a;"></span>+0.012461</td></tr>
+<tr><td>43</td><td>300892</td><td>品渥食品</td><td class="score-pos"><span class="score-bar" style="width:58px;background:#0a8f4a;"></span>+0.012454</td></tr>
+<tr><td>44</td><td>301429</td><td>森泰股份</td><td class="score-pos"><span class="score-bar" style="width:57px;background:#0a8f4a;"></span>+0.012221</td></tr>
+<tr><td>45</td><td>301231</td><td>荣信文化</td><td class="score-pos"><span class="score-bar" style="width:56px;background:#0a8f4a;"></span>+0.012214</td></tr>
+<tr><td>46</td><td>688573</td><td>信宇人</td><td class="score-pos"><span class="score-bar" style="width:56px;background:#0a8f4a;"></span>+0.012127</td></tr>
+<tr><td>47</td><td>001209</td><td>洪兴股份</td><td class="score-pos"><span class="score-bar" style="width:56px;background:#0a8f4a;"></span>+0.012094</td></tr>
+<tr><td>48</td><td>300635</td><td>中达安</td><td class="score-pos"><span class="score-bar" style="width:56px;background:#0a8f4a;"></span>+0.012011</td></tr>
+<tr><td>49</td><td>000856</td><td>冀东装备</td><td class="score-pos"><span class="score-bar" style="width:55px;background:#0a8f4a;"></span>+0.011994</td></tr>
+<tr><td>50</td><td>300519</td><td>新光药业</td><td class="score-pos"><span class="score-bar" style="width:55px;background:#0a8f4a;"></span>+0.011985</td></tr>
+<tr><td>51</td><td>600099</td><td>林海股份</td><td class="score-pos"><span class="score-bar" style="width:55px;background:#0a8f4a;"></span>+0.011930</td></tr>
+<tr><td>52</td><td>605122</td><td>四方新材</td><td class="score-pos"><span class="score-bar" style="width:55px;background:#0a8f4a;"></span>+0.011851</td></tr>
+<tr><td>53</td><td>603326</td><td>我乐家居</td><td class="score-pos"><span class="score-bar" style="width:55px;background:#0a8f4a;"></span>+0.011842</td></tr>
+<tr><td>54</td><td>300823</td><td>建科智能</td><td class="score-pos"><span class="score-bar" style="width:54px;background:#0a8f4a;"></span>+0.011753</td></tr>
+<tr><td>55</td><td>688067</td><td>爱威科技</td><td class="score-pos"><span class="score-bar" style="width:54px;background:#0a8f4a;"></span>+0.011716</td></tr>
+<tr><td>56</td><td>300949</td><td>奥雅股份</td><td class="score-pos"><span class="score-bar" style="width:54px;background:#0a8f4a;"></span>+0.011598</td></tr>
+<tr><td>57</td><td>300876</td><td>蒙泰高新</td><td class="score-pos"><span class="score-bar" style="width:53px;background:#0a8f4a;"></span>+0.011517</td></tr>
+<tr><td>58</td><td>002775</td><td>文科股份</td><td class="score-pos"><span class="score-bar" style="width:53px;background:#0a8f4a;"></span>+0.011487</td></tr>
+<tr><td>59</td><td>000953</td><td>中哲精化</td><td class="score-pos"><span class="score-bar" style="width:53px;background:#0a8f4a;"></span>+0.011476</td></tr>
+<tr><td>60</td><td>301156</td><td>美农生物</td><td class="score-pos"><span class="score-bar" style="width:52px;background:#0a8f4a;"></span>+0.011330</td></tr>
+<tr><td>61</td><td>603908</td><td>牧高笛</td><td class="score-pos"><span class="score-bar" style="width:52px;background:#0a8f4a;"></span>+0.011327</td></tr>
+<tr><td>62</td><td>300268</td><td>佳沃食品</td><td class="score-pos"><span class="score-bar" style="width:52px;background:#0a8f4a;"></span>+0.011309</td></tr>
+<tr><td>63</td><td>300030</td><td>阳普医疗</td><td class="score-pos"><span class="score-bar" style="width:52px;background:#0a8f4a;"></span>+0.011240</td></tr>
+<tr><td>64</td><td>300844</td><td>山水比德</td><td class="score-pos"><span class="score-bar" style="width:52px;background:#0a8f4a;"></span>+0.011181</td></tr>
+<tr><td>65</td><td>688013</td><td>XD天臣医</td><td class="score-pos"><span class="score-bar" style="width:52px;background:#0a8f4a;"></span>+0.011174</td></tr>
+<tr><td>66</td><td>002591</td><td>恒大高新</td><td class="score-pos"><span class="score-bar" style="width:52px;background:#0a8f4a;"></span>+0.011167</td></tr>
+<tr><td>67</td><td>603810</td><td>丰山集团</td><td class="score-pos"><span class="score-bar" style="width:52px;background:#0a8f4a;"></span>+0.011157</td></tr>
+<tr><td>68</td><td>002715</td><td>登云股份</td><td class="score-pos"><span class="score-bar" style="width:51px;background:#0a8f4a;"></span>+0.011098</td></tr>
+<tr><td>69</td><td>003023</td><td>彩虹集团</td><td class="score-pos"><span class="score-bar" style="width:51px;background:#0a8f4a;"></span>+0.011080</td></tr>
+<tr><td>70</td><td>300605</td><td>恒锋信息</td><td class="score-pos"><span class="score-bar" style="width:51px;background:#0a8f4a;"></span>+0.011075</td></tr>
+<tr><td>71</td><td>603151</td><td>邦基科技</td><td class="score-pos"><span class="score-bar" style="width:51px;background:#0a8f4a;"></span>+0.011029</td></tr>
+<tr><td>72</td><td>301006</td><td>迈拓股份</td><td class="score-pos"><span class="score-bar" style="width:51px;background:#0a8f4a;"></span>+0.010938</td></tr>
+<tr><td>73</td><td>688528</td><td>秦川物联</td><td class="score-pos"><span class="score-bar" style="width:51px;background:#0a8f4a;"></span>+0.010931</td></tr>
+<tr><td>74</td><td>603073</td><td>彩蝶实业</td><td class="score-pos"><span class="score-bar" style="width:50px;background:#0a8f4a;"></span>+0.010914</td></tr>
+<tr><td>75</td><td>600661</td><td>昂立教育</td><td class="score-pos"><span class="score-bar" style="width:50px;background:#0a8f4a;"></span>+0.010794</td></tr>
+<tr><td>76</td><td>300564</td><td>筑博设计</td><td class="score-pos"><span class="score-bar" style="width:50px;background:#0a8f4a;"></span>+0.010749</td></tr>
+<tr><td>77</td><td>603028</td><td>赛福天</td><td class="score-pos"><span class="score-bar" style="width:50px;background:#0a8f4a;"></span>+0.010727</td></tr>
+<tr><td>78</td><td>688466</td><td>金科环境</td><td class="score-pos"><span class="score-bar" style="width:49px;background:#0a8f4a;"></span>+0.010702</td></tr>
+<tr><td>79</td><td>600774</td><td>汉商集团</td><td class="score-pos"><span class="score-bar" style="width:49px;background:#0a8f4a;"></span>+0.010686</td></tr>
+<tr><td>80</td><td>688701</td><td>卓锦股份</td><td class="score-pos"><span class="score-bar" style="width:49px;background:#0a8f4a;"></span>+0.010592</td></tr>
+<tr><td>81</td><td>300176</td><td>鸿特科技</td><td class="score-pos"><span class="score-bar" style="width:49px;background:#0a8f4a;"></span>+0.010591</td></tr>
+<tr><td>82</td><td>603506</td><td>南都物业</td><td class="score-pos"><span class="score-bar" style="width:49px;background:#0a8f4a;"></span>+0.010585</td></tr>
+<tr><td>83</td><td>301010</td><td>晶雪节能</td><td class="score-pos"><span class="score-bar" style="width:48px;background:#0a8f4a;"></span>+0.010478</td></tr>
+<tr><td>84</td><td>301065</td><td>本立科技</td><td class="score-pos"><span class="score-bar" style="width:48px;background:#0a8f4a;"></span>+0.010477</td></tr>
+<tr><td>85</td><td>001278</td><td>一彬科技</td><td class="score-pos"><span class="score-bar" style="width:48px;background:#0a8f4a;"></span>+0.010422</td></tr>
+<tr><td>86</td><td>002942</td><td>新农股份</td><td class="score-pos"><span class="score-bar" style="width:48px;background:#0a8f4a;"></span>+0.010385</td></tr>
+<tr><td>87</td><td>603168</td><td>莎普爱思</td><td class="score-pos"><span class="score-bar" style="width:48px;background:#0a8f4a;"></span>+0.010319</td></tr>
+<tr><td>88</td><td>301355</td><td>南王科技</td><td class="score-pos"><span class="score-bar" style="width:48px;background:#0a8f4a;"></span>+0.010303</td></tr>
+<tr><td>89</td><td>688369</td><td>致远互联</td><td class="score-pos"><span class="score-bar" style="width:47px;background:#0a8f4a;"></span>+0.010256</td></tr>
+<tr><td>90</td><td>603214</td><td>爱婴室</td><td class="score-pos"><span class="score-bar" style="width:47px;background:#0a8f4a;"></span>+0.010187</td></tr>
+<tr><td>91</td><td>688613</td><td>奥精医疗</td><td class="score-pos"><span class="score-bar" style="width:47px;background:#0a8f4a;"></span>+0.010184</td></tr>
+<tr><td>92</td><td>603238</td><td>诺邦股份</td><td class="score-pos"><span class="score-bar" style="width:47px;background:#0a8f4a;"></span>+0.010144</td></tr>
+<tr><td>93</td><td>300642</td><td>透景生命</td><td class="score-pos"><span class="score-bar" style="width:47px;background:#0a8f4a;"></span>+0.010099</td></tr>
+<tr><td>94</td><td>001336</td><td>楚环科技</td><td class="score-pos"><span class="score-bar" style="width:46px;background:#0a8f4a;"></span>+0.010048</td></tr>
+<tr><td>95</td><td>301229</td><td>纽泰格</td><td class="score-pos"><span class="score-bar" style="width:46px;background:#0a8f4a;"></span>+0.009951</td></tr>
+<tr><td>96</td><td>603717</td><td>天域生物</td><td class="score-pos"><span class="score-bar" style="width:45px;background:#0a8f4a;"></span>+0.009798</td></tr>
+<tr><td>97</td><td>605033</td><td>美邦股份</td><td class="score-pos"><span class="score-bar" style="width:45px;background:#0a8f4a;"></span>+0.009716</td></tr>
+<tr><td>98</td><td>301113</td><td>雅艺科技</td><td class="score-pos"><span class="score-bar" style="width:45px;background:#0a8f4a;"></span>+0.009713</td></tr>
+<tr><td>99</td><td>600854</td><td>春兰股份</td><td class="score-pos"><span class="score-bar" style="width:45px;background:#0a8f4a;"></span>+0.009710</td></tr>
+<tr><td>100</td><td>301503</td><td>智迪科技</td><td class="score-pos"><span class="score-bar" style="width:44px;background:#0a8f4a;"></span>+0.009637</td></tr>
+<tr><td>101</td><td>301258</td><td>富士莱</td><td class="score-pos"><span class="score-bar" style="width:44px;background:#0a8f4a;"></span>+0.009580</td></tr>
+<tr><td>102</td><td>300838</td><td>浙江力诺</td><td class="score-pos"><span class="score-bar" style="width:44px;background:#0a8f4a;"></span>+0.009573</td></tr>
+<tr><td>103</td><td>300220</td><td>金运激光</td><td class="score-pos"><span class="score-bar" style="width:44px;background:#0a8f4a;"></span>+0.009530</td></tr>
+<tr><td>104</td><td>603860</td><td>中公高科</td><td class="score-pos"><span class="score-bar" style="width:44px;background:#0a8f4a;"></span>+0.009430</td></tr>
+<tr><td>105</td><td>002760</td><td>凤形股份</td><td class="score-pos"><span class="score-bar" style="width:43px;background:#0a8f4a;"></span>+0.009419</td></tr>
+<tr><td>106</td><td>002799</td><td>环球印务</td><td class="score-pos"><span class="score-bar" style="width:43px;background:#0a8f4a;"></span>+0.009338</td></tr>
+<tr><td>107</td><td>300313</td><td>天山生物</td><td class="score-pos"><span class="score-bar" style="width:43px;background:#0a8f4a;"></span>+0.009334</td></tr>
+<tr><td>108</td><td>600831</td><td>广电网络</td><td class="score-pos"><span class="score-bar" style="width:43px;background:#0a8f4a;"></span>+0.009320</td></tr>
+<tr><td>109</td><td>002836</td><td>新宏泽</td><td class="score-pos"><span class="score-bar" style="width:43px;background:#0a8f4a;"></span>+0.009279</td></tr>
+<tr><td>110</td><td>300640</td><td>德艺文创</td><td class="score-pos"><span class="score-bar" style="width:42px;background:#0a8f4a;"></span>+0.009214</td></tr>
+<tr><td>111</td><td>600833</td><td>XD第一医</td><td class="score-pos"><span class="score-bar" style="width:42px;background:#0a8f4a;"></span>+0.009211</td></tr>
+<tr><td>112</td><td>603385</td><td>惠达卫浴</td><td class="score-pos"><span class="score-bar" style="width:42px;background:#0a8f4a;"></span>+0.009169</td></tr>
+<tr><td>113</td><td>688244</td><td>永信至诚</td><td class="score-pos"><span class="score-bar" style="width:42px;background:#0a8f4a;"></span>+0.009169</td></tr>
+<tr><td>114</td><td>301126</td><td>达嘉维康</td><td class="score-pos"><span class="score-bar" style="width:42px;background:#0a8f4a;"></span>+0.009158</td></tr>
+<tr><td>115</td><td>688638</td><td>誉辰智能</td><td class="score-pos"><span class="score-bar" style="width:42px;background:#0a8f4a;"></span>+0.009149</td></tr>
+<tr><td>116</td><td>600287</td><td>苏豪时尚</td><td class="score-pos"><span class="score-bar" style="width:42px;background:#0a8f4a;"></span>+0.009148</td></tr>
+<tr><td>117</td><td>688089</td><td>嘉必优</td><td class="score-pos"><span class="score-bar" style="width:42px;background:#0a8f4a;"></span>+0.009146</td></tr>
+<tr><td>118</td><td>603879</td><td>永悦科技</td><td class="score-pos"><span class="score-bar" style="width:42px;background:#0a8f4a;"></span>+0.009094</td></tr>
+<tr><td>119</td><td>000548</td><td>湖南投资</td><td class="score-pos"><span class="score-bar" style="width:42px;background:#0a8f4a;"></span>+0.009048</td></tr>
+<tr><td>120</td><td>301032</td><td>新柴股份</td><td class="score-pos"><span class="score-bar" style="width:42px;background:#0a8f4a;"></span>+0.009036</td></tr>
+<tr><td>121</td><td>300732</td><td>设研院</td><td class="score-pos"><span class="score-bar" style="width:41px;background:#0a8f4a;"></span>+0.008904</td></tr>
+<tr><td>122</td><td>300865</td><td>大宏立</td><td class="score-pos"><span class="score-bar" style="width:41px;background:#0a8f4a;"></span>+0.008889</td></tr>
+<tr><td>123</td><td>688393</td><td>安必平</td><td class="score-pos"><span class="score-bar" style="width:41px;background:#0a8f4a;"></span>+0.008876</td></tr>
+<tr><td>124</td><td>688395</td><td>正弦电气</td><td class="score-pos"><span class="score-bar" style="width:41px;background:#0a8f4a;"></span>+0.008859</td></tr>
+<tr><td>125</td><td>003008</td><td>开普检测</td><td class="score-pos"><span class="score-bar" style="width:41px;background:#0a8f4a;"></span>+0.008844</td></tr>
+<tr><td>126</td><td>300513</td><td>恒实科技</td><td class="score-pos"><span class="score-bar" style="width:41px;background:#0a8f4a;"></span>+0.008803</td></tr>
+<tr><td>127</td><td>002817</td><td>黄山胶囊</td><td class="score-pos"><span class="score-bar" style="width:40px;background:#0a8f4a;"></span>+0.008771</td></tr>
+<tr><td>128</td><td>301298</td><td>东利机械</td><td class="score-pos"><span class="score-bar" style="width:40px;background:#0a8f4a;"></span>+0.008711</td></tr>
+<tr><td>129</td><td>603982</td><td>泉峰汽车</td><td class="score-pos"><span class="score-bar" style="width:40px;background:#0a8f4a;"></span>+0.008657</td></tr>
+<tr><td>130</td><td>603022</td><td>新通联</td><td class="score-pos"><span class="score-bar" style="width:40px;background:#0a8f4a;"></span>+0.008648</td></tr>
+<tr><td>131</td><td>300645</td><td>正元智慧</td><td class="score-pos"><span class="score-bar" style="width:40px;background:#0a8f4a;"></span>+0.008581</td></tr>
+<tr><td>132</td><td>001255</td><td>博菲电气</td><td class="score-pos"><span class="score-bar" style="width:39px;background:#0a8f4a;"></span>+0.008562</td></tr>
+<tr><td>133</td><td>603321</td><td>梅轮电梯</td><td class="score-pos"><span class="score-bar" style="width:39px;background:#0a8f4a;"></span>+0.008535</td></tr>
+<tr><td>134</td><td>300621</td><td>维业股份</td><td class="score-pos"><span class="score-bar" style="width:39px;background:#0a8f4a;"></span>+0.008534</td></tr>
+<tr><td>135</td><td>605180</td><td>华生科技</td><td class="score-pos"><span class="score-bar" style="width:39px;background:#0a8f4a;"></span>+0.008528</td></tr>
+<tr><td>136</td><td>605567</td><td>春雪食品</td><td class="score-pos"><span class="score-bar" style="width:39px;background:#0a8f4a;"></span>+0.008525</td></tr>
+<tr><td>137</td><td>301167</td><td>建研设计</td><td class="score-pos"><span class="score-bar" style="width:39px;background:#0a8f4a;"></span>+0.008497</td></tr>
+<tr><td>138</td><td>688078</td><td>龙软科技</td><td class="score-pos"><span class="score-bar" style="width:39px;background:#0a8f4a;"></span>+0.008485</td></tr>
+<tr><td>139</td><td>002949</td><td>华阳国际</td><td class="score-pos"><span class="score-bar" style="width:39px;background:#0a8f4a;"></span>+0.008480</td></tr>
+<tr><td>140</td><td>300958</td><td>建工修复</td><td class="score-pos"><span class="score-bar" style="width:39px;background:#0a8f4a;"></span>+0.008469</td></tr>
+<tr><td>141</td><td>301022</td><td>海泰科</td><td class="score-pos"><span class="score-bar" style="width:39px;background:#0a8f4a;"></span>+0.008414</td></tr>
+<tr><td>142</td><td>002209</td><td>达 意 隆</td><td class="score-pos"><span class="score-bar" style="width:39px;background:#0a8f4a;"></span>+0.008407</td></tr>
+<tr><td>143</td><td>301336</td><td>趣睡科技</td><td class="score-pos"><span class="score-bar" style="width:39px;background:#0a8f4a;"></span>+0.008384</td></tr>
+<tr><td>144</td><td>301105</td><td>鸿铭股份</td><td class="score-pos"><span class="score-bar" style="width:38px;background:#0a8f4a;"></span>+0.008339</td></tr>
+<tr><td>145</td><td>600493</td><td>凤竹纺织</td><td class="score-pos"><span class="score-bar" style="width:38px;background:#0a8f4a;"></span>+0.008328</td></tr>
+<tr><td>146</td><td>000702</td><td>正虹科技</td><td class="score-pos"><span class="score-bar" style="width:38px;background:#0a8f4a;"></span>+0.008309</td></tr>
+<tr><td>147</td><td>603029</td><td>天鹅股份</td><td class="score-pos"><span class="score-bar" style="width:38px;background:#0a8f4a;"></span>+0.008286</td></tr>
+<tr><td>148</td><td>002813</td><td>路畅科技</td><td class="score-pos"><span class="score-bar" style="width:38px;background:#0a8f4a;"></span>+0.008234</td></tr>
+<tr><td>149</td><td>600202</td><td>哈空调</td><td class="score-pos"><span class="score-bar" style="width:38px;background:#0a8f4a;"></span>+0.008212</td></tr>
+<tr><td>150</td><td>300126</td><td>锐奇股份</td><td class="score-pos"><span class="score-bar" style="width:37px;background:#0a8f4a;"></span>+0.008134</td></tr>
+<tr><td>151</td><td>688060</td><td>云涌科技</td><td class="score-pos"><span class="score-bar" style="width:37px;background:#0a8f4a;"></span>+0.008125</td></tr>
+<tr><td>152</td><td>301049</td><td>超越科技</td><td class="score-pos"><span class="score-bar" style="width:37px;background:#0a8f4a;"></span>+0.008119</td></tr>
+<tr><td>153</td><td>300535</td><td>达威股份</td><td class="score-pos"><span class="score-bar" style="width:37px;background:#0a8f4a;"></span>+0.008115</td></tr>
+<tr><td>154</td><td>002114</td><td>罗平锌电</td><td class="score-pos"><span class="score-bar" style="width:37px;background:#0a8f4a;"></span>+0.008106</td></tr>
+<tr><td>155</td><td>301063</td><td>海锅股份</td><td class="score-pos"><span class="score-bar" style="width:37px;background:#0a8f4a;"></span>+0.008093</td></tr>
+<tr><td>156</td><td>300359</td><td>全通教育</td><td class="score-pos"><span class="score-bar" style="width:37px;background:#0a8f4a;"></span>+0.008079</td></tr>
+<tr><td>157</td><td>300500</td><td>启迪设计</td><td class="score-pos"><span class="score-bar" style="width:37px;background:#0a8f4a;"></span>+0.008069</td></tr>
+<tr><td>158</td><td>002329</td><td>皇氏集团</td><td class="score-pos"><span class="score-bar" style="width:37px;background:#0a8f4a;"></span>+0.008049</td></tr>
+<tr><td>159</td><td>603079</td><td>圣达生物</td><td class="score-pos"><span class="score-bar" style="width:37px;background:#0a8f4a;"></span>+0.008046</td></tr>
+<tr><td>160</td><td>605003</td><td>众望布艺</td><td class="score-pos"><span class="score-bar" style="width:37px;background:#0a8f4a;"></span>+0.008033</td></tr>
+<tr><td>161</td><td>002494</td><td>华斯股份</td><td class="score-pos"><span class="score-bar" style="width:37px;background:#0a8f4a;"></span>+0.007996</td></tr>
+<tr><td>162</td><td>600051</td><td>宁波联合</td><td class="score-pos"><span class="score-bar" style="width:37px;background:#0a8f4a;"></span>+0.007947</td></tr>
+<tr><td>163</td><td>000985</td><td>大庆华科</td><td class="score-pos"><span class="score-bar" style="width:36px;background:#0a8f4a;"></span>+0.007897</td></tr>
+<tr><td>164</td><td>301192</td><td>泰祥股份</td><td class="score-pos"><span class="score-bar" style="width:36px;background:#0a8f4a;"></span>+0.007886</td></tr>
+<tr><td>165</td><td>688468</td><td>科美诊断</td><td class="score-pos"><span class="score-bar" style="width:36px;background:#0a8f4a;"></span>+0.007863</td></tr>
+<tr><td>166</td><td>300906</td><td>日月明</td><td class="score-pos"><span class="score-bar" style="width:36px;background:#0a8f4a;"></span>+0.007850</td></tr>
+<tr><td>167</td><td>688616</td><td>西力科技</td><td class="score-pos"><span class="score-bar" style="width:36px;background:#0a8f4a;"></span>+0.007790</td></tr>
+<tr><td>168</td><td>600561</td><td>江西长运</td><td class="score-pos"><span class="score-bar" style="width:36px;background:#0a8f4a;"></span>+0.007787</td></tr>
+<tr><td>169</td><td>002316</td><td>亚联发展</td><td class="score-pos"><span class="score-bar" style="width:36px;background:#0a8f4a;"></span>+0.007754</td></tr>
+<tr><td>170</td><td>301505</td><td>苏州规划</td><td class="score-pos"><span class="score-bar" style="width:36px;background:#0a8f4a;"></span>+0.007739</td></tr>
+<tr><td>171</td><td>301300</td><td>远翔新材</td><td class="score-pos"><span class="score-bar" style="width:36px;background:#0a8f4a;"></span>+0.007731</td></tr>
+<tr><td>172</td><td>603208</td><td>江山欧派</td><td class="score-pos"><span class="score-bar" style="width:35px;background:#0a8f4a;"></span>+0.007715</td></tr>
+<tr><td>173</td><td>603839</td><td>安正时尚</td><td class="score-pos"><span class="score-bar" style="width:35px;background:#0a8f4a;"></span>+0.007700</td></tr>
+<tr><td>174</td><td>002144</td><td>宏达高科</td><td class="score-pos"><span class="score-bar" style="width:35px;background:#0a8f4a;"></span>+0.007696</td></tr>
+<tr><td>175</td><td>600463</td><td>空港股份</td><td class="score-pos"><span class="score-bar" style="width:35px;background:#0a8f4a;"></span>+0.007673</td></tr>
+<tr><td>176</td><td>301001</td><td>凯淳股份</td><td class="score-pos"><span class="score-bar" style="width:35px;background:#0a8f4a;"></span>+0.007621</td></tr>
+<tr><td>177</td><td>600692</td><td>亚通股份</td><td class="score-pos"><span class="score-bar" style="width:35px;background:#0a8f4a;"></span>+0.007621</td></tr>
+<tr><td>178</td><td>600235</td><td>民丰特纸</td><td class="score-pos"><span class="score-bar" style="width:35px;background:#0a8f4a;"></span>+0.007593</td></tr>
+<tr><td>179</td><td>002780</td><td>三夫户外</td><td class="score-pos"><span class="score-bar" style="width:35px;background:#0a8f4a;"></span>+0.007567</td></tr>
+<tr><td>180</td><td>002069</td><td>獐子岛</td><td class="score-pos"><span class="score-bar" style="width:35px;background:#0a8f4a;"></span>+0.007564</td></tr>
+<tr><td>181</td><td>603176</td><td>汇通集团</td><td class="score-pos"><span class="score-bar" style="width:35px;background:#0a8f4a;"></span>+0.007546</td></tr>
+<tr><td>182</td><td>000637</td><td>茂化实华</td><td class="score-pos"><span class="score-bar" style="width:35px;background:#0a8f4a;"></span>+0.007502</td></tr>
+<tr><td>183</td><td>003011</td><td>海象新材</td><td class="score-pos"><span class="score-bar" style="width:34px;background:#0a8f4a;"></span>+0.007494</td></tr>
+<tr><td>184</td><td>002105</td><td>信隆健康</td><td class="score-pos"><span class="score-bar" style="width:34px;background:#0a8f4a;"></span>+0.007492</td></tr>
+<tr><td>185</td><td>603329</td><td>上海雅仕</td><td class="score-pos"><span class="score-bar" style="width:34px;background:#0a8f4a;"></span>+0.007492</td></tr>
+<tr><td>186</td><td>603332</td><td>苏州龙杰</td><td class="score-pos"><span class="score-bar" style="width:34px;background:#0a8f4a;"></span>+0.007444</td></tr>
+<tr><td>187</td><td>000929</td><td>兰州黄河</td><td class="score-pos"><span class="score-bar" style="width:34px;background:#0a8f4a;"></span>+0.007419</td></tr>
+<tr><td>188</td><td>003027</td><td>同兴科技</td><td class="score-pos"><span class="score-bar" style="width:34px;background:#0a8f4a;"></span>+0.007351</td></tr>
+<tr><td>189</td><td>600689</td><td>上海三毛</td><td class="score-pos"><span class="score-bar" style="width:34px;background:#0a8f4a;"></span>+0.007339</td></tr>
+<tr><td>190</td><td>300713</td><td>英可瑞</td><td class="score-pos"><span class="score-bar" style="width:33px;background:#0a8f4a;"></span>+0.007273</td></tr>
+<tr><td>191</td><td>301052</td><td>果麦文化</td><td class="score-pos"><span class="score-bar" style="width:33px;background:#0a8f4a;"></span>+0.007260</td></tr>
+<tr><td>192</td><td>603909</td><td>建发合诚</td><td class="score-pos"><span class="score-bar" style="width:33px;background:#0a8f4a;"></span>+0.007248</td></tr>
+<tr><td>193</td><td>300534</td><td>陇神戎发</td><td class="score-pos"><span class="score-bar" style="width:33px;background:#0a8f4a;"></span>+0.007241</td></tr>
+<tr><td>194</td><td>002535</td><td>林州重机</td><td class="score-pos"><span class="score-bar" style="width:33px;background:#0a8f4a;"></span>+0.007234</td></tr>
+<tr><td>195</td><td>002743</td><td>富煌钢构</td><td class="score-pos"><span class="score-bar" style="width:33px;background:#0a8f4a;"></span>+0.007144</td></tr>
+<tr><td>196</td><td>003003</td><td>天元股份</td><td class="score-pos"><span class="score-bar" style="width:33px;background:#0a8f4a;"></span>+0.007138</td></tr>
+<tr><td>197</td><td>002873</td><td>新天药业</td><td class="score-pos"><span class="score-bar" style="width:33px;background:#0a8f4a;"></span>+0.007079</td></tr>
+<tr><td>198</td><td>300583</td><td>赛托生物</td><td class="score-pos"><span class="score-bar" style="width:33px;background:#0a8f4a;"></span>+0.007078</td></tr>
+<tr><td>199</td><td>688038</td><td>中科通达</td><td class="score-pos"><span class="score-bar" style="width:33px;background:#0a8f4a;"></span>+0.007075</td></tr>
+<tr><td>200</td><td>603102</td><td>百合股份</td><td class="score-pos"><span class="score-bar" style="width:32px;background:#0a8f4a;"></span>+0.007052</td></tr>
+<tr><td>201</td><td>300543</td><td>朗科智能</td><td class="score-pos"><span class="score-bar" style="width:32px;background:#0a8f4a;"></span>+0.007050</td></tr>
+<tr><td>202</td><td>603086</td><td>先达股份</td><td class="score-pos"><span class="score-bar" style="width:32px;background:#0a8f4a;"></span>+0.007015</td></tr>
+<tr><td>203</td><td>300405</td><td>科隆股份</td><td class="score-pos"><span class="score-bar" style="width:32px;background:#0a8f4a;"></span>+0.006986</td></tr>
+<tr><td>204</td><td>002566</td><td>益盛药业</td><td class="score-pos"><span class="score-bar" style="width:32px;background:#0a8f4a;"></span>+0.006920</td></tr>
+<tr><td>205</td><td>688329</td><td>艾隆科技</td><td class="score-pos"><span class="score-bar" style="width:32px;background:#0a8f4a;"></span>+0.006881</td></tr>
+<tr><td>206</td><td>002857</td><td>三晖电气</td><td class="score-pos"><span class="score-bar" style="width:31px;background:#0a8f4a;"></span>+0.006854</td></tr>
+<tr><td>207</td><td>688132</td><td>邦彦技术</td><td class="score-pos"><span class="score-bar" style="width:31px;background:#0a8f4a;"></span>+0.006822</td></tr>
+<tr><td>208</td><td>300937</td><td>药易购</td><td class="score-pos"><span class="score-bar" style="width:31px;background:#0a8f4a;"></span>+0.006780</td></tr>
+<tr><td>209</td><td>002330</td><td>得利斯</td><td class="score-pos"><span class="score-bar" style="width:31px;background:#0a8f4a;"></span>+0.006780</td></tr>
+<tr><td>210</td><td>603282</td><td>亚光股份</td><td class="score-pos"><span class="score-bar" style="width:31px;background:#0a8f4a;"></span>+0.006740</td></tr>
+<tr><td>211</td><td>002712</td><td>思美传媒</td><td class="score-pos"><span class="score-bar" style="width:31px;background:#0a8f4a;"></span>+0.006712</td></tr>
+<tr><td>212</td><td>605177</td><td>东亚药业</td><td class="score-pos"><span class="score-bar" style="width:31px;background:#0a8f4a;"></span>+0.006671</td></tr>
+<tr><td>213</td><td>603900</td><td>莱绅通灵</td><td class="score-pos"><span class="score-bar" style="width:31px;background:#0a8f4a;"></span>+0.006649</td></tr>
+<tr><td>214</td><td>600778</td><td>友好集团</td><td class="score-pos"><span class="score-bar" style="width:30px;background:#0a8f4a;"></span>+0.006618</td></tr>
+<tr><td>215</td><td>000605</td><td>渤海股份</td><td class="score-pos"><span class="score-bar" style="width:30px;background:#0a8f4a;"></span>+0.006596</td></tr>
+<tr><td>216</td><td>600883</td><td>XD博闻科</td><td class="score-pos"><span class="score-bar" style="width:30px;background:#0a8f4a;"></span>+0.006583</td></tr>
+<tr><td>217</td><td>603172</td><td>万丰股份</td><td class="score-pos"><span class="score-bar" style="width:30px;background:#0a8f4a;"></span>+0.006581</td></tr>
+<tr><td>218</td><td>003042</td><td>中农联合</td><td class="score-pos"><span class="score-bar" style="width:30px;background:#0a8f4a;"></span>+0.006547</td></tr>
+<tr><td>219</td><td>688695</td><td>中创股份</td><td class="score-pos"><span class="score-bar" style="width:30px;background:#0a8f4a;"></span>+0.006534</td></tr>
+<tr><td>220</td><td>300813</td><td>泰林生物</td><td class="score-pos"><span class="score-bar" style="width:30px;background:#0a8f4a;"></span>+0.006474</td></tr>
+<tr><td>221</td><td>301272</td><td>英华特</td><td class="score-pos"><span class="score-bar" style="width:30px;background:#0a8f4a;"></span>+0.006462</td></tr>
+<tr><td>222</td><td>688058</td><td>宝兰德</td><td class="score-pos"><span class="score-bar" style="width:30px;background:#0a8f4a;"></span>+0.006451</td></tr>
+<tr><td>223</td><td>600128</td><td>XD苏豪弘</td><td class="score-pos"><span class="score-bar" style="width:30px;background:#0a8f4a;"></span>+0.006434</td></tr>
+<tr><td>224</td><td>603709</td><td>中源家居</td><td class="score-pos"><span class="score-bar" style="width:29px;background:#0a8f4a;"></span>+0.006380</td></tr>
+<tr><td>225</td><td>301539</td><td>宏鑫科技</td><td class="score-pos"><span class="score-bar" style="width:29px;background:#0a8f4a;"></span>+0.006365</td></tr>
+<tr><td>226</td><td>300886</td><td>华业香料</td><td class="score-pos"><span class="score-bar" style="width:29px;background:#0a8f4a;"></span>+0.006332</td></tr>
+<tr><td>227</td><td>301287</td><td>康力源</td><td class="score-pos"><span class="score-bar" style="width:29px;background:#0a8f4a;"></span>+0.006286</td></tr>
+<tr><td>228</td><td>603797</td><td>联泰环保</td><td class="score-pos"><span class="score-bar" style="width:29px;background:#0a8f4a;"></span>+0.006286</td></tr>
+<tr><td>229</td><td>002828</td><td>贝肯能源</td><td class="score-pos"><span class="score-bar" style="width:29px;background:#0a8f4a;"></span>+0.006260</td></tr>
+<tr><td>230</td><td>688203</td><td>海正生材</td><td class="score-pos"><span class="score-bar" style="width:29px;background:#0a8f4a;"></span>+0.006218</td></tr>
+<tr><td>231</td><td>300106</td><td>西部牧业</td><td class="score-pos"><span class="score-bar" style="width:29px;background:#0a8f4a;"></span>+0.006218</td></tr>
+<tr><td>232</td><td>300960</td><td>通业科技</td><td class="score-pos"><span class="score-bar" style="width:28px;background:#0a8f4a;"></span>+0.006181</td></tr>
+<tr><td>233</td><td>301198</td><td>喜悦智行</td><td class="score-pos"><span class="score-bar" style="width:28px;background:#0a8f4a;"></span>+0.006173</td></tr>
+<tr><td>234</td><td>000619</td><td>海螺新材</td><td class="score-pos"><span class="score-bar" style="width:28px;background:#0a8f4a;"></span>+0.006137</td></tr>
+<tr><td>235</td><td>600303</td><td>曙光股份</td><td class="score-pos"><span class="score-bar" style="width:28px;background:#0a8f4a;"></span>+0.006129</td></tr>
+<tr><td>236</td><td>301159</td><td>三维天地</td><td class="score-pos"><span class="score-bar" style="width:28px;background:#0a8f4a;"></span>+0.006124</td></tr>
+<tr><td>237</td><td>603331</td><td>百达精工</td><td class="score-pos"><span class="score-bar" style="width:28px;background:#0a8f4a;"></span>+0.006111</td></tr>
+<tr><td>238</td><td>600149</td><td>廊坊发展</td><td class="score-pos"><span class="score-bar" style="width:28px;background:#0a8f4a;"></span>+0.006103</td></tr>
+<tr><td>239</td><td>300743</td><td>天地数码</td><td class="score-pos"><span class="score-bar" style="width:28px;background:#0a8f4a;"></span>+0.006083</td></tr>
+<tr><td>240</td><td>688113</td><td>联测科技</td><td class="score-pos"><span class="score-bar" style="width:28px;background:#0a8f4a;"></span>+0.006072</td></tr>
+<tr><td>241</td><td>603188</td><td>亚邦股份</td><td class="score-pos"><span class="score-bar" style="width:28px;background:#0a8f4a;"></span>+0.006046</td></tr>
+<tr><td>242</td><td>603536</td><td>惠发食品</td><td class="score-pos"><span class="score-bar" style="width:28px;background:#0a8f4a;"></span>+0.006026</td></tr>
+<tr><td>243</td><td>600807</td><td>济高发展</td><td class="score-pos"><span class="score-bar" style="width:28px;background:#0a8f4a;"></span>+0.006010</td></tr>
+<tr><td>244</td><td>002999</td><td>天禾股份</td><td class="score-pos"><span class="score-bar" style="width:27px;background:#0a8f4a;"></span>+0.005994</td></tr>
+<tr><td>245</td><td>002890</td><td>弘宇股份</td><td class="score-pos"><span class="score-bar" style="width:27px;background:#0a8f4a;"></span>+0.005981</td></tr>
+<tr><td>246</td><td>603183</td><td>建研院</td><td class="score-pos"><span class="score-bar" style="width:27px;background:#0a8f4a;"></span>+0.005979</td></tr>
+<tr><td>247</td><td>002802</td><td>洪汇新材</td><td class="score-pos"><span class="score-bar" style="width:27px;background:#0a8f4a;"></span>+0.005873</td></tr>
+<tr><td>248</td><td>300013</td><td>新宁物流</td><td class="score-pos"><span class="score-bar" style="width:27px;background:#0a8f4a;"></span>+0.005831</td></tr>
+<tr><td>249</td><td>600257</td><td>大湖股份</td><td class="score-pos"><span class="score-bar" style="width:27px;background:#0a8f4a;"></span>+0.005825</td></tr>
+<tr><td>250</td><td>002524</td><td>光正眼科</td><td class="score-pos"><span class="score-bar" style="width:27px;background:#0a8f4a;"></span>+0.005799</td></tr>
+<tr><td>251</td><td>001202</td><td>炬申股份</td><td class="score-pos"><span class="score-bar" style="width:27px;background:#0a8f4a;"></span>+0.005793</td></tr>
+<tr><td>252</td><td>002319</td><td>乐通股份</td><td class="score-pos"><span class="score-bar" style="width:27px;background:#0a8f4a;"></span>+0.005791</td></tr>
+<tr><td>253</td><td>688288</td><td>鸿泉技术</td><td class="score-pos"><span class="score-bar" style="width:26px;background:#0a8f4a;"></span>+0.005785</td></tr>
+<tr><td>254</td><td>301390</td><td>经纬股份</td><td class="score-pos"><span class="score-bar" style="width:26px;background:#0a8f4a;"></span>+0.005780</td></tr>
+<tr><td>255</td><td>300851</td><td>交大思诺</td><td class="score-pos"><span class="score-bar" style="width:26px;background:#0a8f4a;"></span>+0.005683</td></tr>
+<tr><td>256</td><td>300597</td><td>吉大通信</td><td class="score-pos"><span class="score-bar" style="width:26px;background:#0a8f4a;"></span>+0.005638</td></tr>
+<tr><td>257</td><td>300074</td><td>华平股份</td><td class="score-pos"><span class="score-bar" style="width:26px;background:#0a8f4a;"></span>+0.005634</td></tr>
+<tr><td>258</td><td>600371</td><td>万向德农</td><td class="score-pos"><span class="score-bar" style="width:26px;background:#0a8f4a;"></span>+0.005628</td></tr>
+<tr><td>259</td><td>603768</td><td>常青股份</td><td class="score-pos"><span class="score-bar" style="width:26px;background:#0a8f4a;"></span>+0.005614</td></tr>
+<tr><td>260</td><td>603180</td><td>XD金牌家</td><td class="score-pos"><span class="score-bar" style="width:25px;background:#0a8f4a;"></span>+0.005494</td></tr>
+<tr><td>261</td><td>301170</td><td>锡南科技</td><td class="score-pos"><span class="score-bar" style="width:25px;background:#0a8f4a;"></span>+0.005467</td></tr>
+<tr><td>262</td><td>001277</td><td>速达股份</td><td class="score-pos"><span class="score-bar" style="width:25px;background:#0a8f4a;"></span>+0.005454</td></tr>
+<tr><td>263</td><td>600455</td><td>博通股份</td><td class="score-pos"><span class="score-bar" style="width:25px;background:#0a8f4a;"></span>+0.005420</td></tr>
+<tr><td>264</td><td>002742</td><td>冀衡医药</td><td class="score-pos"><span class="score-bar" style="width:25px;background:#0a8f4a;"></span>+0.005403</td></tr>
+<tr><td>265</td><td>600615</td><td>鑫源智造</td><td class="score-pos"><span class="score-bar" style="width:25px;background:#0a8f4a;"></span>+0.005386</td></tr>
+<tr><td>266</td><td>001260</td><td>坤泰股份</td><td class="score-pos"><span class="score-bar" style="width:25px;background:#0a8f4a;"></span>+0.005386</td></tr>
+<tr><td>267</td><td>300707</td><td>威唐工业</td><td class="score-pos"><span class="score-bar" style="width:25px;background:#0a8f4a;"></span>+0.005370</td></tr>
+<tr><td>268</td><td>002732</td><td>燕塘乳业</td><td class="score-pos"><span class="score-bar" style="width:24px;background:#0a8f4a;"></span>+0.005344</td></tr>
+<tr><td>269</td><td>300923</td><td>研奥股份</td><td class="score-pos"><span class="score-bar" style="width:24px;background:#0a8f4a;"></span>+0.005267</td></tr>
+<tr><td>270</td><td>301515</td><td>港通医疗</td><td class="score-pos"><span class="score-bar" style="width:24px;background:#0a8f4a;"></span>+0.005198</td></tr>
+<tr><td>271</td><td>301009</td><td>可靠股份</td><td class="score-pos"><span class="score-bar" style="width:24px;background:#0a8f4a;"></span>+0.005192</td></tr>
+<tr><td>272</td><td>603041</td><td>美思德</td><td class="score-pos"><span class="score-bar" style="width:24px;background:#0a8f4a;"></span>+0.005184</td></tr>
+<tr><td>273</td><td>300615</td><td>欣天科技</td><td class="score-pos"><span class="score-bar" style="width:24px;background:#0a8f4a;"></span>+0.005160</td></tr>
+<tr><td>274</td><td>688565</td><td>力源科技</td><td class="score-pos"><span class="score-bar" style="width:23px;background:#0a8f4a;"></span>+0.005076</td></tr>
+<tr><td>275</td><td>000692</td><td>惠天热电</td><td class="score-pos"><span class="score-bar" style="width:23px;background:#0a8f4a;"></span>+0.005048</td></tr>
+<tr><td>276</td><td>300947</td><td>德必集团</td><td class="score-pos"><span class="score-bar" style="width:23px;background:#0a8f4a;"></span>+0.004986</td></tr>
+<tr><td>277</td><td>301519</td><td>舜禹股份</td><td class="score-pos"><span class="score-bar" style="width:23px;background:#0a8f4a;"></span>+0.004966</td></tr>
+<tr><td>278</td><td>300371</td><td>汇中股份</td><td class="score-pos"><span class="score-bar" style="width:22px;background:#0a8f4a;"></span>+0.004909</td></tr>
+<tr><td>279</td><td>002968</td><td>新大正</td><td class="score-pos"><span class="score-bar" style="width:22px;background:#0a8f4a;"></span>+0.004893</td></tr>
+<tr><td>280</td><td>300240</td><td>飞力达</td><td class="score-pos"><span class="score-bar" style="width:22px;background:#0a8f4a;"></span>+0.004870</td></tr>
+<tr><td>281</td><td>300387</td><td>富邦科技</td><td class="score-pos"><span class="score-bar" style="width:22px;background:#0a8f4a;"></span>+0.004795</td></tr>
+<tr><td>282</td><td>301135</td><td>瑞德智能</td><td class="score-pos"><span class="score-bar" style="width:22px;background:#0a8f4a;"></span>+0.004786</td></tr>
+<tr><td>283</td><td>300514</td><td>友讯达</td><td class="score-pos"><span class="score-bar" style="width:22px;background:#0a8f4a;"></span>+0.004759</td></tr>
+<tr><td>284</td><td>002172</td><td>澳洋健康</td><td class="score-pos"><span class="score-bar" style="width:22px;background:#0a8f4a;"></span>+0.004737</td></tr>
+<tr><td>285</td><td>605001</td><td>威奥股份</td><td class="score-pos"><span class="score-bar" style="width:22px;background:#0a8f4a;"></span>+0.004732</td></tr>
+<tr><td>286</td><td>300694</td><td>蠡湖股份</td><td class="score-pos"><span class="score-bar" style="width:22px;background:#0a8f4a;"></span>+0.004716</td></tr>
+<tr><td>287</td><td>002679</td><td>福建金森</td><td class="score-pos"><span class="score-bar" style="width:21px;background:#0a8f4a;"></span>+0.004691</td></tr>
+<tr><td>288</td><td>001219</td><td>青岛食品</td><td class="score-pos"><span class="score-bar" style="width:21px;background:#0a8f4a;"></span>+0.004677</td></tr>
+<tr><td>289</td><td>688420</td><td>美腾科技</td><td class="score-pos"><span class="score-bar" style="width:21px;background:#0a8f4a;"></span>+0.004648</td></tr>
+<tr><td>290</td><td>688793</td><td>倍轻松</td><td class="score-pos"><span class="score-bar" style="width:21px;background:#0a8f4a;"></span>+0.004644</td></tr>
+<tr><td>291</td><td>000705</td><td>浙江震元</td><td class="score-pos"><span class="score-bar" style="width:21px;background:#0a8f4a;"></span>+0.004633</td></tr>
+<tr><td>292</td><td>600241</td><td>时代万恒</td><td class="score-pos"><span class="score-bar" style="width:21px;background:#0a8f4a;"></span>+0.004628</td></tr>
+<tr><td>293</td><td>300169</td><td>天晟新材</td><td class="score-pos"><span class="score-bar" style="width:21px;background:#0a8f4a;"></span>+0.004584</td></tr>
+<tr><td>294</td><td>600697</td><td>欧亚集团</td><td class="score-pos"><span class="score-bar" style="width:21px;background:#0a8f4a;"></span>+0.004564</td></tr>
+<tr><td>295</td><td>301163</td><td>宏德股份</td><td class="score-pos"><span class="score-bar" style="width:21px;background:#0a8f4a;"></span>+0.004555</td></tr>
+<tr><td>296</td><td>300971</td><td>博亚精工</td><td class="score-pos"><span class="score-bar" style="width:21px;background:#0a8f4a;"></span>+0.004513</td></tr>
+<tr><td>297</td><td>603968</td><td>醋化股份</td><td class="score-pos"><span class="score-bar" style="width:21px;background:#0a8f4a;"></span>+0.004503</td></tr>
+<tr><td>298</td><td>002809</td><td>红墙股份</td><td class="score-pos"><span class="score-bar" style="width:20px;background:#0a8f4a;"></span>+0.004488</td></tr>
+<tr><td>299</td><td>300549</td><td>优德精密</td><td class="score-pos"><span class="score-bar" style="width:20px;background:#0a8f4a;"></span>+0.004478</td></tr>
+<tr><td>300</td><td>301131</td><td>聚赛龙</td><td class="score-pos"><span class="score-bar" style="width:20px;background:#0a8f4a;"></span>+0.004476</td></tr>
+<tr><td>301</td><td>002790</td><td>瑞尔特</td><td class="score-pos"><span class="score-bar" style="width:20px;background:#0a8f4a;"></span>+0.004419</td></tr>
+<tr><td>302</td><td>300796</td><td>贝斯美</td><td class="score-pos"><span class="score-bar" style="width:20px;background:#0a8f4a;"></span>+0.004414</td></tr>
+<tr><td>303</td><td>603182</td><td>嘉华股份</td><td class="score-pos"><span class="score-bar" style="width:20px;background:#0a8f4a;"></span>+0.004408</td></tr>
+<tr><td>304</td><td>002551</td><td>尚荣医疗</td><td class="score-pos"><span class="score-bar" style="width:20px;background:#0a8f4a;"></span>+0.004403</td></tr>
+<tr><td>305</td><td>600281</td><td>华阳新材</td><td class="score-pos"><span class="score-bar" style="width:20px;background:#0a8f4a;"></span>+0.004401</td></tr>
+<tr><td>306</td><td>001234</td><td>泰慕士</td><td class="score-pos"><span class="score-bar" style="width:20px;background:#0a8f4a;"></span>+0.004395</td></tr>
+<tr><td>307</td><td>002159</td><td>三特索道</td><td class="score-pos"><span class="score-bar" style="width:20px;background:#0a8f4a;"></span>+0.004300</td></tr>
+<tr><td>308</td><td>002820</td><td>桂发祥</td><td class="score-pos"><span class="score-bar" style="width:20px;background:#0a8f4a;"></span>+0.004286</td></tr>
+<tr><td>309</td><td>000663</td><td>永安林业</td><td class="score-pos"><span class="score-bar" style="width:19px;background:#0a8f4a;"></span>+0.004278</td></tr>
+<tr><td>310</td><td>300929</td><td>华骐环保</td><td class="score-pos"><span class="score-bar" style="width:19px;background:#0a8f4a;"></span>+0.004263</td></tr>
+<tr><td>311</td><td>000790</td><td>华神科技</td><td class="score-pos"><span class="score-bar" style="width:19px;background:#0a8f4a;"></span>+0.004229</td></tr>
+<tr><td>312</td><td>688004</td><td>博汇科技</td><td class="score-pos"><span class="score-bar" style="width:19px;background:#0a8f4a;"></span>+0.004169</td></tr>
+<tr><td>313</td><td>300675</td><td>建科院</td><td class="score-pos"><span class="score-bar" style="width:19px;background:#0a8f4a;"></span>+0.004153</td></tr>
+<tr><td>314</td><td>002133</td><td>广宇集团</td><td class="score-pos"><span class="score-bar" style="width:19px;background:#0a8f4a;"></span>+0.004119</td></tr>
+<tr><td>315</td><td>002343</td><td>慈文传媒</td><td class="score-pos"><span class="score-bar" style="width:18px;background:#0a8f4a;"></span>+0.004055</td></tr>
+<tr><td>316</td><td>002247</td><td>聚力文化</td><td class="score-pos"><span class="score-bar" style="width:18px;background:#0a8f4a;"></span>+0.004022</td></tr>
+<tr><td>317</td><td>002574</td><td>明牌珠宝</td><td class="score-pos"><span class="score-bar" style="width:18px;background:#0a8f4a;"></span>+0.003999</td></tr>
+<tr><td>318</td><td>301011</td><td>华立科技</td><td class="score-pos"><span class="score-bar" style="width:18px;background:#0a8f4a;"></span>+0.003987</td></tr>
+<tr><td>319</td><td>600159</td><td>大龙地产</td><td class="score-pos"><span class="score-bar" style="width:18px;background:#0a8f4a;"></span>+0.003918</td></tr>
+<tr><td>320</td><td>000757</td><td>浩物股份</td><td class="score-pos"><span class="score-bar" style="width:18px;background:#0a8f4a;"></span>+0.003904</td></tr>
+<tr><td>321</td><td>002486</td><td>嘉麟杰</td><td class="score-pos"><span class="score-bar" style="width:18px;background:#0a8f4a;"></span>+0.003865</td></tr>
+<tr><td>322</td><td>002909</td><td>集泰股份</td><td class="score-pos"><span class="score-bar" style="width:17px;background:#0a8f4a;"></span>+0.003837</td></tr>
+<tr><td>323</td><td>002982</td><td>湘佳股份</td><td class="score-pos"><span class="score-bar" style="width:17px;background:#0a8f4a;"></span>+0.003833</td></tr>
+<tr><td>324</td><td>603787</td><td>新日股份</td><td class="score-pos"><span class="score-bar" style="width:17px;background:#0a8f4a;"></span>+0.003799</td></tr>
+<tr><td>325</td><td>002381</td><td>双箭股份</td><td class="score-pos"><span class="score-bar" style="width:17px;background:#0a8f4a;"></span>+0.003753</td></tr>
+<tr><td>326</td><td>600706</td><td>曲江文旅</td><td class="score-pos"><span class="score-bar" style="width:16px;background:#0a8f4a;"></span>+0.003564</td></tr>
+<tr><td>327</td><td>301601</td><td>惠通科技</td><td class="score-pos"><span class="score-bar" style="width:16px;background:#0a8f4a;"></span>+0.003536</td></tr>
+<tr><td>328</td><td>002659</td><td>凯文教育</td><td class="score-pos"><span class="score-bar" style="width:16px;background:#0a8f4a;"></span>+0.003525</td></tr>
+<tr><td>329</td><td>002492</td><td>恒基达鑫</td><td class="score-pos"><span class="score-bar" style="width:16px;background:#0a8f4a;"></span>+0.003476</td></tr>
+<tr><td>330</td><td>002633</td><td>申科股份</td><td class="score-pos"><span class="score-bar" style="width:16px;background:#0a8f4a;"></span>+0.003451</td></tr>
+<tr><td>331</td><td>002622</td><td>皓宸医疗</td><td class="score-pos"><span class="score-bar" style="width:15px;background:#0a8f4a;"></span>+0.003423</td></tr>
+<tr><td>332</td><td>688118</td><td>普元信息</td><td class="score-pos"><span class="score-bar" style="width:15px;background:#0a8f4a;"></span>+0.003341</td></tr>
+<tr><td>333</td><td>002253</td><td>川大智胜</td><td class="score-pos"><span class="score-bar" style="width:15px;background:#0a8f4a;"></span>+0.003317</td></tr>
+<tr><td>334</td><td>603818</td><td>曲美家居</td><td class="score-pos"><span class="score-bar" style="width:15px;background:#0a8f4a;"></span>+0.003297</td></tr>
+<tr><td>335</td><td>002495</td><td>佳隆股份</td><td class="score-pos"><span class="score-bar" style="width:15px;background:#0a8f4a;"></span>+0.003287</td></tr>
+<tr><td>336</td><td>002661</td><td>克明食品</td><td class="score-pos"><span class="score-bar" style="width:14px;background:#0a8f4a;"></span>+0.003154</td></tr>
+<tr><td>337</td><td>002098</td><td>浔兴股份</td><td class="score-pos"><span class="score-bar" style="width:14px;background:#0a8f4a;"></span>+0.003148</td></tr>
+<tr><td>338</td><td>301166</td><td>优宁维</td><td class="score-pos"><span class="score-bar" style="width:14px;background:#0a8f4a;"></span>+0.003059</td></tr>
+<tr><td>339</td><td>301036</td><td>双乐股份</td><td class="score-pos"><span class="score-bar" style="width:13px;background:#0a8f4a;"></span>+0.002996</td></tr>
+<tr><td>340</td><td>002295</td><td>精艺股份</td><td class="score-pos"><span class="score-bar" style="width:13px;background:#0a8f4a;"></span>+0.002985</td></tr>
+<tr><td>341</td><td>300612</td><td>宣亚国际</td><td class="score-pos"><span class="score-bar" style="width:13px;background:#0a8f4a;"></span>+0.002905</td></tr>
+<tr><td>342</td><td>002858</td><td>力盛体育</td><td class="score-pos"><span class="score-bar" style="width:13px;background:#0a8f4a;"></span>+0.002795</td></tr>
+<tr><td>343</td><td>000679</td><td>大连友谊</td><td class="score-pos"><span class="score-bar" style="width:12px;background:#0a8f4a;"></span>+0.002751</td></tr>
+<tr><td>344</td><td>600448</td><td>华纺股份</td><td class="score-pos"><span class="score-bar" style="width:12px;background:#0a8f4a;"></span>+0.002653</td></tr>
+<tr><td>345</td><td>600097</td><td>开创国际</td><td class="score-pos"><span class="score-bar" style="width:11px;background:#0a8f4a;"></span>+0.002442</td></tr>
+<tr><td>346</td><td>000014</td><td>沙河股份</td><td class="score-pos"><span class="score-bar" style="width:11px;background:#0a8f4a;"></span>+0.002441</td></tr>
+<tr><td>347</td><td>002084</td><td>海鸥住工</td><td class="score-pos"><span class="score-bar" style="width:11px;background:#0a8f4a;"></span>+0.002424</td></tr>
+<tr><td>348</td><td>300350</td><td>华鹏飞</td><td class="score-pos"><span class="score-bar" style="width:11px;background:#0a8f4a;"></span>+0.002391</td></tr>
+<tr><td>349</td><td>301331</td><td>恩威医药</td><td class="score-pos"><span class="score-bar" style="width:11px;background:#0a8f4a;"></span>+0.002390</td></tr>
+<tr><td>350</td><td>300610</td><td>晨化股份</td><td class="score-pos"><span class="score-bar" style="width:10px;background:#0a8f4a;"></span>+0.002321</td></tr>
+<tr><td>351</td><td>600148</td><td>长春一东</td><td class="score-pos"><span class="score-bar" style="width:10px;background:#0a8f4a;"></span>+0.002250</td></tr>
+<tr><td>352</td><td>603700</td><td>宁水集团</td><td class="score-pos"><span class="score-bar" style="width:10px;background:#0a8f4a;"></span>+0.002176</td></tr>
+<tr><td>353</td><td>300112</td><td>万讯自控</td><td class="score-pos"><span class="score-bar" style="width:9px;background:#0a8f4a;"></span>+0.002061</td></tr>
+<tr><td>354</td><td>600802</td><td>福建水泥</td><td class="score-pos"><span class="score-bar" style="width:9px;background:#0a8f4a;"></span>+0.001990</td></tr>
+<tr><td>355</td><td>600444</td><td>国机通用</td><td class="score-pos"><span class="score-bar" style="width:9px;background:#0a8f4a;"></span>+0.001984</td></tr>
+<tr><td>356</td><td>300556</td><td>丝路视觉</td><td class="score-pos"><span class="score-bar" style="width:8px;background:#0a8f4a;"></span>+0.001904</td></tr>
+<tr><td>357</td><td>600533</td><td>栖霞建设</td><td class="score-pos"><span class="score-bar" style="width:8px;background:#0a8f4a;"></span>+0.001892</td></tr>
+<tr><td>358</td><td>603136</td><td>天目湖</td><td class="score-pos"><span class="score-bar" style="width:8px;background:#0a8f4a;"></span>+0.001806</td></tr>
+<tr><td>359</td><td>300155</td><td>安居宝</td><td class="score-pos"><span class="score-bar" style="width:8px;background:#0a8f4a;"></span>+0.001756</td></tr>
+<tr><td>360</td><td>002652</td><td>扬子新材</td><td class="score-pos"><span class="score-bar" style="width:7px;background:#0a8f4a;"></span>+0.001700</td></tr>
+<tr><td>361</td><td>688670</td><td>金迪克</td><td class="score-pos"><span class="score-bar" style="width:7px;background:#0a8f4a;"></span>+0.001611</td></tr>
+<tr><td>362</td><td>600858</td><td>银座股份</td><td class="score-pos"><span class="score-bar" style="width:6px;background:#0a8f4a;"></span>+0.001429</td></tr>
+<tr><td>363</td><td>001231</td><td>农心科技</td><td class="score-pos"><span class="score-bar" style="width:6px;background:#0a8f4a;"></span>+0.001420</td></tr>
+<tr><td>364</td><td>300899</td><td>上海凯鑫</td><td class="score-pos"><span class="score-bar" style="width:6px;background:#0a8f4a;"></span>+0.001366</td></tr>
+<tr><td>365</td><td>600359</td><td>新农开发</td><td class="score-pos"><span class="score-bar" style="width:5px;background:#0a8f4a;"></span>+0.001258</td></tr>
+<tr><td>366</td><td>688026</td><td>洁特生物</td><td class="score-pos"><span class="score-bar" style="width:5px;background:#0a8f4a;"></span>+0.001099</td></tr>
+<tr><td>367</td><td>002529</td><td>海源复材</td><td class="score-pos"><span class="score-bar" style="width:4px;background:#0a8f4a;"></span>+0.000948</td></tr>
+<tr><td>368</td><td>300614</td><td>百川畅银</td><td class="score-pos"><span class="score-bar" style="width:4px;background:#0a8f4a;"></span>+0.000933</td></tr>
+<tr><td>369</td><td>002671</td><td>龙泉股份</td><td class="score-pos"><span class="score-bar" style="width:3px;background:#0a8f4a;"></span>+0.000739</td></tr>
+<tr><td>370</td><td>002234</td><td>民和股份</td><td class="score-pos"><span class="score-bar" style="width:3px;background:#0a8f4a;"></span>+0.000722</td></tr>
+<tr><td>371</td><td>300800</td><td>力合科技</td><td class="score-pos"><span class="score-bar" style="width:3px;background:#0a8f4a;"></span>+0.000700</td></tr>
+<tr><td>372</td><td>001387</td><td>雪祺电气</td><td class="score-pos"><span class="score-bar" style="width:2px;background:#0a8f4a;"></span>+0.000583</td></tr>
+<tr><td>373</td><td>301288</td><td>清研环境</td><td class="score-pos"><span class="score-bar" style="width:2px;background:#0a8f4a;"></span>+0.000541</td></tr>
+<tr><td>374</td><td>301098</td><td>金埔园林</td><td class="score-pos"><span class="score-bar" style="width:1px;background:#0a8f4a;"></span>+0.000288</td></tr>
+<tr><td>375</td><td>603755</td><td>日辰股份</td><td class="score-pos"><span class="score-bar" style="width:1px;background:#0a8f4a;"></span>+0.000286</td></tr>
+<tr><td>376</td><td>600847</td><td>万里股份</td><td class="score-pos"><span class="score-bar" style="width:1px;background:#0a8f4a;"></span>+0.000272</td></tr>
+<tr><td>377</td><td>300987</td><td>川网传媒</td><td class="score-pos"><span class="score-bar" style="width:1px;background:#0a8f4a;"></span>+0.000226</td></tr>
+<tr><td>378</td><td>600793</td><td>宜宾纸业</td><td class="score-neg"><span class="score-bar" style="width:4px;background:#c0392b;"></span>-0.000969</td></tr>
+<tr><td>379</td><td>002696</td><td>百洋股份</td><td class="score-neg"><span class="score-bar" style="width:4px;background:#c0392b;"></span>-0.000970</td></tr>
+<tr><td>380</td><td>002513</td><td>蓝丰生化</td><td class="score-neg"><span class="score-bar" style="width:5px;background:#c0392b;"></span>-0.001142</td></tr>
+<tr><td>381</td><td>688426</td><td>康为世纪</td><td class="score-neg"><span class="score-bar" style="width:5px;background:#c0392b;"></span>-0.001278</td></tr>
+<tr><td>382</td><td>300883</td><td>龙利得</td><td class="score-neg"><span class="score-bar" style="width:6px;background:#c0392b;"></span>-0.001298</td></tr>
+<tr><td>383</td><td>000633</td><td>合金投资</td><td class="score-neg"><span class="score-bar" style="width:7px;background:#c0392b;"></span>-0.001547</td></tr>
+<tr><td>384</td><td>301185</td><td>鸥玛软件</td><td class="score-neg"><span class="score-bar" style="width:8px;background:#c0392b;"></span>-0.001866</td></tr>
+<tr><td>385</td><td>603356</td><td>华菱精工</td><td class="score-neg"><span class="score-bar" style="width:9px;background:#c0392b;"></span>-0.002046</td></tr>
+<tr><td>386</td><td>002420</td><td>毅昌科技</td><td class="score-neg"><span class="score-bar" style="width:9px;background:#c0392b;"></span>-0.002085</td></tr>
+<tr><td>387</td><td>603880</td><td>南卫股份</td><td class="score-neg"><span class="score-bar" style="width:10px;background:#c0392b;"></span>-0.002260</td></tr>
+<tr><td>388</td><td>688355</td><td>XD明志科</td><td class="score-neg"><span class="score-bar" style="width:11px;background:#c0392b;"></span>-0.002408</td></tr>
+<tr><td>389</td><td>600768</td><td>宁波富邦</td><td class="score-neg"><span class="score-bar" style="width:13px;background:#c0392b;"></span>-0.002934</td></tr>
+<tr><td>390</td><td>300412</td><td>迦南科技</td><td class="score-neg"><span class="score-bar" style="width:14px;background:#c0392b;"></span>-0.003074</td></tr>
+<tr><td>391</td><td>300670</td><td>大烨智能</td><td class="score-neg"><span class="score-bar" style="width:16px;background:#c0392b;"></span>-0.003463</td></tr>
+<tr><td>392</td><td>301372</td><td>科净源</td><td class="score-neg"><span class="score-bar" style="width:22px;background:#c0392b;"></span>-0.004821</td></tr>
+<tr><td>393</td><td>002910</td><td>庄园牧场</td><td class="score-neg"><span class="score-bar" style="width:24px;background:#c0392b;"></span>-0.005265</td></tr>
+<tr><td>394</td><td>688659</td><td>元琛科技</td><td class="score-neg"><span class="score-bar" style="width:24px;background:#c0392b;"></span>-0.005306</td></tr>
+<tr><td>395</td><td>688193</td><td>仁度生物</td><td class="score-neg"><span class="score-bar" style="width:28px;background:#c0392b;"></span>-0.006130</td></tr>
+<tr><td>396</td><td>600671</td><td>天目药业</td><td class="score-neg"><span class="score-bar" style="width:42px;background:#c0392b;"></span>-0.009157</td></tr>
+<tr><td>397</td><td>301520</td><td>万邦医药</td><td class="score-neg"><span class="score-bar" style="width:44px;background:#c0392b;"></span>-0.009544</td></tr>
+<tr><td>398</td><td>300717</td><td>华信新材</td><td class="score-neg"><span class="score-bar" style="width:72px;background:#c0392b;"></span>-0.015579</td></tr>
+<tr><td>399</td><td>002687</td><td>乔治白</td><td class="score-neg"><span class="score-bar" style="width:85px;background:#c0392b;"></span>-0.018428</td></tr>
+    </tbody>
+  </table>
+  <footer>
+    Generated by MLP model &middot; For reference only, not investment advice
+  </footer>
+</div>
+<script>
+  function doFilter() {
+    var q = document.getElementById('filter').value.trim().toLowerCase();
+    var rows = document.querySelectorAll('#table-body tr');
+    rows.forEach(function(tr) {
+      tr.classList.toggle('hidden', q !== '' && tr.textContent.toLowerCase().indexOf(q) === -1);
+    });
+  }
+</script>
+</body>
+</html>

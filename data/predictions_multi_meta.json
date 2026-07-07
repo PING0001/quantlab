@@ -1,0 +1,170 @@
+{
+  "horizons": [
+    3,
+    4,
+    5,
+    10
+  ],
+  "weights": {
+    "3": 0.25,
+    "4": 0.25,
+    "5": 0.25,
+    "10": 0.25
+  },
+  "factor_names": [
+    "Return_1d",
+    "Return_5d",
+    "Return_20d",
+    "Reversal_60d",
+    "ATR",
+    "Volatility",
+    "Volatility_60d",
+    "Bollinger_width",
+    "alpha060",
+    "Price_position_252d",
+    "Stochastic_K",
+    "Return_skew_20d",
+    "Trend_strength",
+    "SMA",
+    "MACD_signal",
+    "Gap_pct",
+    "Body_pct",
+    "Intraday_range_pct",
+    "Volume_ratio",
+    "Amihud_illiquidity",
+    "alpha001",
+    "alpha002",
+    "alpha003",
+    "alpha006",
+    "alpha009",
+    "alpha012",
+    "alpha013",
+    "alpha014",
+    "alpha019",
+    "alpha020",
+    "alpha050",
+    "alpha101",
+    "alpha191"
+  ],
+  "test_start": "2025-05-01",
+  "test_end": "2026-06-26",
+  "train_window": 252,
+  "mlp_kwargs": {
+    "hidden_layer_sizes": [
+      25,
+      12,
+      8
+    ],
+    "dropout": 0.2,
+    "alpha": 0.001,
+    "early_stopping": true,
+    "validation_fraction": 0.1,
+    "n_iter_no_change": 20,
+    "learning_rate": 0.001,
+    "batch_size": 32768,
+    "random_state": 42
+  },
+  "results_per_horizon": {
+    "3": {
+      "model_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\models\\mlp_horizon3.pt",
+      "predictions_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\data\\predictions_h3.parquet",
+      "train_ic": {
+        "mean_ic": 0.11753713494407887,
+        "std_ic": 0.12475446328734294,
+        "ir": 0.9421477344129915,
+        "hit_rate": 0.8320610687022901,
+        "n_periods": 2489,
+        "min_ic": -0.3516906130400244,
+        "max_ic": 0.5319654372203222
+      },
+      "test_ic": {
+        "mean_ic": 0.11617841844143938,
+        "std_ic": 0.10112733471099113,
+        "ir": 1.1488329913317927,
+        "hit_rate": 0.8960573476702509,
+        "n_periods": 279,
+        "min_ic": -0.2639513531447425,
+        "max_ic": 0.43690702753099336
+      },
+      "n_predictions": 137228,
+      "n_pred_dates": 279,
+      "weight": 0.25
+    },
+    "4": {
+      "model_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\models\\mlp_horizon4.pt",
+      "predictions_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\data\\predictions_h4.parquet",
+      "train_ic": {
+        "mean_ic": 0.1198973545407342,
+        "std_ic": 0.1234722728447799,
+        "ir": 0.9710467927601866,
+        "hit_rate": 0.8396946564885496,
+        "n_periods": 2489,
+        "min_ic": -0.37885131755325274,
+        "max_ic": 0.6562253004804028
+      },
+      "test_ic": {
+        "mean_ic": 0.12124145893648458,
+        "std_ic": 0.09732294606991837,
+        "ir": 1.2457643734847768,
+        "hit_rate": 0.8924731182795699,
+        "n_periods": 279,
+        "min_ic": -0.21394516658877133,
+        "max_ic": 0.33906366478627
+      },
+      "n_predictions": 137228,
+      "n_pred_dates": 279,
+      "weight": 0.25
+    },
+    "5": {
+      "model_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\models\\mlp_horizon5.pt",
+      "predictions_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\data\\predictions_h5.parquet",
+      "train_ic": {
+        "mean_ic": 0.12477896131286612,
+        "std_ic": 0.1262959120292776,
+        "ir": 0.9879889167270923,
+        "hit_rate": 0.8445158698272398,
+        "n_periods": 2489,
+        "min_ic": -0.4280941530256746,
+        "max_ic": 0.7184862017090902
+      },
+      "test_ic": {
+        "mean_ic": 0.12415687144040728,
+        "std_ic": 0.09820490442129325,
+        "ir": 1.2642634517292703,
+        "hit_rate": 0.8888888888888888,
+        "n_periods": 279,
+        "min_ic": -0.20518100657271482,
+        "max_ic": 0.3640503696908771
+      },
+      "n_predictions": 137227,
+      "n_pred_dates": 279,
+      "weight": 0.25
+    },
+    "10": {
+      "model_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\models\\mlp_horizon10.pt",
+      "predictions_path": "C:\\Users\\cui\\.codex\\worktrees\\ce37\\quantlab0.0.3\\data\\predictions_h10.parquet",
+      "train_ic": {
+        "mean_ic": 0.1449648533598688,
+        "std_ic": 0.13134719798199052,
+        "ir": 1.1036767863121484,
+        "hit_rate": 0.8710325431900362,
+        "n_periods": 2489,
+        "min_ic": -0.2972222868399929,
+        "max_ic": 0.6391340260492298
+      },
+      "test_ic": {
+        "mean_ic": 0.1458720987259213,
+        "std_ic": 0.09486489705558365,
+        "ir": 1.5376825701971857,
+        "hit_rate": 0.9379562043795621,
+        "n_periods": 274,
+        "min_ic": -0.1811405165902339,
+        "max_ic": 0.3506278172267927
+      },
+      "n_predictions": 134692,
+      "n_pred_dates": 274,
+      "weight": 0.25
+    }
+  },
+  "generated_at": "2026-07-03 23:35:22"
+}

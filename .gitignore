@@ -1,0 +1,18 @@
+.venv/
+.env
+
+# DuckDB database files
+*.duckdb
+*.duckdb.wal
+*.duckdb.tmp
+**/data/*.duckdb
+
+temp/
+
+# Log files
+*.log
+
+# Python cache
+__pycache__/
+
+*.duckdb*
