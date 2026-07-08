@@ -255,6 +255,21 @@ def main():
     else:
         log.warning("daily_basic 未获取到任何数据")
 
+    # ---- 指数日线全量拉取 ----
+    _ensure_index_daily_table(con)
+    for ts_code, store_code in _TRACKED_INDICES:
+        log.info("拉取指数 %s (%s) ...", store_code, ts_code)
+        df_idx = _fetch_index(pro, ts_code, "20080101", "22220101")
+        if df_idx.empty:
+            log.warning("  指数 %s 无数据", ts_code)
+            continue
+        df_idx["code"] = store_code
+        con.execute("DELETE FROM index_daily WHERE code=?", (store_code,))
+        con.execute("INSERT INTO index_daily SELECT * FROM df_idx")
+        n = con.execute("SELECT count(*) FROM index_daily WHERE code=?", (store_code,)).fetchone()[0]
+        log.info("  index_daily 写入 %d 行", n)
+        time.sleep(REQ_INTERVAL)
+
     con.close()
 
 
@@ -274,6 +289,39 @@ def fetch_daily_basic(pro, full_code):
     result = df[["code", "trade_date", "total_mv", "circ_mv"]].rename(columns={"trade_date": "date"})
     result = result.drop_duplicates(subset=["code", "date"])
     return result
+
+# ---- 指数日线拉取 ----
+
+_TRACKED_INDICES = [
+    ("000985.CSI", "000985"),  # 中证全指
+]
+
+
+def _ensure_index_daily_table(con):
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS index_daily (
+            code    VARCHAR NOT NULL,
+            date    DATE    NOT NULL,
+            open    DOUBLE,
+            high    DOUBLE,
+            low     DOUBLE,
+            close   DOUBLE,
+            volume  DOUBLE,
+            amount  DOUBLE,
+            pct_chg DOUBLE,
+            PRIMARY KEY (code, date)
+        )
+    """)
+
+
+def _fetch_index(pro, ts_code, start, end):
+    df = pro.index_daily(ts_code=ts_code, start_date=start, end_date=end)
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df = df.rename(columns={"trade_date": "date", "vol": "volume"})
+    df["date"] = pd.to_datetime(df["date"])
+    cols = ["code", "date", "open", "high", "low", "close", "volume", "amount", "pct_chg"]
+    return df[cols]
 
 
 if __name__ == "__main__":
