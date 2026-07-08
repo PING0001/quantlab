@@ -148,6 +148,38 @@ def fetch_daily_basic(pro, full_code):
     return result
 
 
+TRACKED_INDICES = [
+    ("000985.CSI", "000985"),  # 中证全指
+]
+
+
+def fetch_index(pro, ts_code, start, end):
+    df = pro.index_daily(ts_code=ts_code, start_date=start, end_date=end)
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df = df.rename(columns={"trade_date": "date", "vol": "volume"})
+    df["date"] = pd.to_datetime(df["date"])
+    cols = ["code", "date", "open", "high", "low", "close", "volume", "amount", "pct_chg"]
+    return df[cols]
+
+
+def ensure_index_daily_table(con):
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS index_daily (
+            code    VARCHAR NOT NULL,
+            date    DATE    NOT NULL,
+            open    DOUBLE,
+            high    DOUBLE,
+            low     DOUBLE,
+            close   DOUBLE,
+            volume  DOUBLE,
+            amount  DOUBLE,
+            pct_chg DOUBLE,
+            PRIMARY KEY (code, date)
+        )
+    """)
+
+
 def main():
     con = duckdb.connect(str(DB_PATH))
     ensure_data_gaps_table(con)
@@ -266,6 +298,29 @@ def main():
         time.sleep(REQ_INTERVAL)
 
     log.info("daily_basic 增量更新完成，%d 只股票已刷新", updated_count)
+
+    # --- 指数日线增量拉取 ---
+    ensure_index_daily_table(con)
+    today_str = today.strftime("%Y%m%d")
+    for ts_code, store_code in TRACKED_INDICES:
+        max_d = con.execute(
+            "SELECT MAX(date) FROM index_daily WHERE code=?", (store_code,)
+        ).fetchone()[0]
+        if max_d is not None and max_d >= today:
+            log.info("指数 %s 已是最新 (%s)", store_code, max_d)
+            continue
+        start_str = max_d.strftime("%Y%m%d") if max_d else "20080101"
+        log.info("拉取指数 %s: %s ~ %s", store_code, start_str, today_str)
+        df_idx = fetch_index(pro, ts_code, start_str, today_str)
+        if df_idx.empty:
+            log.info("  无新数据")
+            continue
+        df_idx["code"] = store_code
+        con.execute("DELETE FROM index_daily WHERE code=? AND date>=?", (store_code, pd.to_datetime(start_str).date()))
+        con.execute("INSERT INTO index_daily SELECT * FROM df_idx")
+        log.info("  插入 %d 行", len(df_idx))
+        time.sleep(REQ_INTERVAL)
+
     con.close()
 
 

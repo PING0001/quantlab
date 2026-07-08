@@ -44,11 +44,19 @@ SELECTED_FACTORS = [
     "alpha001", "alpha002", "alpha003", "alpha006", "alpha009",
     "alpha012", "alpha013", "alpha014", "alpha019", "alpha020",
     "alpha050", "alpha101", "alpha191",
+    # Market cap / amount (2)
+    "AvgAmount_90d", "LnMktCap",
+    # Turnover (2)
+    "Turnover_3d", "Turnover_3d_ratio",
+    # Intraday (1)
+    "Intraday_return",
+    # Market state (4)
+    "CSI_return_1d", "CSI_return_5d", "CSI_return_20d", "CSI_volatility_20d",
 ]
 
 
 # --- config ---
-TEST_START = pd.Timestamp("2025-05-01")
+TEST_START = pd.Timestamp("2024-06-01")
 TEST_END   = pd.Timestamp("2026-06-26")
 WARMUP_DAYS = 100
 TRAIN_WINDOW = 252

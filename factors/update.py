@@ -33,6 +33,10 @@ _CURATED_FACTORS = [
     "alpha001", "alpha002", "alpha003", "alpha006", "alpha009",
     "alpha012", "alpha013", "alpha014", "alpha019", "alpha020",
     "alpha050", "alpha101", "alpha191",
+        "LnMktCap", "LnFloatCap", "AvgAmount_90d",
+        "Turnover_3d", "Turnover_3d_ratio",
+        "Intraday_return",
+        "CSI_return_1d", "CSI_return_5d", "CSI_return_20d", "CSI_volatility_20d",
 ]
 
 

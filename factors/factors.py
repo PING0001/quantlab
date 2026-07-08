@@ -140,6 +140,23 @@ def Turnover_20d(data):
     return ts_mean(data["turn"], 20)
 
 
+def Turnover_3d(data):
+    """3-day average turnover rate."""
+    return ts_mean(data["turn"], 3)
+
+
+def Turnover_3d_ratio(data):
+    """Ratio of 3-day to 20-day average turnover."""
+    t3 = Turnover_3d(data)
+    t20 = Turnover_20d(data)
+    return t3 / t20.replace(0, np.nan)
+
+
+def Intraday_return(data):
+    """Intraday return: (close - open) / open."""
+    return (data["close"] - data["open"]) / data["open"].replace(0, np.nan)
+
+
 def Return_60d(data):
     """60-day cumulative return (medium-term momentum)."""
     return data["close"].pct_change(60)
@@ -279,6 +296,25 @@ def Intraday_range_pct(data):
     """Intraday range normalized by open: (high - low) / open."""
     return (data["high"] - data["low"]) / data["open"].replace(0, np.nan)
 
+
+def LnMktCap(data):
+    """Natural log of total market capitalisation (万元 -> 元 then ln)."""
+    mv = data["total_mv"] * 1e4
+    mv = mv.replace(0, np.nan)
+    return np.log(mv)
+
+
+def LnFloatCap(data):
+    """Natural log of circulating market capitalisation (万元 -> 元 then ln)."""
+    mv = data["circ_mv"] * 1e4
+    mv = mv.replace(0, np.nan)
+    return np.log(mv)
+
+
+def AvgAmount_90d(data):
+    """90-day rolling mean of daily turnover amount."""
+    return data["amount"].rolling(90, min_periods=1).mean()
+
 ""
 ""
 # 鍥犲瓙娉ㄥ唽琛?--- 涓€涓?dict
@@ -329,7 +365,13 @@ FACTOR_HUB = {
     'Intraday_position': Intraday_position,
     'Amihud_illiquidity': Amihud_illiquidity,
     'Return_skew_20d': Return_skew_20d,
-    'Intraday_range_pct': Intraday_range_pct
+    'Intraday_range_pct': Intraday_range_pct,
+    'LnMktCap': LnMktCap,
+    'LnFloatCap': LnFloatCap,
+    'AvgAmount_90d': AvgAmount_90d,
+    'Turnover_3d': Turnover_3d,
+    'Turnover_3d_ratio': Turnover_3d_ratio,
+    'Intraday_return': Intraday_return,
 }
 
 __all__ = list(FACTOR_HUB.keys())

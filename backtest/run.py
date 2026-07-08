@@ -31,7 +31,7 @@ from backtest.signals import run_portfolio, compute_benchmark
 # ============================================================================
 # CONFIG
 # ============================================================================
-TEST_START = pd.Timestamp("2025-05-01")
+TEST_START = pd.Timestamp("2024-06-01")
 TEST_END = pd.Timestamp("2026-06-26")
 WARMUP_DAYS = 100
 TRAIN_WINDOW = 252

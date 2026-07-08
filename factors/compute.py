@@ -38,12 +38,15 @@ def compute_factors_for_stock(df_stock, factor_hub=None):
 
 
 def load_all_stocks(con):
-    """Load all kline data sorted by (code, date)."""
+    """Load all kline data joined with market cap sorted by (code, date)."""
     return con.execute("""
-        SELECT code, date, open, high, low, close, volume, amount,
-               turn, pct_chg
-        FROM daily_kline
-        ORDER BY code, date
+        SELECT k.code, k.date, k.open, k.high, k.low, k.close,
+               k.volume, k.amount, k.pct_chg,
+               k.volume * k.close / NULLIF(b.circ_mv, 0) AS turn,
+               b.total_mv, b.circ_mv
+        FROM daily_kline k
+        LEFT JOIN daily_basic b ON k.code = b.code AND k.date = b.date
+        ORDER BY k.code, k.date
     """).fetchdf()
 
 
@@ -81,6 +84,8 @@ def compute_panel(con=None, db_path=None, codes=None, max_stocks=None):
     result = pd.concat(panels, ignore_index=True)
     result = result.set_index(["date", "code"]).sort_index()
 
+    result = _merge_market_features(result, con)
+
     if should_close:
         con.close()
     return result
@@ -112,14 +117,48 @@ def store_factors(factor_panel, table_name="factor_values", con=None,
         con.close()
     return n
 def load_all_stocks_since(con, min_date):
-    """Load kline data from min_date onwards, sorted by (code, date)."""
+    """Load kline data joined with market cap from min_date onwards."""
     return con.execute("""
-        SELECT code, date, open, high, low, close, volume, amount,
-               turn, pct_chg
-        FROM daily_kline
-        WHERE date >= ?
-        ORDER BY code, date
+        SELECT k.code, k.date, k.open, k.high, k.low, k.close,
+               k.volume, k.amount, k.pct_chg,
+               k.volume * k.close / NULLIF(b.circ_mv, 0) AS turn,
+               b.total_mv, b.circ_mv
+        FROM daily_kline k
+        LEFT JOIN daily_basic b ON k.code = b.code AND k.date = b.date
+        WHERE k.date >= ?
+        ORDER BY k.code, k.date
     """, (min_date,)).fetchdf()
+
+
+def compute_market_features(con):
+    """Compute market state features from 中证全指 (000985) index data."""
+    idx = con.execute("""
+        SELECT date, pct_chg, close FROM index_daily
+        WHERE code = '000985' ORDER BY date
+    """).fetchdf()
+    if idx.empty:
+        return pd.DataFrame()
+    idx["date"] = pd.to_datetime(idx["date"])
+    idx = idx.sort_values("date")
+
+    idx["CSI_return_1d"] = idx["pct_chg"] / 100.0
+    idx["CSI_return_5d"] = idx["close"].pct_change(5)
+    idx["CSI_return_20d"] = idx["close"].pct_change(20)
+    idx["CSI_volatility_20d"] = idx["pct_chg"].rolling(20, min_periods=5).std() / 100.0
+
+    return idx[["date", "CSI_return_1d", "CSI_return_5d", "CSI_return_20d",
+                "CSI_volatility_20d"]]
+
+
+def _merge_market_features(result, con):
+    """Broadcast market features to every (date, code) row in result."""
+    market = compute_market_features(con)
+    if market.empty:
+        return result
+    result = result.reset_index()
+    result["date"] = pd.to_datetime(result["date"])
+    result = result.merge(market, on="date", how="left")
+    return result.set_index(["date", "code"]).sort_index()
 
 
 def compute_panel_incremental(con=None, lookback_trading_days=252):
@@ -181,6 +220,9 @@ def compute_panel_incremental(con=None, lookback_trading_days=252):
     result = pd.concat(panels, ignore_index=True)
     result["date"] = pd.to_datetime(result["date"])
     result = result.set_index(["date", "code"]).sort_index()
+
+    # Broadcast market features
+    result = _merge_market_features(result, con)
 
     # Keep only rows after the last date in factor_values
     new_data = result[result.index.get_level_values("date") > pd.Timestamp(last_date_ts)]

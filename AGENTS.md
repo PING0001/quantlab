@@ -5,7 +5,7 @@
 Quantlab 是一个 **A股量化选股系统**，针对主板微盘股（流通市值 1-28 亿）进行多周期收益预测。核心流程：
 
 ```
-Tushare 数据 → DuckDB 存储 → 因子计算（44个） → 多周期 MLP 训练 → 回测 → HTML 预测报告 → JSON 交易信号
+Tushare 数据 → DuckDB 存储 → 因子计算（53个） → 多周期 MLP 训练（42因子输入） → 回测 → HTML 预测报告 → JSON 交易信号
 ```
 
 ## Technology Stack
@@ -29,12 +29,13 @@ quantlab/
 │
 ├── data/                    # 数据摄入
 │   ├── build_db.py          # 全量建库：拉取日线行情、复权因子、市值
-│   ├── pull_adj.py          # 增量更新：获取上次记录日期之后的新数据
+│   ├── build_index_db.py    # 全量建库：拉取指数日线（中证全指 000985 等）
+│   ├── pull_adj.py          # 增量更新：获取上次记录日期之后的新数据（含指数）
 │   └── ashare.duckdb        # DuckDB 数据库（~650 MB），所有数据唯一来源
 │
 ├── factors/                 # 因子工程
 │   ├── ops.py               # 底层算子：rank, ts_sum, ts_rank, correlation 等
-│   ├── factors.py           # 44个因子函数 + FACTOR_HUB 注册表
+│   ├── factors.py           # 53个因子函数 + FACTOR_HUB 注册表
 │   ├── compute.py           # 因子计算流水线：读取 K 线 → 全量或增量计算 → 存储
 │   ├── update.py            # 增量因子更新入口
 │   └── selection.py         # 因子相关性分析 + 贪心多样化选择（可选）
@@ -77,19 +78,26 @@ quantlab/
 所有行情数据和因子值均存储在 `data/ashare.duckdb` 这一个嵌入式数据库中。前复权价格通过 SQL VIEW `daily_kline` 实时计算，原始数据保持不变。**切勿引入其他数据库或文件格式来存储市场数据。**
 
 ### 2. 多目标 MLP 架构
-- **共享主干网络**：25→12→8 隐藏层，从33个精选因子中提取共同特征
+- **共享主干网络**：25→12→8 隐藏层，从42个精选因子中提取共同特征
 - **4个独立线性输出头**：分别预测 1、3、5、10 日收益
 - 带 L2 正则化、dropout、早停和学习率调度防止过拟合
 - 每个周期的目标收益在训练前独立进行 z-score 标准化，预测时再反标准化
 
 ### 3. 固定测试集的 Walk-Forward
-- 在 2025-05-01 之前的所有数据上一次性训练
-- 使用该冻结模型预测整个测试期（2025-05-01 至 2026-06-26）
+- 在 2024-06-01 之前的所有数据上一次性训练（约 3959 个交易日）
+- 使用该冻结模型预测整个测试期（2024-06-01 至 2026-06-26，约 499 个交易日）
 - 计算高效，且避免前视偏差
 - **不是**在扩展窗口上迭代重训练
 
-### 4. 精选因子集
-33个因子涵盖：动量、波动率、价格位置、日内形态、成交量/流动性、WorldQuant 风格 alpha 复合因子。通过领域知识和相关性分析结合选出。
+### 4. 精选因子集（42个）
+涵盖：动量（4）、波动率（5）、价格位置/其他（6）、日内形态（4）、成交量/流动性（4）、WorldQuant alpha 复合（13）、市值（1）、换手率（2）、市场状态（4）。
+
+关键新增：
+- `LnMktCap`：对数总市值（Size 因子），`total_mv` from daily_basic
+- `Turnover_3d` / `Turnover_3d_ratio`：3日均换手率及其与20日均的比值，换手率由 `volume × close / circ_mv` 实时计算
+- `AvgAmount_90d`：90日均成交额
+- `Intraday_return`：日内收益 `(close-open)/open`
+- `CSI_return_1d/5d/20d`、`CSI_volatility_20d`：中证全指（000985）市场状态特征，横截面广播（同一日期所有股票共享相同值），帮助 MLP 感知大盘环境
 
 ### 5. 组合模拟中的跳空过滤器
 仅在次日开盘时建仓，前提是股票未出现向上跳空（多头）或向下跳空（空头）超过 1.5% 的情况。
@@ -104,6 +112,19 @@ quantlab/
 - **输出隔离**：模型、预测缓存、回测、HTML 报告均按 `{pool_name}/` 分子目录存储
 - **数据拉取**：`build_db.py` / `pull_adj.py` 使用 `load_all_pool_stocks()` 加载所有池的并集，确保数据库覆盖所有股票
 
+### 7. 换手率实时计算
+`daily_kline` VIEW 继承的 `turn` 字段为 NULL（Tushare `daily` 接口不返回换手率）。计算因子时通过 `volume × close / NULLIF(circ_mv, 0)` 在 `load_all_stocks` SQL 中实时算得换手率。
+
+### 8. 市值数据来源
+总市值 `total_mv` 和流通市值 `circ_mv` 来自 `daily_basic` 表（Tushare `daily_basic` 接口），单位为**万元**。`daily_raw` 中的同名字段全为 NULL（Tushare `daily` 接口不返回市值）。因子计算时通过 LEFT JOIN `daily_basic` 获取，注意 `daily_basic.code` 不含后缀（`.SH`/`.SZ`）。
+
+### 9. 市场状态特征（中证全指）
+- 指数日线数据存储在 `index_daily` 表（通过 `data/build_index_db.py` 拉取）
+- 当前使用 **中证全指（000985）**，从 2008 年起全程覆盖
+- 因子计算流水线（`compute_panel`）会自动从 `index_daily` 提取指数数据，计算 `CSI_return_1d/5d/20d` 和 `CSI_volatility_20d`，然后横截面广播到每个股票-日期行
+- 增量计算（`compute_panel_incremental`）同样会自动合并市场特征
+- 如需切换指数，修改 `compute.py` 中 `compute_market_features()` 的 WHERE 条件
+
 ## Common Workflows
 
 所有命令默认使用 `QUANTLAB_POOL` 环境变量指定的股票池（默认 `mainboard_microcap`）。切换方式：
@@ -113,8 +134,13 @@ set QUANTLAB_POOL=mainboard_smallcap && python run_mlp_multi.py
 
 ### 更新数据（每日运行）
 ```bash
-python data/pull_adj.py      # 拉取最新日线行情
+python data/pull_adj.py      # 拉取最新日线行情（含指数）
 python -m factors.update     # 增量计算因子
+```
+
+### 拉取指数数据（首次/补充）
+```bash
+python data/build_index_db.py   # 拉取指数日线（中证全指等）入库
 ```
 
 ### 训练模型
@@ -151,7 +177,7 @@ python _check_pkgs.py
 
 - **不要提交 DuckDB 文件**：`.gitignore` 已排除 `*.duckdb`，数据库文件较大且包含敏感配置
 - **不要提交 .env 文件**：包含 Tushare token
-- **Tushare 中继限流**：quicksync 中继每次请求限制 ~2000 行。建库脚本每次请求 2 只股票以避免超限。修改数据拉取代码时注意保持此限制
+- **Tushare 中继限流**：quicksync 中继每次请求限制 ~2000 行。建库脚本每次请求 1 只股票以避免超限（2008 年以来数据量大）。修改数据拉取代码时注意保持此限制
 - **无 notebook**：本项目不使用 Jupyter notebook，所有分析均通过 Python 脚本完成
 - **无正式依赖文件**：项目没有 requirements.txt 或 pyproject.toml。所需包见 `_check_pkgs.py`
 - **仅支持 A 股主板**：股票池定义在 `pools/` 目录下的 JSON 文件中，聚焦流通市值 1-28 亿的主板股票
