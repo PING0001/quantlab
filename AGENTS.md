@@ -114,7 +114,7 @@ set QUANTLAB_POOL=mainboard_smallcap && python run_mlp_multi.py
 ### 更新数据（每日运行）
 ```bash
 python data/pull_adj.py      # 拉取最新日线行情
-python factors/update.py     # 增量计算因子
+python -m factors.update     # 增量计算因子
 ```
 
 ### 训练模型

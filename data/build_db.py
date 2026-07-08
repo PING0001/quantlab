@@ -26,9 +26,9 @@ from dotenv import load_dotenv
 from config import DB_PATH, load_all_pool_stocks
 
 LOG_PATH = Path(__file__).parent / "build_db.log"
-START_DATE = "20150101"
+START_DATE = "20080101"
 END_DATE = "22220101"
-BATCH_SIZE = 2
+BATCH_SIZE = 1
 REQ_INTERVAL = 0.35
 
 logging.basicConfig(
@@ -65,8 +65,22 @@ def batch_ts_codes(stocks, size=2):
         yield ts_codes, codes
 
 
+def _retry_api(fn, *args, max_retries=3, **kwargs):
+    """Retry on connection errors with exponential backoff."""
+    for attempt in range(max_retries):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            wait = 2 * (2 ** attempt)
+            log.warning("API error (attempt %d/%d): %s, retrying in %ds...",
+                        attempt + 1, max_retries, e, wait)
+            time.sleep(wait)
+
+
 def fetch_daily(pro, ts_codes):
-    df = pro.daily(ts_code=ts_codes, start_date=START_DATE, end_date=END_DATE)
+    df = _retry_api(pro.daily, ts_code=ts_codes, start_date=START_DATE, end_date=END_DATE)
     if df is None or df.empty:
         return pd.DataFrame()
     df["code"] = df["ts_code"].str.replace(r"[.](SH|SZ|BJ)$", "", regex=True)
@@ -79,7 +93,7 @@ def fetch_daily(pro, ts_codes):
 
 
 def fetch_adj_factor(pro, ts_codes):
-    df = pro.adj_factor(ts_code=ts_codes)
+    df = _retry_api(pro.adj_factor, ts_code=ts_codes)
     if df is None or df.empty:
         return pd.DataFrame()
     df["code"] = df["ts_code"].str.replace(r"[.](SH|SZ|BJ)$", "", regex=True)
@@ -170,7 +184,7 @@ def main():
     all_daily, all_adj = [], []
     total_batches = (len(stocks) + BATCH_SIZE - 1) // BATCH_SIZE
 
-    for batch_idx, (ts_codes, codes) in enumerate(batch_ts_codes(stocks), 1):
+    for batch_idx, (ts_codes, codes) in enumerate(batch_ts_codes(stocks, BATCH_SIZE), 1):
         log.info("[批 %d/%d] %s ~ %s (%d 只)",
                  batch_idx, total_batches, codes[0], codes[-1], len(codes))
 
@@ -244,15 +258,13 @@ def main():
     con.close()
 
 
-if __name__ == "__main__":
-    main()
 def fetch_daily_basic(pro, full_code):
     """拉取单只股票的 daily_basic（total_mv, circ_mv）。
 
     quicksync relay 的 daily_basic 不支持批量（ts_code 逗号分隔）
     也不支持 start_date/end_date 过滤，所以逐只全量拉取。
     """
-    df = pro.daily_basic(ts_code=full_code)
+    df = _retry_api(pro.daily_basic, ts_code=full_code)
     if df is None or df.empty:
         return pd.DataFrame()
     df["code"] = df["ts_code"].str.replace(r"[.](SH|SZ|BJ)$", "", regex=True)
@@ -262,3 +274,7 @@ def fetch_daily_basic(pro, full_code):
     result = df[["code", "trade_date", "total_mv", "circ_mv"]].rename(columns={"trade_date": "date"})
     result = result.drop_duplicates(subset=["code", "date"])
     return result
+
+
+if __name__ == "__main__":
+    main()
