@@ -5,7 +5,7 @@
 Quantlab 是一个 **A股量化选股系统**，针对主板微盘股（流通市值 1-28 亿）进行多周期收益预测。核心流程：
 
 ```
-Tushare 数据 → DuckDB 存储 → 因子计算（53个） → 多周期 MLP 训练（42因子输入） → 回测 → HTML 预测报告 → JSON 交易信号
+Tushare 数据 → DuckDB 存储 → 因子计算（60个） → 多周期 MLP 训练（45因子输入） → 回测 → HTML 预测报告 → JSON 交易信号
 ```
 
 ## Technology Stack
@@ -35,7 +35,7 @@ quantlab/
 │
 ├── factors/                 # 因子工程
 │   ├── ops.py               # 底层算子：rank, ts_sum, ts_rank, correlation 等
-│   ├── factors.py           # 53个因子函数 + FACTOR_HUB 注册表
+│   ├── factors.py           # 60个因子函数 + FACTOR_HUB 注册表
 │   ├── compute.py           # 因子计算流水线：读取 K 线 → 全量或增量计算 → 存储
 │   ├── update.py            # 增量因子更新入口
 │   └── selection.py         # 因子相关性分析 + 贪心多样化选择（可选）
@@ -78,7 +78,7 @@ quantlab/
 所有行情数据和因子值均存储在 `data/ashare.duckdb` 这一个嵌入式数据库中。前复权价格通过 SQL VIEW `daily_kline` 实时计算，原始数据保持不变。**切勿引入其他数据库或文件格式来存储市场数据。**
 
 ### 2. 多目标 MLP 架构
-- **共享主干网络**：25→12→8 隐藏层，从42个精选因子中提取共同特征
+- **共享主干网络**：32→16→8 隐藏层，从45个精选因子中提取共同特征
 - **4个独立线性输出头**：分别预测 1、3、5、10 日收益
 - 带 L2 正则化、dropout、早停和学习率调度防止过拟合
 - 每个周期的目标收益在训练前独立进行 z-score 标准化，预测时再反标准化
@@ -89,8 +89,8 @@ quantlab/
 - 计算高效，且避免前视偏差
 - **不是**在扩展窗口上迭代重训练
 
-### 4. 精选因子集（42个）
-涵盖：动量（4）、波动率（5）、价格位置/其他（6）、日内形态（4）、成交量/流动性（4）、WorldQuant alpha 复合（13）、市值（1）、换手率（2）、市场状态（4）。
+### 4. 精选因子集（45个）
+涵盖：动量（4）、波动率（5）、价格位置/其他（6）、日内形态（4）、成交量/流动性（2）、WorldQuant alpha 复合（13）、市值/成交额（2）、换手率（2）、市场状态（4）、横截面排名（3）。
 
 关键新增：
 - `LnMktCap`：对数总市值（Size 因子），`total_mv` from daily_basic
@@ -98,6 +98,7 @@ quantlab/
 - `AvgAmount_90d`：90日均成交额
 - `Intraday_return`：日内收益 `(close-open)/open`
 - `CSI_return_1d/5d/20d`、`CSI_volatility_20d`：中证全指（000985）市场状态特征，横截面广播（同一日期所有股票共享相同值），帮助 MLP 感知大盘环境
+- `Return_1d_rank` / `Return_20d_rank` / `Turnover_3d_rank`：对现有因子做横截面排名（同日期所有股票百分位 − 0.5），捕捉相对强弱信号
 
 ### 5. 组合模拟中的跳空过滤器
 仅在次日开盘时建仓，前提是股票未出现向上跳空（多头）或向下跳空（空头）超过 1.5% 的情况。
@@ -124,6 +125,14 @@ quantlab/
 - 因子计算流水线（`compute_panel`）会自动从 `index_daily` 提取指数数据，计算 `CSI_return_1d/5d/20d` 和 `CSI_volatility_20d`，然后横截面广播到每个股票-日期行
 - 增量计算（`compute_panel_incremental`）同样会自动合并市场特征
 - 如需切换指数，修改 `compute.py` 中 `compute_market_features()` 的 WHERE 条件
+
+### 10. Alpha 因子横截面排名
+- 13 个入选 alpha 因子中的 `rank()` 调用已从**时序排名**（同股票历史上排）修正为**横截面排名**（同日期全市场排），还原 WorldQuant 原始公式语义
+- **实现方式**：因子计算分两阶段：
+  1. 预计算阶段 `_compute_cs_rank_cols()`：在全量 DataFrame 上对 close、volume、low 及派生字段（dc1、dv1、ret1d）做 `groupby('date').transform(cs_rank)`，生成 6 个 `_cs` 后缀列供因子函数引用
+  2. 后处理阶段 `_apply_cs_rank_post()`：对 8 个需要外层横截面 rank 的 alpha 因子在全量 panel 上重算 rank
+- 新增横截面排名因子 `Return_1d_rank`、`Return_20d_rank`、`Turnover_3d_rank` 通过 `_merge_rank_factors()` 同样在后处理阶段生成
+- 极端值保护：先 `clip(-1e10, 1e10)` 夹住溢出值，再 `replace(inf→NaN)` 兜底，确保 cs_rank 不会遇到不可计算的值
 
 ## Common Workflows
 

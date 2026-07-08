@@ -52,6 +52,8 @@ SELECTED_FACTORS = [
     "Intraday_return",
     # Market state (4)
     "CSI_return_1d", "CSI_return_5d", "CSI_return_20d", "CSI_volatility_20d",
+    # Cross-sectional ranks (3)
+    "Return_1d_rank", "Return_20d_rank", "Turnover_3d_rank",
 ]
 
 

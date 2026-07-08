@@ -37,6 +37,7 @@ _CURATED_FACTORS = [
         "Turnover_3d", "Turnover_3d_ratio",
         "Intraday_return",
         "CSI_return_1d", "CSI_return_5d", "CSI_return_20d", "CSI_volatility_20d",
+        "Return_1d_rank", "Return_20d_rank", "Turnover_3d_rank",
 ]
 
 

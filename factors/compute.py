@@ -16,6 +16,63 @@ from .factors import FACTOR_HUB
 log = logging.getLogger(__name__)
 
 
+def _cs_rank(series):
+    return series.rank(pct=True) - 0.5
+
+
+_CS_RANK_BASES = {
+    "close": "close_cs",
+    "volume": "volume_cs",
+    "low": "low_cs",
+    "dc1": "dc1_cs",
+    "dv1": "dv1_cs",
+    "ret1d": "ret1d_cs",
+}
+
+_CS_RANK_POST_FACTORS = [
+    "alpha001", "alpha013", "alpha014", "alpha019", "alpha020",
+    "alpha050", "alpha101", "alpha191",
+]
+
+
+def _compute_cs_rank_cols(df_all):
+    """Compute derived base columns and their cross-sectional ranks.
+
+    Adds dc1, dv1, ret1d and their _cs-ranked siblings to the full panel.
+    Modifies df_all in place.
+    """
+    grp = df_all.groupby("code")
+    df_all["dc1"] = grp["close"].transform(lambda x: x - x.shift(1))
+    df_all["dv1"] = grp["volume"].transform(lambda x: x - x.shift(1))
+    df_all["ret1d"] = grp["close"].pct_change()
+
+    for src, dst in _CS_RANK_BASES.items():
+        df_all[dst] = df_all.groupby("date")[src].transform(_cs_rank)
+
+    return df_all
+
+
+def _apply_cs_rank_post(result):
+    """Apply cross-sectional rank to outer-rank alpha factors."""
+    for col in _CS_RANK_POST_FACTORS:
+        if col in result.columns:
+            result[col] = result.groupby("date")[col].transform(_cs_rank)
+    return result
+
+
+def _merge_rank_factors(result):
+    """Generate cross-sectional rank versions of selected factors."""
+    rank_map = {
+        "Return_1d": "Return_1d_rank",
+        "Return_20d": "Return_20d_rank",
+        "Turnover_3d": "Turnover_3d_rank",
+    }
+    for base, rank_name in rank_map.items():
+        if base in result.columns:
+            result[rank_name] = result.groupby("date")[base].transform(_cs_rank)
+    return result
+
+
 def compute_factors_for_stock(df_stock, factor_hub=None):
     """Compute all registered factors for one stock's kline DataFrame."""
     if factor_hub is None:
@@ -70,6 +127,8 @@ def compute_panel(con=None, db_path=None, codes=None, max_stocks=None):
 
     log.info("Loaded %d rows, %d stocks", len(df_all), df_all["code"].nunique())
 
+    df_all = _compute_cs_rank_cols(df_all)
+
     panels = []
     for code, grp in df_all.groupby("code", sort=False):
         grp = grp.sort_values("date")
@@ -84,6 +143,9 @@ def compute_panel(con=None, db_path=None, codes=None, max_stocks=None):
     result = pd.concat(panels, ignore_index=True)
     result = result.set_index(["date", "code"]).sort_index()
 
+    result = result.clip(-1e10, 1e10).replace([np.inf, -np.inf], np.nan)
+    result = _apply_cs_rank_post(result)
+    result = _merge_rank_factors(result)
     result = _merge_market_features(result, con)
 
     if should_close:
@@ -206,6 +268,8 @@ def compute_panel_incremental(con=None, lookback_trading_days=252):
     log.info("Loaded %d rows, %d stocks (since %s)",
              len(df_all), df_all["code"].nunique(), lookback_start.date())
 
+    df_all = _compute_cs_rank_cols(df_all)
+
     panels = []
     for code, grp in df_all.groupby("code", sort=False):
         grp = grp.sort_values("date")
@@ -220,6 +284,10 @@ def compute_panel_incremental(con=None, lookback_trading_days=252):
     result = pd.concat(panels, ignore_index=True)
     result["date"] = pd.to_datetime(result["date"])
     result = result.set_index(["date", "code"]).sort_index()
+
+    result = result.clip(-1e10, 1e10).replace([np.inf, -np.inf], np.nan)
+    result = _apply_cs_rank_post(result)
+    result = _merge_rank_factors(result)
 
     # Broadcast market features
     result = _merge_market_features(result, con)

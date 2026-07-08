@@ -176,22 +176,20 @@ def RSI_60d(data):
 
 def alpha001(data):
     c, v = data["close"], data["volume"]
-    return rank(ts_argmax(signed_power(correlation(c, v, 5), 2), 5)) - 0.5
+    return ts_argmax(signed_power(correlation(c, v, 5), 2), 5) - 0.5
 
 
 def alpha002(data):
-    c, v = data["close"], data["volume"]
-    return -correlation(rank(delta(c, 1)), rank(delta(v/100, 1)), 6)
+    return (-correlation(data["dc1_cs"], data["dv1_cs"], 6)).replace([np.inf, -np.inf], np.nan)
 
 
 def alpha003(data):
-    c, v = data["close"], data["volume"]
-    return -correlation(rank(c), rank(v/100), 10)
+    return (-correlation(data["close_cs"], data["volume_cs"], 10)).replace([np.inf, -np.inf], np.nan)
 
 
 def alpha004(data):
-    l = data["low"]
-    return -ts_rank(rank(l), 9)
+    l_cs = data["low_cs"]
+    return -ts_rank(l_cs, 9)
 
 
 def alpha006(data):
@@ -211,29 +209,30 @@ def alpha012(data):
 
 
 def alpha013(data):
-    c, v = data["close"], data["volume"]
-    return -rank(covariance(rank(c), rank(v), 5))
+    return -covariance(data["close_cs"], data["volume_cs"], 5)
 
 
 def alpha014(data):
-    o, v = data["open"], data["volume"]
-    return -rank(delta(rank(v), 1)) * correlation(o, v, 10)
+    o = data["open"]
+    v_cs = data["volume_cs"]
+    return -delta(v_cs, 1) * correlation(o, data["volume"], 10)
 
 
 def alpha019(data):
     c = data["close"]
-    ret = c.pct_change().fillna(0)
-    return -rank(delta(rank(ret), 3) * correlation(c, ret, 5))
+    ret_cs = data["ret1d_cs"]
+    return -delta(ret_cs, 3) * correlation(c, data["close"].pct_change().fillna(0), 5)
 
 
 def alpha020(data):
-    c, v = data["close"], data["volume"]
-    return -rank(correlation(rank(c), rank(v), 3)) * rank(covariance(rank(c), rank(v), 5))
+    c_cs = data["close_cs"]
+    v_cs = data["volume_cs"]
+    return -correlation(c_cs, v_cs, 3) * covariance(c_cs, v_cs, 5)
 
 
 def alpha050(data):
     c, v = data["close"], data["volume"]
-    return -rank(correlation(ts_rank(c, 10), ts_rank(v, 10), 10))
+    return -correlation(ts_rank(c, 10), ts_rank(v, 10), 10)
 
 
 def alpha060(data):
@@ -243,12 +242,14 @@ def alpha060(data):
 
 def alpha101(data):
     c, v = data["close"], data["volume"]
-    return rank(correlation(c, v, 10)) * rank(correlation(ts_rank(c, 10), ts_rank(v, 10), 10))
+    return correlation(c, v, 10) * correlation(ts_rank(c, 10), ts_rank(v, 10), 10)
 
 
 def alpha191(data):
     c, v = data["close"], data["volume"]
-    return rank(correlation(ts_rank(c, 10), ts_rank(v, 10), 10)) / rank(ts_rank(correlation(c, v, 10), 10)).replace(0, np.nan)
+    num = correlation(ts_rank(c, 10), ts_rank(v, 10), 10)
+    den = ts_rank(correlation(c, v, 10), 10)
+    return num / den.replace(0, np.nan)
 
 
 
