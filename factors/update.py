@@ -16,6 +16,7 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
+from config import DB_PATH
 from .compute import compute_panel_incremental
 
 log = logging.getLogger(__name__)
@@ -40,8 +41,7 @@ def main():
         stream=sys.stdout,
     )
 
-    db_path = Path(__file__).resolve().parent.parent / "data" / "ashare.duckdb"
-    con = duckdb.connect(str(db_path))
+    con = duckdb.connect(str(DB_PATH))
 
     panel = compute_panel_incremental(con=con)
     if panel.empty:

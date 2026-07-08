@@ -5,9 +5,9 @@
 *.duckdb
 *.duckdb.wal
 *.duckdb.tmp
-**/data/*.duckdb
 
 temp/
+tmp/
 
 # Log files
 *.log
@@ -15,4 +15,16 @@ temp/
 # Python cache
 __pycache__/
 
-*.duckdb*
+AGENTS.md
+
+# Cached predictions
+data/predictions__*
+
+# Generated forecast HTML reports
+forecast_display/html/*/
+
+# Generated trade signal JSON files
+trade_signals/output/
+
+# Editor/tool cache
+.zcode/

@@ -6,7 +6,7 @@ A股日线数据库 - 增量更新
 VIEW daily_kline 自动反映更新，无需额外操作。
 """
 from __future__ import annotations
-import json, logging, sys, time
+import logging, sys, time
 from pathlib import Path
 from datetime import datetime, timedelta
 
@@ -17,8 +17,10 @@ import tushare.pro.client as client
 client.DataApi._DataApi__http_url = "http://api.quicksync.cn"
 from dotenv import load_dotenv
 
-DB_PATH = Path(__file__).parent / "ashare.duckdb"
-STOCK_POOL = Path(__file__).parent.parent / "mainboard_microcap.json"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from config import DB_PATH, load_all_pool_stocks
+
 LOG_PATH = Path(__file__).parent / "pull_adj.log"
 BATCH_SIZE = 2
 REQ_INTERVAL = 0.35
@@ -47,12 +49,6 @@ def _init_pro():
     _PRO_API = pro
     return pro
 _PRO_API = None
-
-
-def load_stock_pool(path):
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    return data["stocks"]
 
 
 def batch_ts_codes(stocks, size=2):
@@ -156,7 +152,7 @@ def main():
     con = duckdb.connect(str(DB_PATH))
     ensure_data_gaps_table(con)
     ensure_daily_basic_table(con)
-    stocks = load_stock_pool(STOCK_POOL)
+    stocks = load_all_pool_stocks()
     pro = _init_pro()
 
     today = datetime.now().date()

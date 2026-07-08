@@ -11,7 +11,7 @@ A股日线数据库 - 全量构建
   - 遵守 relay 速率限制（200次/分钟，约 0.35s 间隔）
 """
 from __future__ import annotations
-import json, logging, sys, time
+import logging, sys, time
 from pathlib import Path
 
 import duckdb
@@ -19,10 +19,12 @@ import pandas as pd
 import tushare as ts
 import tushare.pro.client as client
 client.DataApi._DataApi__http_url = "http://api.quicksync.cn"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from dotenv import load_dotenv
 
-DB_PATH = Path(__file__).parent / "ashare.duckdb"
-STOCK_POOL = Path(__file__).parent.parent / "mainboard_microcap.json"
+from config import DB_PATH, load_all_pool_stocks
+
 LOG_PATH = Path(__file__).parent / "build_db.log"
 START_DATE = "20150101"
 END_DATE = "22220101"
@@ -53,14 +55,6 @@ def _init_pro():
     _PRO_API = pro
     return pro
 _PRO_API = None
-
-
-def load_stock_pool(path):
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    stocks = data["stocks"]
-    log.info("股票池: %s - %d 只", data.get("block_name", ""), len(stocks))
-    return data.get("block_name", ""), stocks
 
 
 def batch_ts_codes(stocks, size=2):
@@ -159,7 +153,7 @@ def main():
     con.execute("SET memory_limit = '2GB'")
     con.execute("SET threads = 4")
 
-    block_name, stocks = load_stock_pool(STOCK_POOL)
+    stocks = load_all_pool_stocks()
     create_tables(con)
 
     # stock_info

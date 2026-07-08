@@ -13,6 +13,7 @@ import duckdb
 import numpy as np
 import pandas as pd
 
+from config import DB_PATH
 from .compute import compute_panel, store_factors
 
 log = logging.getLogger(__name__)
@@ -250,14 +251,14 @@ def main(
     if store and selected:
         log.info("Step 4: Storing selected factors into DuckDB table 'factor_values'...")
         selected_panel = panel[selected]
-        con = duckdb.connect(str(db_path or Path(__file__).resolve().parent.parent / "data" / "ashare.duckdb"))
+        con = duckdb.connect(str(db_path or DB_PATH))
         store_factors(selected_panel, table_name="factor_values", con=con)
         con.close()
         log.info("  Done.")
 
     # Also store full factor correlation matrix for reference
     if store:
-        con = duckdb.connect(str(db_path or Path(__file__).resolve().parent.parent / "data" / "ashare.duckdb"))
+        con = duckdb.connect(str(db_path or DB_PATH))
         con.execute("DROP TABLE IF EXISTS factor_correlation")
         con.execute("CREATE TABLE factor_correlation AS SELECT * FROM corr_xs")
         con.close()
@@ -306,7 +307,7 @@ if __name__ == "__main__":
     selected_panel = panel[available]
     log.info("Storing %d/%d factors (%d rows)", len(available), len(CURATED_FACTORS), selected_panel.shape[0])
 
-    con = duckdb.connect(str(Path(__file__).resolve().parent.parent / "data" / "ashare.duckdb"))
+    con = duckdb.connect(str(DB_PATH))
     store_factors(selected_panel, table_name="factor_values", con=con)
     con.close()
     log.info("Done.")

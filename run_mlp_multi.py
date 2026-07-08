@@ -13,15 +13,16 @@ from __future__ import annotations
 import sys
 import time
 import json
-from pathlib import Path as P
+from pathlib import Path
 from datetime import datetime
 
 import duckdb
 import pandas as pd
 
 # --- project root ---
-ROOT = P.cwd()
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from config import ROOT, DB_PATH, POOL_NAME, get_pool_codes, get_model_dir, get_model_path, get_predictions_path, get_predictions_meta_path
 
 from strategies import MLPStrategy, walk_forward, rank_ic, pearson_ic, ic_summary
 from strategies.labels import compute_forward_returns
@@ -45,9 +46,6 @@ SELECTED_FACTORS = [
     "alpha050", "alpha101", "alpha191",
 ]
 
-
-DB_PATH = ROOT / "data" / "ashare.duckdb"
-MODEL_DIR = ROOT / "models"
 
 # --- config ---
 TEST_START = pd.Timestamp("2025-05-01")
@@ -73,8 +71,11 @@ MLP_KWARGS = dict(
 
 
 def load_factors(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
-    """Load factor panel from DuckDB."""
-    df = con.execute("SELECT * FROM factor_values").fetchdf()
+    """Load factor panel from DuckDB, filtered to current pool's stock codes."""
+    pool_codes = get_pool_codes()
+    placeholders = ",".join(["?"] * len(pool_codes))
+    query = f"SELECT * FROM factor_values WHERE code IN ({placeholders})"
+    df = con.execute(query, pool_codes).fetchdf()
     df["date"] = pd.to_datetime(df["date"])
     df = df.set_index(["date", "code"]).sort_index()
     return df
@@ -88,7 +89,7 @@ def load_kline(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
 
 
 def main():
-    print("=== Loading factor data (shared across horizons) ===")
+    print(f"=== Loading factor data (pool: {POOL_NAME}) ===")
     con = duckdb.connect(str(DB_PATH), read_only=True)
 
     print("  loading factors ...")
@@ -191,14 +192,14 @@ def main():
         }
 
     # ---- persist single model ----
-    MODEL_DIR.mkdir(exist_ok=True)
-    model_path = MODEL_DIR / "mlp_multihead.pt"
+    model_dir = get_model_dir()
+    model_dir.mkdir(parents=True, exist_ok=True)
+    model_path = get_model_path()
     strategy.save(model_path)
     print(f"\n  model saved: {model_path}")
 
     # ---- persist single predictions parquet ----
-    DATA_DIR = ROOT / "data"
-    pred_path = DATA_DIR / "predictions.parquet"
+    pred_path = get_predictions_path()
     if isinstance(preds, pd.DataFrame) and not preds.empty:
         preds.to_parquet(pred_path)
         print(f"  predictions saved: {pred_path} ({len(preds)} rows)")
@@ -217,7 +218,7 @@ def main():
         "predictions_path": str(pred_path),
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
-    META_PATH = DATA_DIR / "predictions_multi_meta.json"
+    META_PATH = get_predictions_meta_path()
     META_PATH.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"  meta saved: {META_PATH}")
 

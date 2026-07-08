@@ -5,17 +5,15 @@ Factor computation pipeline: read kline data from DuckDB, compute all factors, s
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 import duckdb
 import pandas as pd
 import numpy as np
 
+from config import DB_PATH
 from .factors import FACTOR_HUB
 
 log = logging.getLogger(__name__)
-
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "ashare.duckdb"
 
 
 def compute_factors_for_stock(df_stock, factor_hub=None):

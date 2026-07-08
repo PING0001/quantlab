@@ -21,30 +21,38 @@ import pandas as pd
 import numpy as np
 
 # project root
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from strategies import MLPStrategy
 
-DB_PATH = ROOT / "data" / "ashare.duckdb"
+from config import DB_PATH, POOL_NAME, get_pool_codes, get_model_path, get_forecast_dir
 
-MODEL_PATH = ROOT / "models" / "mlp_multihead.pt"
+MODEL_PATH = get_model_path()
 WEIGHTS = {1: 0.15, 3: 0.25, 5: 0.35, 10: 0.25}
 HORIZONS = [1, 3, 5, 10]
 
-HERE = Path(__file__).resolve().parent
-HTML_DIR = HERE / "html"
+HTML_DIR = get_forecast_dir()
 
 
 def load_factors(con):
-    df = con.execute("SELECT * FROM factor_values").fetchdf()
+    pool_codes = get_pool_codes()
+    placeholders = ",".join(["?"] * len(pool_codes))
+    df = con.execute(
+        f"SELECT * FROM factor_values WHERE code IN ({placeholders})",
+        pool_codes,
+    ).fetchdf()
     df["date"] = pd.to_datetime(df["date"])
     df = df.set_index(["date", "code"]).sort_index()
     return df
 
 
 def load_name_map(con):
-    info = con.execute("SELECT code, name FROM stock_info").fetchdf()
+    pool_codes = get_pool_codes()
+    placeholders = ",".join(["?"] * len(pool_codes))
+    info = con.execute(
+        f"SELECT code, name FROM stock_info WHERE code IN ({placeholders})",
+        pool_codes,
+    ).fetchdf()
     return dict(zip(info["code"], info["name"]))
 
 

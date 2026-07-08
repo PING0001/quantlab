@@ -20,8 +20,9 @@ import numpy as np
 import pandas as pd
 
 # -- project root --
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from config import DB_PATH, POOL_NAME, get_pool_codes, get_predictions_path, get_predictions_meta_path, get_backtest_dir
 
 from strategies import MLPStrategy, walk_forward, rank_ic, ic_summary
 from strategies.labels import compute_forward_returns
@@ -30,7 +31,6 @@ from backtest.signals import run_portfolio, compute_benchmark
 # ============================================================================
 # CONFIG
 # ============================================================================
-DB_PATH = ROOT / "data" / "ashare.duckdb"
 TEST_START = pd.Timestamp("2025-05-01")
 TEST_END = pd.Timestamp("2026-06-26")
 WARMUP_DAYS = 100
@@ -63,9 +63,6 @@ SELECTED_FACTORS = [
     "alpha050", "alpha101", "alpha191",
 ]
 
-PRED_PATH = ROOT / "data" / "predictions.parquet"
-PRED_META_PATH = ROOT / "data" / "predictions_meta.json"
-
 warnings.filterwarnings("ignore")
 
 
@@ -74,8 +71,11 @@ warnings.filterwarnings("ignore")
 # ============================================================================
 
 def load_factors(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
-    """Load factor panel from DuckDB, return MultiIndex (date, code)."""
-    df = con.execute("SELECT * FROM factor_values").fetchdf()
+    """Load factor panel from DuckDB, filtered to current pool's stock codes."""
+    pool_codes = get_pool_codes()
+    placeholders = ",".join(["?"] * len(pool_codes))
+    query = f"SELECT * FROM factor_values WHERE code IN ({placeholders})"
+    df = con.execute(query, pool_codes).fetchdf()
     df["date"] = pd.to_datetime(df["date"])
     df = df.set_index(["date", "code"]).sort_index()
     return df
@@ -125,9 +125,11 @@ def load_or_train_predictions(factors: pd.DataFrame, labels: pd.DataFrame,
     Returns a DataFrame with columns pred_1d, pred_3d, pred_5d, pred_10d
     indexed by (date, code).
     """
-    if PRED_PATH.exists() and PRED_META_PATH.exists():
+    pred_path = get_predictions_path()
+    pred_meta_path = get_predictions_meta_path()
+    if pred_path.exists() and pred_meta_path.exists():
         try:
-            cached_meta = json.loads(PRED_META_PATH.read_text(encoding="utf-8"))
+            cached_meta = json.loads(pred_meta_path.read_text(encoding="utf-8"))
             cached_factors = set(cached_meta.get("factor_names", []))
             cached_start = cached_meta.get("test_start")
             cached_end = cached_meta.get("test_end")
@@ -137,7 +139,7 @@ def load_or_train_predictions(factors: pd.DataFrame, labels: pd.DataFrame,
                 cached_start == str(TEST_START.date()) and
                 cached_end == str(TEST_END.date()) and
                 cached_horizons == HORIZONS):
-                pred_df = pd.read_parquet(PRED_PATH)
+                pred_df = pd.read_parquet(pred_path)
                 print("  [CACHE HIT] Loaded predictions from cache.")
                 return pred_df
             else:
@@ -172,8 +174,8 @@ def load_or_train_predictions(factors: pd.DataFrame, labels: pd.DataFrame,
 
     if isinstance(pred_df, pd.DataFrame) and len(pred_df) > 0:
         import datetime as dt
-        PRED_PATH.parent.mkdir(parents=True, exist_ok=True)
-        pred_df.to_parquet(PRED_PATH)
+        pred_path.parent.mkdir(parents=True, exist_ok=True)
+        pred_df.to_parquet(pred_path)
         meta = {
             "factor_names": factor_cols,
             "horizons": HORIZONS,
@@ -182,8 +184,8 @@ def load_or_train_predictions(factors: pd.DataFrame, labels: pd.DataFrame,
             "hidden_layer_sizes": [25, 12],
             "generated_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
-        PRED_META_PATH.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
-        print(f"  Predictions cached to {PRED_PATH}")
+        pred_meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(f"  Predictions cached to {pred_path}")
 
     return pred_df
 
@@ -323,10 +325,12 @@ def main():
     print(f"  Rank IC hit:   {ic_s['hit_rate']:.2%}")
 
     # Save equity curve
-    eq_path = ROOT / "backtest" / "equity.csv"
+    bt_dir = get_backtest_dir()
+    bt_dir.mkdir(parents=True, exist_ok=True)
+    eq_path = bt_dir / "equity.csv"
     equity_df.to_csv(eq_path)
     if not bench_df.empty:
-        bench_df.to_csv(ROOT / "backtest" / "benchmark.csv")
+        bench_df.to_csv(bt_dir / "benchmark.csv")
     print(f"\n  Equity curve saved to: {eq_path}")
 
     print("\n" + "=" * 60)
