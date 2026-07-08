@@ -65,12 +65,18 @@ def ts_rank(x, d):
 
 def ts_argmax(x, d):
     def helper(arr):
-        return float(np.nanargmax(arr)) if len(arr) > 0 else np.nan
+        valid = ~np.isnan(arr)
+        if not valid.any():
+            return np.nan
+        return float(len(arr) - 1 - np.nanargmax(arr))
     return x.rolling(d, min_periods=1).apply(helper, raw=True)
 
 def ts_argmin(x, d):
     def helper(arr):
-        return float(np.nanargmin(arr)) if len(arr) > 0 else np.nan
+        valid = ~np.isnan(arr)
+        if not valid.any():
+            return np.nan
+        return float(len(arr) - 1 - np.nanargmin(arr))
     return x.rolling(d, min_periods=1).apply(helper, raw=True)
 
 def reg_beta(y, x, d):
