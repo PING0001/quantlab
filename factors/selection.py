@@ -135,6 +135,7 @@ def cross_sectional_rank_corr(factor_panel: pd.DataFrame) -> pd.DataFrame:
         if len(xs) < 10:
             continue
         corr = xs.corr(method="spearman").values
+        corr = np.nan_to_num(corr, nan=0.0)
         sum_corr += corr
         n_valid_dates += 1
         if (i + 1) % 500 == 0:
