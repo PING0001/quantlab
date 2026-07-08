@@ -74,7 +74,7 @@ def ts_argmin(x, d):
     return x.rolling(d, min_periods=1).apply(helper, raw=True)
 
 def reg_beta(y, x, d):
-    cov = y.rolling(d, min_periods=1).cov(y, x)
+    cov = y.rolling(d, min_periods=1).cov(x)
     var = x.rolling(d, min_periods=1).var(ddof=0)
     return (cov / var.replace(0, np.nan)).fillna(0)
 

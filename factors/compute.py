@@ -30,8 +30,10 @@ _CS_RANK_BASES = {
 }
 
 _CS_RANK_POST_FACTORS = [
-    "alpha001", "alpha013", "alpha014", "alpha019", "alpha020",
-    "alpha050", "alpha101", "alpha191",
+    "alpha001", "alpha007", "alpha013", "alpha014", "alpha017",
+    "alpha018", "alpha019", "alpha020", "alpha035", "alpha038",
+    "alpha046", "alpha050", "alpha053", "alpha057", "alpha101",
+    "alpha191",
 ]
 
 

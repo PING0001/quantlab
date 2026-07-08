@@ -252,6 +252,54 @@ def alpha191(data):
     return num / den.replace(0, np.nan)
 
 
+def alpha007(data):
+    c, v, amt = data["close"], data["volume"], data["amount"]
+    adv20 = ts_mean(amt, 20)
+    return ts_rank(np.sign(delta(correlation(adv20, v, 10), 20)) + 20, 3)
+
+
+def alpha017(data):
+    c, amt = data["close"], data["amount"]
+    return -correlation(c, ts_mean(amt, 20), 5)
+
+
+def alpha018(data):
+    c, o = data["close"], data["open"]
+    intra = c - o
+    part1 = ts_std(np.abs(intra), 5) + intra
+    part2 = correlation(c, delay(c, 5), 10)
+    return -(part1 + part2)
+
+
+def alpha028(data):
+    h, l = data["high"], data["low"]
+    return scale(correlation(ts_sum(h, 5), ts_sum(l, 5), 5))
+
+
+def alpha035(data):
+    return ts_argmax(signed_power(correlation(data["close_cs"], data["volume_cs"], 5), 2), 5)
+
+
+def alpha038(data):
+    h, amt = data["high"], data["amount"]
+    return -correlation(h, ts_rank(amt, 10), 10)
+
+
+def alpha046(data):
+    c = data["close"]
+    return delay(c, 20) / delay(c, 10).replace(0, np.nan) - 1
+
+
+def alpha053(data):
+    c, v = data["close"], data["volume"]
+    return correlation(delta(c, 1), delta(v, 1), 9)
+
+
+def alpha057(data):
+    c, amt = data["close"], data["amount"]
+    return -reg_beta(c, ts_rank(amt, 10), 20)
+
+
 
 
 def Gap_pct(data):
@@ -359,7 +407,16 @@ FACTOR_HUB = {
     'alpha050': alpha050,
     'alpha060': alpha060,
     'alpha101': alpha101,
-'alpha191': alpha191,
+    'alpha191': alpha191,
+    'alpha007': alpha007,
+    'alpha017': alpha017,
+    'alpha018': alpha018,
+    'alpha028': alpha028,
+    'alpha035': alpha035,
+    'alpha038': alpha038,
+    'alpha046': alpha046,
+    'alpha053': alpha053,
+    'alpha057': alpha057,
     'Gap_pct': Gap_pct,
     'Body_pct': Body_pct,
     'Trend_strength': Trend_strength,

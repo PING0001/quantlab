@@ -40,10 +40,12 @@ SELECTED_FACTORS = [
     "Gap_pct", "Body_pct", "Intraday_range_pct",
     # Volume / liquidity (2)
     "Volume_ratio", "Amihud_illiquidity",
-    # Alpha composite (13)
-    "alpha001", "alpha002", "alpha003", "alpha006", "alpha009",
-    "alpha012", "alpha013", "alpha014", "alpha019", "alpha020",
-    "alpha050", "alpha101", "alpha191",
+    # Alpha composite (22)
+    "alpha001", "alpha002", "alpha003", "alpha006", "alpha007",
+    "alpha009", "alpha012", "alpha013", "alpha014", "alpha017",
+    "alpha018", "alpha019", "alpha020", "alpha028", "alpha035",
+    "alpha038", "alpha046", "alpha050", "alpha053", "alpha057",
+    "alpha101", "alpha191",
     # Market cap / amount (2)
     "AvgAmount_90d", "LnMktCap",
     # Turnover (2)
