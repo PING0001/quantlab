@@ -1,0 +1,175 @@
+{
+  "filter": "main_board + total_mv > 1000e + mining/shipping/chemical",
+  "trade_date": "20260707",
+  "total": 24,
+  "stocks": [
+    {
+      "code": "601899",
+      "name": "紫金矿业",
+      "market": "SH",
+      "full_code": "601899.SH",
+      "industry": "铜"
+    },
+    {
+      "code": "601088",
+      "name": "中国神华",
+      "market": "SH",
+      "full_code": "601088.SH",
+      "industry": "煤炭"
+    },
+    {
+      "code": "603993",
+      "name": "洛阳钼业",
+      "market": "SH",
+      "full_code": "603993.SH",
+      "industry": "小金属"
+    },
+    {
+      "code": "600547",
+      "name": "山东黄金",
+      "market": "SH",
+      "full_code": "600547.SH",
+      "industry": "黄金"
+    },
+    {
+      "code": "601225",
+      "name": "陕西煤业",
+      "market": "SH",
+      "full_code": "601225.SH",
+      "industry": "煤炭"
+    },
+    {
+      "code": "600489",
+      "name": "中金黄金",
+      "market": "SH",
+      "full_code": "600489.SH",
+      "industry": "黄金"
+    },
+    {
+      "code": "600111",
+      "name": "北方稀土",
+      "market": "SH",
+      "full_code": "600111.SH",
+      "industry": "稀土"
+    },
+    {
+      "code": "601600",
+      "name": "中国铝业",
+      "market": "SH",
+      "full_code": "601600.SH",
+      "industry": "铝"
+    },
+    {
+      "code": "000408",
+      "name": "藏格矿业",
+      "market": "SZ",
+      "full_code": "000408.SZ",
+      "industry": "铜锂"
+    },
+    {
+      "code": "603799",
+      "name": "华友钴业",
+      "market": "SH",
+      "full_code": "603799.SH",
+      "industry": "钴镍"
+    },
+    {
+      "code": "002460",
+      "name": "赣锋锂业",
+      "market": "SZ",
+      "full_code": "002460.SZ",
+      "industry": "锂"
+    },
+    {
+      "code": "002466",
+      "name": "天齐锂业",
+      "market": "SZ",
+      "full_code": "002466.SZ",
+      "industry": "锂"
+    },
+    {
+      "code": "601919",
+      "name": "中远海控",
+      "market": "SH",
+      "full_code": "601919.SH",
+      "industry": "航运"
+    },
+    {
+      "code": "601872",
+      "name": "招商轮船",
+      "market": "SH",
+      "full_code": "601872.SH",
+      "industry": "航运"
+    },
+    {
+      "code": "600018",
+      "name": "上港集团",
+      "market": "SH",
+      "full_code": "600018.SH",
+      "industry": "港口"
+    },
+    {
+      "code": "600026",
+      "name": "中远海能",
+      "market": "SH",
+      "full_code": "600026.SH",
+      "industry": "航运"
+    },
+    {
+      "code": "600028",
+      "name": "中国石化",
+      "market": "SH",
+      "full_code": "600028.SH",
+      "industry": "石油化工"
+    },
+    {
+      "code": "600309",
+      "name": "万华化学",
+      "market": "SH",
+      "full_code": "600309.SH",
+      "industry": "化工原料"
+    },
+    {
+      "code": "600176",
+      "name": "中国巨石",
+      "market": "SH",
+      "full_code": "600176.SH",
+      "industry": "建材"
+    },
+    {
+      "code": "000792",
+      "name": "盐湖股份",
+      "market": "SZ",
+      "full_code": "000792.SZ",
+      "industry": "钾肥"
+    },
+    {
+      "code": "600989",
+      "name": "宝丰能源",
+      "market": "SH",
+      "full_code": "600989.SH",
+      "industry": "煤化工"
+    },
+    {
+      "code": "600160",
+      "name": "巨化股份",
+      "market": "SH",
+      "full_code": "600160.SH",
+      "industry": "氟化工"
+    },
+    {
+      "code": "600346",
+      "name": "恒力石化",
+      "market": "SH",
+      "full_code": "600346.SH",
+      "industry": "石油化工"
+    },
+    {
+      "code": "002493",
+      "name": "荣盛石化",
+      "market": "SZ",
+      "full_code": "002493.SZ",
+      "industry": "石油化工"
+    }
+  ]
+}

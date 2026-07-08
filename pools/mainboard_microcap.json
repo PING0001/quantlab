@@ -8,9 +8,6 @@
       "name": "世盟股份",
       "market": "SZ",
       "full_code": "001220.SZ",
-      "circ_mv_yi": 6.59,
-      "total_mv_yi": 26.92,
-      "pe": 19.3304,
       "industry": "仓储物流"
     },
     {
@@ -18,9 +15,6 @@
       "name": "林平发展",
       "market": "SH",
       "full_code": "603284.SH",
-      "circ_mv_yi": 6.94,
-      "total_mv_yi": 28.34,
-      "pe": 15.2952,
       "industry": "造纸"
     },
     {
@@ -28,9 +22,6 @@
       "name": "元创股份",
       "market": "SZ",
       "full_code": "001325.SZ",
-      "circ_mv_yi": 7.35,
-      "total_mv_yi": 29.4,
-      "pe": 18.6316,
       "industry": "橡胶"
     },
     {
@@ -38,9 +29,6 @@
       "name": "彩蝶实业",
       "market": "SH",
       "full_code": "603073.SH",
-      "circ_mv_yi": 7.85,
-      "total_mv_yi": 17.89,
-      "pe": 25.686,
       "industry": "纺织"
     },
     {
@@ -48,9 +36,6 @@
       "name": "大明电子",
       "market": "SH",
       "full_code": "603376.SH",
-      "circ_mv_yi": 8.01,
-      "total_mv_yi": 100.16,
-      "pe": 40.4108,
       "industry": "汽车配件"
     },
     {
@@ -58,9 +43,6 @@
       "name": "天元智能",
       "market": "SH",
       "full_code": "603273.SH",
-      "circ_mv_yi": 8.11,
-      "total_mv_yi": 31.01,
-      "pe": 121.897,
       "industry": "专用机械"
     },
     {
@@ -68,9 +50,6 @@
       "name": "誉帆科技",
       "market": "SZ",
       "full_code": "001396.SZ",
-      "circ_mv_yi": 8.19,
-      "total_mv_yi": 38.54,
-      "pe": 30.8283,
       "industry": "建筑工程"
     },
     {
@@ -78,9 +57,6 @@
       "name": "健尔康",
       "market": "SH",
       "full_code": "603205.SH",
-      "circ_mv_yi": 8.71,
-      "total_mv_yi": 32.88,
-      "pe": 29.51,
       "industry": "医疗保健"
     },
     {
@@ -88,9 +64,6 @@
       "name": "和泰机电",
       "market": "SZ",
       "full_code": "001225.SZ",
-      "circ_mv_yi": 8.88,
-      "total_mv_yi": 27.66,
-      "pe": 81.1227,
       "industry": "专用机械"
     },
     {
@@ -98,9 +71,6 @@
       "name": "夏厦精密",
       "market": "SZ",
       "full_code": "001306.SZ",
-      "circ_mv_yi": 8.92,
-      "total_mv_yi": 36.16,
-      "pe": null,
       "industry": "机械基件"
     },
     {
@@ -108,9 +78,6 @@
       "name": "热威股份",
       "market": "SH",
       "full_code": "603075.SH",
-      "circ_mv_yi": 9.24,
-      "total_mv_yi": 90.16,
-      "pe": 27.9021,
       "industry": "家用电器"
     },
     {
@@ -118,9 +85,6 @@
       "name": "农心科技",
       "market": "SZ",
       "full_code": "001231.SZ",
-      "circ_mv_yi": 9.6,
-      "total_mv_yi": 18.77,
-      "pe": 28.1672,
       "industry": "农药化肥"
     },
     {
@@ -128,9 +92,6 @@
       "name": "天富龙",
       "market": "SH",
       "full_code": "603406.SH",
-      "circ_mv_yi": 9.76,
-      "total_mv_yi": 106.44,
-      "pe": 24.0883,
       "industry": "化纤"
     },
     {
@@ -138,9 +99,6 @@
       "name": "亚通精工",
       "market": "SH",
       "full_code": "603190.SH",
-      "circ_mv_yi": 9.78,
-      "total_mv_yi": 29.62,
-      "pe": 26.7193,
       "industry": "汽车配件"
     },
     {
@@ -148,9 +106,6 @@
       "name": "技源集团",
       "market": "SH",
       "full_code": "603262.SH",
-      "circ_mv_yi": 9.8,
-      "total_mv_yi": 97.96,
-      "pe": 73.2755,
       "industry": "食品"
     },
     {
@@ -158,9 +113,6 @@
       "name": "新亚电缆",
       "market": "SZ",
       "full_code": "001382.SZ",
-      "circ_mv_yi": 9.99,
-      "total_mv_yi": 65.34,
-      "pe": 65.0907,
       "industry": "电气设备"
     },
     {
@@ -168,9 +120,6 @@
       "name": "汇通控股",
       "market": "SH",
       "full_code": "603409.SH",
-      "circ_mv_yi": 10.27,
-      "total_mv_yi": 35.81,
-      "pe": 24.296,
       "industry": "汽车配件"
     },
     {
@@ -178,9 +127,6 @@
       "name": "腾达科技",
       "market": "SZ",
       "full_code": "001379.SZ",
-      "circ_mv_yi": 10.64,
-      "total_mv_yi": 31.62,
-      "pe": 44.0023,
       "industry": "机械基件"
     },
     {
@@ -188,9 +134,6 @@
       "name": "信凯科技",
       "market": "SZ",
       "full_code": "001335.SZ",
-      "circ_mv_yi": 10.66,
-      "total_mv_yi": 39.12,
-      "pe": 50.266,
       "industry": "化工原料"
     },
     {
@@ -198,9 +141,6 @@
       "name": "强邦新材",
       "market": "SZ",
       "full_code": "001279.SZ",
-      "circ_mv_yi": 10.83,
-      "total_mv_yi": 43.31,
-      "pe": 80.926,
       "industry": "广告包装"
     },
     {
@@ -208,9 +148,6 @@
       "name": "福恩股份",
       "market": "SZ",
       "full_code": "001312.SZ",
-      "circ_mv_yi": 10.97,
-      "total_mv_yi": 44.8,
-      "pe": 19.4491,
       "industry": "纺织"
     },
     {
@@ -218,9 +155,6 @@
       "name": "楚环科技",
       "market": "SZ",
       "full_code": "001336.SZ",
-      "circ_mv_yi": 10.98,
-      "total_mv_yi": 17.89,
-      "pe": 46.4237,
       "industry": "专用机械"
     },
     {
@@ -228,9 +162,6 @@
       "name": "丰倍生物",
       "market": "SH",
       "full_code": "603334.SH",
-      "circ_mv_yi": 11.19,
-      "total_mv_yi": 50.45,
-      "pe": 35.8968,
       "industry": "化工原料"
     },
     {
@@ -238,9 +169,6 @@
       "name": "至信股份",
       "market": "SH",
       "full_code": "603352.SH",
-      "circ_mv_yi": 11.8,
-      "total_mv_yi": 60.23,
-      "pe": 26.4775,
       "industry": "汽车配件"
     },
     {
@@ -248,9 +176,6 @@
       "name": "恒兴新材",
       "market": "SH",
       "full_code": "603276.SH",
-      "circ_mv_yi": 12.03,
-      "total_mv_yi": 33.04,
-      "pe": 55.0353,
       "industry": "化工原料"
     },
     {
@@ -258,9 +183,6 @@
       "name": "天元股份",
       "market": "SZ",
       "full_code": "003003.SZ",
-      "circ_mv_yi": 12.17,
-      "total_mv_yi": 18.26,
-      "pe": 31.3685,
       "industry": "广告包装"
     },
     {
@@ -268,9 +190,6 @@
       "name": "亚联机械",
       "market": "SZ",
       "full_code": "001395.SZ",
-      "circ_mv_yi": 12.36,
-      "total_mv_yi": 26.96,
-      "pe": 14.4139,
       "industry": "专用机械"
     },
     {
@@ -278,9 +197,6 @@
       "name": "交投生态",
       "market": "SZ",
       "full_code": "002200.SZ",
-      "circ_mv_yi": 12.41,
-      "total_mv_yi": 28.6,
-      "pe": null,
       "industry": "建筑工程"
     },
     {
@@ -288,9 +204,6 @@
       "name": "翔腾新材",
       "market": "SZ",
       "full_code": "001373.SZ",
-      "circ_mv_yi": 12.71,
-      "total_mv_yi": 20.8,
-      "pe": null,
       "industry": "元器件"
     },
     {
@@ -298,9 +211,6 @@
       "name": "力聚热能",
       "market": "SH",
       "full_code": "603391.SH",
-      "circ_mv_yi": 12.81,
-      "total_mv_yi": 51.23,
-      "pe": 22.6788,
       "industry": "专用机械"
     },
     {
@@ -308,9 +218,6 @@
       "name": "速达股份",
       "market": "SZ",
       "full_code": "001277.SZ",
-      "circ_mv_yi": 12.89,
-      "total_mv_yi": 21.51,
-      "pe": 24.8442,
       "industry": "专用机械"
     },
     {
@@ -318,9 +225,6 @@
       "name": "小方制药",
       "market": "SH",
       "full_code": "603207.SH",
-      "circ_mv_yi": 12.89,
-      "total_mv_yi": 37.93,
-      "pe": 18.2828,
       "industry": "化学制药"
     },
     {
@@ -328,9 +232,6 @@
       "name": "中天服务",
       "market": "SZ",
       "full_code": "002188.SZ",
-      "circ_mv_yi": 12.92,
-      "total_mv_yi": 16.42,
-      "pe": 51.1888,
       "industry": "房产服务"
     },
     {
@@ -338,9 +239,6 @@
       "name": "华新精科",
       "market": "SH",
       "full_code": "603370.SH",
-      "circ_mv_yi": 13.0,
-      "total_mv_yi": 64.98,
-      "pe": 39.2911,
       "industry": "电气设备"
     },
     {
@@ -348,9 +246,6 @@
       "name": "万憬能源",
       "market": "SZ",
       "full_code": "002700.SZ",
-      "circ_mv_yi": 13.04,
-      "total_mv_yi": 25.11,
-      "pe": 30.8873,
       "industry": "供气供热"
     },
     {
@@ -358,9 +253,6 @@
       "name": "红墙股份",
       "market": "SZ",
       "full_code": "002809.SZ",
-      "circ_mv_yi": 13.07,
-      "total_mv_yi": 18.48,
-      "pe": null,
       "industry": "化工原料"
     },
     {
@@ -368,9 +260,6 @@
       "name": "华斯股份",
       "market": "SZ",
       "full_code": "002494.SZ",
-      "circ_mv_yi": 13.19,
-      "total_mv_yi": 17.36,
-      "pe": 84.4894,
       "industry": "服饰"
     },
     {
@@ -378,9 +267,6 @@
       "name": "茂化实华",
       "market": "SZ",
       "full_code": "000637.SZ",
-      "circ_mv_yi": 13.27,
-      "total_mv_yi": 18.92,
-      "pe": null,
       "industry": "石油加工"
     },
     {
@@ -388,9 +274,6 @@
       "name": "星德胜",
       "market": "SH",
       "full_code": "603344.SH",
-      "circ_mv_yi": 13.36,
-      "total_mv_yi": 48.09,
-      "pe": 27.7051,
       "industry": "电气设备"
     },
     {
@@ -398,9 +281,6 @@
       "name": "红四方",
       "market": "SH",
       "full_code": "603395.SH",
-      "circ_mv_yi": 13.6,
-      "total_mv_yi": 54.42,
-      "pe": 106.2044,
       "industry": "农药化肥"
     },
     {
@@ -408,9 +288,6 @@
       "name": "一彬科技",
       "market": "SZ",
       "full_code": "001278.SZ",
-      "circ_mv_yi": 13.67,
-      "total_mv_yi": 19.82,
-      "pe": null,
       "industry": "汽车配件"
     },
     {
@@ -418,9 +295,6 @@
       "name": "开普检测",
       "market": "SZ",
       "full_code": "003008.SZ",
-      "circ_mv_yi": 13.67,
-      "total_mv_yi": 18.29,
-      "pe": 20.7426,
       "industry": "电气设备"
     },
     {
@@ -428,9 +302,6 @@
       "name": "安乃达",
       "market": "SH",
       "full_code": "603350.SH",
-      "circ_mv_yi": 13.72,
-      "total_mv_yi": 36.22,
-      "pe": 31.4839,
       "industry": "电气设备"
     },
     {
@@ -438,9 +309,6 @@
       "name": "正虹科技",
       "market": "SZ",
       "full_code": "000702.SZ",
-      "circ_mv_yi": 13.89,
-      "total_mv_yi": 18.06,
-      "pe": null,
       "industry": "饲料"
     },
     {
@@ -448,9 +316,6 @@
       "name": "恒大高新",
       "market": "SZ",
       "full_code": "002591.SZ",
-      "circ_mv_yi": 13.95,
-      "total_mv_yi": 18.73,
-      "pe": null,
       "industry": "环境保护"
     },
     {
@@ -458,9 +323,6 @@
       "name": "宏达高科",
       "market": "SZ",
       "full_code": "002144.SZ",
-      "circ_mv_yi": 13.97,
-      "total_mv_yi": 17.94,
-      "pe": 41.4845,
       "industry": "纺织"
     },
     {
@@ -468,9 +330,6 @@
       "name": "铭科精技",
       "market": "SZ",
       "full_code": "001319.SZ",
-      "circ_mv_yi": 14.02,
-      "total_mv_yi": 31.24,
-      "pe": 22.1783,
       "industry": "汽车配件"
     },
     {
@@ -478,9 +337,6 @@
       "name": "博通股份",
       "market": "SH",
       "full_code": "600455.SH",
-      "circ_mv_yi": 14.08,
-      "total_mv_yi": 14.08,
-      "pe": 31.7148,
       "industry": "文教休闲"
     },
     {
@@ -488,9 +344,6 @@
       "name": "聚力文化",
       "market": "SZ",
       "full_code": "002247.SZ",
-      "circ_mv_yi": 14.09,
-      "total_mv_yi": 18.63,
-      "pe": 38.595,
       "industry": "其他建材"
     },
     {
@@ -498,9 +351,6 @@
       "name": "兴欣新材",
       "market": "SZ",
       "full_code": "001358.SZ",
-      "circ_mv_yi": 14.09,
-      "total_mv_yi": 34.94,
-      "pe": 72.3162,
       "industry": "化工原料"
     },
     {
@@ -508,9 +358,6 @@
       "name": "蓝丰生化",
       "market": "SZ",
       "full_code": "002513.SZ",
-      "circ_mv_yi": 14.13,
-      "total_mv_yi": 18.37,
-      "pe": null,
       "industry": "新型电力"
     },
     {
@@ -518,9 +365,6 @@
       "name": "联域股份",
       "market": "SZ",
       "full_code": "001326.SZ",
-      "circ_mv_yi": 14.2,
-      "total_mv_yi": 43.29,
-      "pe": 170.8504,
       "industry": "电气设备"
     },
     {
@@ -528,9 +372,6 @@
       "name": "亚联发展",
       "market": "SZ",
       "full_code": "002316.SZ",
-      "circ_mv_yi": 14.21,
-      "total_mv_yi": 16.39,
-      "pe": 265.8446,
       "industry": "软件服务"
     },
     {
@@ -538,9 +379,6 @@
       "name": "亚通股份",
       "market": "SH",
       "full_code": "600692.SH",
-      "circ_mv_yi": 14.26,
-      "total_mv_yi": 19.66,
-      "pe": 136.6191,
       "industry": "区域地产"
     },
     {
@@ -548,9 +386,6 @@
       "name": "埃泰克",
       "market": "SH",
       "full_code": "603293.SH",
-      "circ_mv_yi": 14.26,
-      "total_mv_yi": 72.75,
-      "pe": 29.2863,
       "industry": "汽车配件"
     },
     {
@@ -558,9 +393,6 @@
       "name": "瑞尔特",
       "market": "SZ",
       "full_code": "002790.SZ",
-      "circ_mv_yi": 14.39,
-      "total_mv_yi": 23.07,
-      "pe": 126.0003,
       "industry": "家居用品"
     },
     {
@@ -568,9 +400,6 @@
       "name": "悍高集团",
       "market": "SZ",
       "full_code": "001221.SZ",
-      "circ_mv_yi": 14.5,
-      "total_mv_yi": 161.12,
-      "pe": 22.9029,
       "industry": "家居用品"
     },
     {
@@ -578,9 +407,6 @@
       "name": "鼎龙科技",
       "market": "SH",
       "full_code": "603004.SH",
-      "circ_mv_yi": 14.59,
-      "total_mv_yi": 58.36,
-      "pe": 39.1228,
       "industry": "化工原料"
     },
     {
@@ -588,9 +414,6 @@
       "name": "海象新材",
       "market": "SZ",
       "full_code": "003011.SZ",
-      "circ_mv_yi": 14.6,
-      "total_mv_yi": 19.51,
-      "pe": 19.6142,
       "industry": "家居用品"
     },
     {
@@ -598,9 +421,6 @@
       "name": "佳隆股份",
       "market": "SZ",
       "full_code": "002495.SZ",
-      "circ_mv_yi": 14.64,
-      "total_mv_yi": 19.74,
-      "pe": 100.8556,
       "industry": "食品"
     },
     {
@@ -608,9 +428,6 @@
       "name": "益盛药业",
       "market": "SZ",
       "full_code": "002566.SZ",
-      "circ_mv_yi": 14.65,
-      "total_mv_yi": 20.92,
-      "pe": 72.1264,
       "industry": "中成药"
     },
     {
@@ -618,9 +435,6 @@
       "name": "江西长运",
       "market": "SH",
       "full_code": "600561.SH",
-      "circ_mv_yi": 14.68,
-      "total_mv_yi": 14.68,
-      "pe": 91.565,
       "industry": "公共交通"
     },
     {
@@ -628,9 +442,6 @@
       "name": "钱江生化",
       "market": "SH",
       "full_code": "600796.SH",
-      "circ_mv_yi": 14.8,
-      "total_mv_yi": 41.16,
-      "pe": 24.7425,
       "industry": "环境保护"
     },
     {
@@ -638,9 +449,6 @@
       "name": "锡华科技",
       "market": "SH",
       "full_code": "603248.SH",
-      "circ_mv_yi": 14.87,
-      "total_mv_yi": 95.63,
-      "pe": 47.5014,
       "industry": "机械基件"
     },
     {
@@ -648,9 +456,6 @@
       "name": "凤竹纺织",
       "market": "SH",
       "full_code": "600493.SH",
-      "circ_mv_yi": 14.91,
-      "total_mv_yi": 14.91,
-      "pe": 94.878,
       "industry": "纺织"
     },
     {
@@ -658,9 +463,6 @@
       "name": "永达股份",
       "market": "SZ",
       "full_code": "001239.SZ",
-      "circ_mv_yi": 14.98,
-      "total_mv_yi": 31.54,
-      "pe": 66.3445,
       "industry": "工程机械"
     },
     {
@@ -668,9 +470,6 @@
       "name": "同为股份",
       "market": "SZ",
       "full_code": "002835.SZ",
-      "circ_mv_yi": 15.1,
-      "total_mv_yi": 26.03,
-      "pe": 18.6805,
       "industry": "IT设备"
     },
     {
@@ -678,9 +477,6 @@
       "name": "传智教育",
       "market": "SZ",
       "full_code": "003032.SZ",
-      "circ_mv_yi": 15.11,
-      "total_mv_yi": 21.37,
-      "pe": null,
       "industry": "文教休闲"
     },
     {
@@ -688,9 +484,6 @@
       "name": "长江材料",
       "market": "SZ",
       "full_code": "001296.SZ",
-      "circ_mv_yi": 15.11,
-      "total_mv_yi": 29.32,
-      "pe": 23.6548,
       "industry": "其他建材"
     },
     {
@@ -698,9 +491,6 @@
       "name": "华之杰",
       "market": "SH",
       "full_code": "603400.SH",
-      "circ_mv_yi": 15.16,
-      "total_mv_yi": 54.14,
-      "pe": 43.5354,
       "industry": "机械基件"
     },
     {
@@ -708,9 +498,6 @@
       "name": "雪祺电气",
       "market": "SZ",
       "full_code": "001387.SZ",
-      "circ_mv_yi": 15.19,
-      "total_mv_yi": 23.87,
-      "pe": 24.4935,
       "industry": "家用电器"
     },
     {
@@ -718,9 +505,6 @@
       "name": "陕西旅游",
       "market": "SH",
       "full_code": "603402.SH",
-      "circ_mv_yi": 15.28,
-      "total_mv_yi": 61.11,
-      "pe": 15.9053,
       "industry": "旅游景点"
     },
     {
@@ -728,9 +512,6 @@
       "name": "麦加芯彩",
       "market": "SH",
       "full_code": "603062.SH",
-      "circ_mv_yi": 15.33,
-      "total_mv_yi": 44.66,
-      "pe": 21.2454,
       "industry": "染料涂料"
     },
     {
@@ -738,9 +519,6 @@
       "name": "源飞宠物",
       "market": "SZ",
       "full_code": "001222.SZ",
-      "circ_mv_yi": 15.37,
-      "total_mv_yi": 25.96,
-      "pe": 22.4045,
       "industry": "文教休闲"
     },
     {
@@ -748,9 +526,6 @@
       "name": "马可波罗",
       "market": "SZ",
       "full_code": "001386.SZ",
-      "circ_mv_yi": 15.39,
-      "total_mv_yi": 170.99,
-      "pe": 14.1305,
       "industry": "家居用品"
     },
     {
@@ -758,9 +533,6 @@
       "name": "华阳国际",
       "market": "SZ",
       "full_code": "002949.SZ",
-      "circ_mv_yi": 15.43,
-      "total_mv_yi": 19.92,
-      "pe": 21.9875,
       "industry": "建筑工程"
     },
     {
@@ -768,9 +540,6 @@
       "name": "中岩大地",
       "market": "SZ",
       "full_code": "003001.SZ",
-      "circ_mv_yi": 15.44,
-      "total_mv_yi": 23.56,
-      "pe": 170.3961,
       "industry": "建筑工程"
     },
     {
@@ -778,9 +547,6 @@
       "name": "上海三毛",
       "market": "SH",
       "full_code": "600689.SH",
-      "circ_mv_yi": 15.45,
-      "total_mv_yi": 20.4,
-      "pe": 178.7381,
       "industry": "综合类"
     },
     {
@@ -788,9 +554,6 @@
       "name": "中农联合",
       "market": "SZ",
       "full_code": "003042.SZ",
-      "circ_mv_yi": 15.47,
-      "total_mv_yi": 17.88,
-      "pe": null,
       "industry": "农药化肥"
     },
     {
@@ -798,9 +561,6 @@
       "name": "欧亚集团",
       "market": "SH",
       "full_code": "600697.SH",
-      "circ_mv_yi": 15.52,
-      "total_mv_yi": 15.89,
-      "pe": null,
       "industry": "百货"
     },
     {
@@ -808,9 +568,6 @@
       "name": "湘佳股份",
       "market": "SZ",
       "full_code": "002982.SZ",
-      "circ_mv_yi": 15.57,
-      "total_mv_yi": 24.32,
-      "pe": 73.8231,
       "industry": "农业综合"
     },
     {
@@ -818,9 +575,6 @@
       "name": "哈三联",
       "market": "SZ",
       "full_code": "002900.SZ",
-      "circ_mv_yi": 15.64,
-      "total_mv_yi": 30.72,
-      "pe": null,
       "industry": "化学制药"
     },
     {
@@ -828,9 +582,6 @@
       "name": "洪兴股份",
       "market": "SZ",
       "full_code": "001209.SZ",
-      "circ_mv_yi": 15.76,
-      "total_mv_yi": 21.57,
-      "pe": 102.4454,
       "industry": "服饰"
     },
     {
@@ -838,9 +589,6 @@
       "name": "友好集团",
       "market": "SH",
       "full_code": "600778.SH",
-      "circ_mv_yi": 15.78,
-      "total_mv_yi": 15.79,
-      "pe": 119.4493,
       "industry": "百货"
     },
     {
@@ -848,9 +596,6 @@
       "name": "振邦智能",
       "market": "SZ",
       "full_code": "003028.SZ",
-      "circ_mv_yi": 15.78,
-      "total_mv_yi": 32.37,
-      "pe": 44.0968,
       "industry": "元器件"
     },
     {
@@ -858,9 +603,6 @@
       "name": "惠威科技",
       "market": "SZ",
       "full_code": "002888.SZ",
-      "circ_mv_yi": 15.88,
-      "total_mv_yi": 31.3,
-      "pe": 147.9757,
       "industry": "元器件"
     },
     {
@@ -868,9 +610,6 @@
       "name": "洪汇新材",
       "market": "SZ",
       "full_code": "002802.SZ",
-      "circ_mv_yi": 15.97,
-      "total_mv_yi": 19.34,
-      "pe": 46.9394,
       "industry": "化工原料"
     },
     {
@@ -878,9 +617,6 @@
       "name": "名雕股份",
       "market": "SZ",
       "full_code": "002830.SZ",
-      "circ_mv_yi": 16.03,
-      "total_mv_yi": 32.1,
-      "pe": 74.9535,
       "industry": "装修装饰"
     },
     {
@@ -888,9 +624,6 @@
       "name": "拓山重工",
       "market": "SZ",
       "full_code": "001226.SZ",
-      "circ_mv_yi": 16.07,
-      "total_mv_yi": 35.36,
-      "pe": 172.4179,
       "industry": "工程机械"
     },
     {
@@ -898,9 +631,6 @@
       "name": "力盛体育",
       "market": "SZ",
       "full_code": "002858.SZ",
-      "circ_mv_yi": 16.1,
-      "total_mv_yi": 20.39,
-      "pe": null,
       "industry": "文教休闲"
     },
     {
@@ -908,9 +638,6 @@
       "name": "永安林业",
       "market": "SZ",
       "full_code": "000663.SZ",
-      "circ_mv_yi": 16.17,
-      "total_mv_yi": 17.78,
-      "pe": null,
       "industry": "林业"
     },
     {
@@ -918,9 +645,6 @@
       "name": "海螺新材",
       "market": "SZ",
       "full_code": "000619.SZ",
-      "circ_mv_yi": 16.2,
-      "total_mv_yi": 19.85,
-      "pe": null,
       "industry": "其他建材"
     },
     {
@@ -928,9 +652,6 @@
       "name": "炬申股份",
       "market": "SZ",
       "full_code": "001202.SZ",
-      "circ_mv_yi": 16.24,
-      "total_mv_yi": 23.17,
-      "pe": 31.9678,
       "industry": "仓储物流"
     },
     {
@@ -938,9 +659,6 @@
       "name": "新通联",
       "market": "SH",
       "full_code": "603022.SH",
-      "circ_mv_yi": 16.28,
-      "total_mv_yi": 16.28,
-      "pe": 27.3553,
       "industry": "广告包装"
     },
     {
@@ -948,9 +666,6 @@
       "name": "牧高笛",
       "market": "SH",
       "full_code": "603908.SH",
-      "circ_mv_yi": 16.3,
-      "total_mv_yi": 16.3,
-      "pe": null,
       "industry": "纺织"
     },
     {
@@ -958,9 +673,6 @@
       "name": "道生天合",
       "market": "SH",
       "full_code": "601026.SH",
-      "circ_mv_yi": 16.33,
-      "total_mv_yi": 96.93,
-      "pe": 47.8324,
       "industry": "电气设备"
     },
     {
@@ -968,9 +680,6 @@
       "name": "永悦科技",
       "market": "SH",
       "full_code": "603879.SH",
-      "circ_mv_yi": 16.39,
-      "total_mv_yi": 16.39,
-      "pe": null,
       "industry": "化工原料"
     },
     {
@@ -978,9 +687,6 @@
       "name": "浪莎股份",
       "market": "SH",
       "full_code": "600137.SH",
-      "circ_mv_yi": 16.43,
-      "total_mv_yi": 16.43,
-      "pe": 50.8339,
       "industry": "服饰"
     },
     {
@@ -988,9 +694,6 @@
       "name": "华纺股份",
       "market": "SH",
       "full_code": "600448.SH",
-      "circ_mv_yi": 16.44,
-      "total_mv_yi": 16.44,
-      "pe": null,
       "industry": "纺织"
     },
     {
@@ -998,9 +701,6 @@
       "name": "中公高科",
       "market": "SH",
       "full_code": "603860.SH",
-      "circ_mv_yi": 16.47,
-      "total_mv_yi": 16.47,
-      "pe": 36.1193,
       "industry": "建筑工程"
     },
     {
@@ -1008,9 +708,6 @@
       "name": "达意隆",
       "market": "SZ",
       "full_code": "002209.SZ",
-      "circ_mv_yi": 16.47,
-      "total_mv_yi": 21.54,
-      "pe": 17.6925,
       "industry": "轻工机械"
     },
     {
@@ -1018,9 +715,6 @@
       "name": "索宝蛋白",
       "market": "SH",
       "full_code": "603231.SH",
-      "circ_mv_yi": 16.48,
-      "total_mv_yi": 29.7,
-      "pe": 15.6525,
       "industry": "食品"
     },
     {
@@ -1028,9 +722,6 @@
       "name": "兰州黄河",
       "market": "SZ",
       "full_code": "000929.SZ",
-      "circ_mv_yi": 16.49,
-      "total_mv_yi": 16.5,
-      "pe": null,
       "industry": "啤酒"
     },
     {
@@ -1038,9 +729,6 @@
       "name": "三夫户外",
       "market": "SZ",
       "full_code": "002780.SZ",
-      "circ_mv_yi": 16.5,
-      "total_mv_yi": 20.89,
-      "pe": 39.1466,
       "industry": "服饰"
     },
     {
@@ -1048,9 +736,6 @@
       "name": "实丰文化",
       "market": "SZ",
       "full_code": "002862.SZ",
-      "circ_mv_yi": 16.57,
-      "total_mv_yi": 21.85,
-      "pe": null,
       "industry": "文教休闲"
     },
     {
@@ -1058,9 +743,6 @@
       "name": "春雪食品",
       "market": "SH",
       "full_code": "605567.SH",
-      "circ_mv_yi": 16.64,
-      "total_mv_yi": 16.64,
-      "pe": 42.1077,
       "industry": "食品"
     },
     {
@@ -1068,9 +750,6 @@
       "name": "仁智股份",
       "market": "SZ",
       "full_code": "002629.SZ",
-      "circ_mv_yi": 16.66,
-      "total_mv_yi": 19.6,
-      "pe": 208.676,
       "industry": "石油开采"
     },
     {
@@ -1078,9 +757,6 @@
       "name": "北自科技",
       "market": "SH",
       "full_code": "603082.SH",
-      "circ_mv_yi": 16.67,
-      "total_mv_yi": 68.09,
-      "pe": 39.5149,
       "industry": "运输设备"
     },
     {
@@ -1088,9 +764,6 @@
       "name": "众辰科技",
       "market": "SH",
       "full_code": "603275.SH",
-      "circ_mv_yi": 16.73,
-      "total_mv_yi": 59.93,
-      "pe": 33.3942,
       "industry": "电器仪表"
     },
     {
@@ -1098,9 +771,6 @@
       "name": "冀东装备",
       "market": "SZ",
       "full_code": "000856.SZ",
-      "circ_mv_yi": 16.82,
-      "total_mv_yi": 16.82,
-      "pe": 64.41,
       "industry": "专用机械"
     },
     {
@@ -1108,9 +778,6 @@
       "name": "富岭股份",
       "market": "SZ",
       "full_code": "001356.SZ",
-      "circ_mv_yi": 16.93,
-      "total_mv_yi": 49.74,
-      "pe": 54.3457,
       "industry": "塑料"
     },
     {
@@ -1118,9 +785,6 @@
       "name": "开开实业",
       "market": "SH",
       "full_code": "600272.SH",
-      "circ_mv_yi": 17.01,
-      "total_mv_yi": 27.92,
-      "pe": 215.8055,
       "industry": "医药商业"
     },
     {
@@ -1128,9 +792,6 @@
       "name": "博闻科技",
       "market": "SH",
       "full_code": "600883.SH",
-      "circ_mv_yi": 17.09,
-      "total_mv_yi": 17.09,
-      "pe": 71.2727,
       "industry": "种植业"
     },
     {
@@ -1138,9 +799,6 @@
       "name": "德创环保",
       "market": "SH",
       "full_code": "603177.SH",
-      "circ_mv_yi": 17.11,
-      "total_mv_yi": 17.11,
-      "pe": null,
       "industry": "环境保护"
     },
     {
@@ -1148,9 +806,6 @@
       "name": "曙光股份",
       "market": "SH",
       "full_code": "600303.SH",
-      "circ_mv_yi": 17.14,
-      "total_mv_yi": 17.3,
-      "pe": null,
       "industry": "汽车整车"
     },
     {
@@ -1158,9 +813,6 @@
       "name": "竞业达",
       "market": "SZ",
       "full_code": "003005.SZ",
-      "circ_mv_yi": 17.14,
-      "total_mv_yi": 31.24,
-      "pe": 363.9294,
       "industry": "软件服务"
     },
     {
@@ -1168,9 +820,6 @@
       "name": "德冠新材",
       "market": "SZ",
       "full_code": "001378.SZ",
-      "circ_mv_yi": 17.15,
-      "total_mv_yi": 35.24,
-      "pe": 42.672,
       "industry": "塑料"
     },
     {
@@ -1178,9 +827,6 @@
       "name": "双箭股份",
       "market": "SZ",
       "full_code": "002381.SZ",
-      "circ_mv_yi": 17.16,
-      "total_mv_yi": 21.94,
-      "pe": 33.5932,
       "industry": "橡胶"
     },
     {
@@ -1188,9 +834,6 @@
       "name": "尚荣医疗",
       "market": "SZ",
       "full_code": "002551.SZ",
-      "circ_mv_yi": 17.17,
-      "total_mv_yi": 23.76,
-      "pe": null,
       "industry": "医疗保健"
     },
     {
@@ -1198,9 +841,6 @@
       "name": "智能自控",
       "market": "SZ",
       "full_code": "002877.SZ",
-      "circ_mv_yi": 17.22,
-      "total_mv_yi": 25.48,
-      "pe": 109.628,
       "industry": "机械基件"
     },
     {
@@ -1208,9 +848,6 @@
       "name": "林州重机",
       "market": "SZ",
       "full_code": "002535.SZ",
-      "circ_mv_yi": 17.24,
-      "total_mv_yi": 18.52,
-      "pe": null,
       "industry": "工程机械"
     },
     {
@@ -1218,9 +855,6 @@
       "name": "永东股份",
       "market": "SZ",
       "full_code": "002753.SZ",
-      "circ_mv_yi": 17.24,
-      "total_mv_yi": 24.99,
-      "pe": 64.1849,
       "industry": "化工原料"
     },
     {
@@ -1228,9 +862,6 @@
       "name": "海安集团",
       "market": "SZ",
       "full_code": "001233.SZ",
-      "circ_mv_yi": 17.29,
-      "total_mv_yi": 85.25,
-      "pe": 15.2334,
       "industry": "汽车配件"
     },
     {
@@ -1238,9 +869,6 @@
       "name": "中源家居",
       "market": "SH",
       "full_code": "603709.SH",
-      "circ_mv_yi": 17.29,
-      "total_mv_yi": 17.35,
-      "pe": null,
       "industry": "家居用品"
     },
     {
@@ -1248,9 +876,6 @@
       "name": "浙江震元",
       "market": "SZ",
       "full_code": "000705.SZ",
-      "circ_mv_yi": 17.37,
-      "total_mv_yi": 20.58,
-      "pe": 90.7006,
       "industry": "医药商业"
     },
     {
@@ -1258,9 +883,6 @@
       "name": "西典新能",
       "market": "SH",
       "full_code": "603312.SH",
-      "circ_mv_yi": 17.37,
-      "total_mv_yi": 54.59,
-      "pe": 20.9292,
       "industry": "电气设备"
     },
     {
@@ -1268,9 +890,6 @@
       "name": "富煌钢构",
       "market": "SZ",
       "full_code": "002743.SZ",
-      "circ_mv_yi": 17.38,
-      "total_mv_yi": 17.41,
-      "pe": null,
       "industry": "钢加工"
     },
     {
@@ -1278,9 +897,6 @@
       "name": "廊坊发展",
       "market": "SH",
       "full_code": "600149.SH",
-      "circ_mv_yi": 17.53,
-      "total_mv_yi": 17.53,
-      "pe": 113.9627,
       "industry": "综合类"
     },
     {
@@ -1288,9 +904,6 @@
       "name": "皇台酒业",
       "market": "SZ",
       "full_code": "000995.SZ",
-      "circ_mv_yi": 17.55,
-      "total_mv_yi": 17.55,
-      "pe": 124.2506,
       "industry": "白酒"
     },
     {
@@ -1298,9 +911,6 @@
       "name": "曲江文旅",
       "market": "SH",
       "full_code": "600706.SH",
-      "circ_mv_yi": 17.55,
-      "total_mv_yi": 17.62,
-      "pe": null,
       "industry": "旅游景点"
     },
     {
@@ -1308,9 +918,6 @@
       "name": "桂发祥",
       "market": "SZ",
       "full_code": "002820.SZ",
-      "circ_mv_yi": 17.56,
-      "total_mv_yi": 17.56,
-      "pe": null,
       "industry": "食品"
     },
     {
@@ -1318,9 +925,6 @@
       "name": "爱婴室",
       "market": "SH",
       "full_code": "603214.SH",
-      "circ_mv_yi": 17.57,
-      "total_mv_yi": 17.57,
-      "pe": 21.5659,
       "industry": "百货"
     },
     {
@@ -1328,9 +932,6 @@
       "name": "劲旅环境",
       "market": "SZ",
       "full_code": "001230.SZ",
-      "circ_mv_yi": 17.6,
-      "total_mv_yi": 30.04,
-      "pe": 17.7493,
       "industry": "环境保护"
     },
     {
@@ -1338,9 +939,6 @@
       "name": "黄山胶囊",
       "market": "SZ",
       "full_code": "002817.SZ",
-      "circ_mv_yi": 17.63,
-      "total_mv_yi": 18.19,
-      "pe": 27.9833,
       "industry": "化学制药"
     },
     {
@@ -1348,9 +946,6 @@
       "name": "瑞立科密",
       "market": "SZ",
       "full_code": "001285.SZ",
-      "circ_mv_yi": 17.75,
-      "total_mv_yi": 77.06,
-      "pe": 23.1397,
       "industry": "汽车配件"
     },
     {
@@ -1358,9 +953,6 @@
       "name": "哈空调",
       "market": "SH",
       "full_code": "600202.SH",
-      "circ_mv_yi": 17.75,
-      "total_mv_yi": 17.75,
-      "pe": 242.8965,
       "industry": "专用机械"
     },
     {
@@ -1368,9 +960,6 @@
       "name": "天鹅股份",
       "market": "SH",
       "full_code": "603029.SH",
-      "circ_mv_yi": 17.75,
-      "total_mv_yi": 17.75,
-      "pe": 23.7869,
       "industry": "农用机械"
     },
     {
@@ -1378,9 +967,6 @@
       "name": "三特索道",
       "market": "SZ",
       "full_code": "002159.SZ",
-      "circ_mv_yi": 17.9,
-      "total_mv_yi": 22.93,
-      "pe": 15.9928,
       "industry": "旅游服务"
     },
     {
@@ -1388,9 +974,6 @@
       "name": "皓宸医疗",
       "market": "SZ",
       "full_code": "002622.SZ",
-      "circ_mv_yi": 18.06,
-      "total_mv_yi": 18.06,
-      "pe": null,
       "industry": "医疗保健"
     },
     {
@@ -1398,9 +981,6 @@
       "name": "凤形股份",
       "market": "SZ",
       "full_code": "002760.SZ",
-      "circ_mv_yi": 18.09,
-      "total_mv_yi": 18.09,
-      "pe": 89.6734,
       "industry": "机械基件"
     },
     {
@@ -1408,9 +988,6 @@
       "name": "金发拉比",
       "market": "SZ",
       "full_code": "002762.SZ",
-      "circ_mv_yi": 18.12,
-      "total_mv_yi": 30.34,
-      "pe": null,
       "industry": "服饰"
     },
     {
@@ -1418,9 +995,6 @@
       "name": "祖名股份",
       "market": "SZ",
       "full_code": "003030.SZ",
-      "circ_mv_yi": 18.17,
-      "total_mv_yi": 28.0,
-      "pe": 110.6928,
       "industry": "食品"
     },
     {
@@ -1428,9 +1002,6 @@
       "name": "林海股份",
       "market": "SH",
       "full_code": "600099.SH",
-      "circ_mv_yi": 18.21,
-      "total_mv_yi": 18.21,
-      "pe": 74.1623,
       "industry": "汽车整车"
     },
     {
@@ -1438,9 +1009,6 @@
       "name": "嘉麟杰",
       "market": "SZ",
       "full_code": "002486.SZ",
-      "circ_mv_yi": 18.21,
-      "total_mv_yi": 18.3,
-      "pe": 39.4818,
       "industry": "服饰"
     },
     {
@@ -1448,9 +1016,6 @@
       "name": "民丰特纸",
       "market": "SH",
       "full_code": "600235.SH",
-      "circ_mv_yi": 18.23,
-      "total_mv_yi": 18.23,
-      "pe": 111.9677,
       "industry": "造纸"
     },
     {
@@ -1458,9 +1023,6 @@
       "name": "德力佳",
       "market": "SH",
       "full_code": "603092.SH",
-      "circ_mv_yi": 18.23,
-      "total_mv_yi": 210.96,
-      "pe": 25.4976,
       "industry": "机械基件"
     },
     {
@@ -1468,9 +1030,6 @@
       "name": "新大正",
       "market": "SZ",
       "full_code": "002968.SZ",
-      "circ_mv_yi": 18.23,
-      "total_mv_yi": 19.37,
-      "pe": 20.4163,
       "industry": "房产服务"
     },
     {
@@ -1478,9 +1037,6 @@
       "name": "宁波联合",
       "market": "SH",
       "full_code": "600051.SH",
-      "circ_mv_yi": 18.25,
-      "total_mv_yi": 18.25,
-      "pe": 21.6249,
       "industry": "综合类"
     },
     {
@@ -1488,9 +1044,6 @@
       "name": "海源复材",
       "market": "SZ",
       "full_code": "002529.SZ",
-      "circ_mv_yi": 18.25,
-      "total_mv_yi": 18.25,
-      "pe": null,
       "industry": "专用机械"
     },
     {
@@ -1498,9 +1051,6 @@
       "name": "长缆科技",
       "market": "SZ",
       "full_code": "002879.SZ",
-      "circ_mv_yi": 18.26,
-      "total_mv_yi": 25.72,
-      "pe": 19.2293,
       "industry": "电气设备"
     },
     {
@@ -1508,9 +1058,6 @@
       "name": "鑫铂股份",
       "market": "SZ",
       "full_code": "003038.SZ",
-      "circ_mv_yi": 18.28,
-      "total_mv_yi": 27.17,
-      "pe": null,
       "industry": "铝"
     },
     {
@@ -1518,9 +1065,6 @@
       "name": "光正眼科",
       "market": "SZ",
       "full_code": "002524.SZ",
-      "circ_mv_yi": 18.28,
-      "total_mv_yi": 18.45,
-      "pe": null,
       "industry": "医疗保健"
     },
     {
@@ -1528,9 +1072,6 @@
       "name": "建研院",
       "market": "SH",
       "full_code": "603183.SH",
-      "circ_mv_yi": 18.3,
-      "total_mv_yi": 18.3,
-      "pe": 250.4156,
       "industry": "建筑工程"
     },
     {
@@ -1538,9 +1079,6 @@
       "name": "信隆健康",
       "market": "SZ",
       "full_code": "002105.SZ",
-      "circ_mv_yi": 18.41,
-      "total_mv_yi": 18.5,
-      "pe": null,
       "industry": "摩托车"
     },
     {
@@ -1548,9 +1086,6 @@
       "name": "泰慕士",
       "market": "SZ",
       "full_code": "001234.SZ",
-      "circ_mv_yi": 18.46,
-      "total_mv_yi": 21.91,
-      "pe": 46.5198,
       "industry": "服饰"
     },
     {
@@ -1558,9 +1093,6 @@
       "name": "登云股份",
       "market": "SZ",
       "full_code": "002715.SZ",
-      "circ_mv_yi": 18.48,
-      "total_mv_yi": 18.48,
-      "pe": null,
       "industry": "汽车配件"
     },
     {
@@ -1568,9 +1100,6 @@
       "name": "播恩集团",
       "market": "SZ",
       "full_code": "001366.SZ",
-      "circ_mv_yi": 18.48,
-      "total_mv_yi": 18.48,
-      "pe": null,
       "industry": "饲料"
     },
     {
@@ -1578,9 +1107,6 @@
       "name": "新天药业",
       "market": "SZ",
       "full_code": "002873.SZ",
-      "circ_mv_yi": 18.5,
-      "total_mv_yi": 18.84,
-      "pe": 206.825,
       "industry": "中成药"
     },
     {
@@ -1588,9 +1114,6 @@
       "name": "莎普爱思",
       "market": "SH",
       "full_code": "603168.SH",
-      "circ_mv_yi": 18.51,
-      "total_mv_yi": 18.59,
-      "pe": null,
       "industry": "化学制药"
     },
     {
@@ -1598,9 +1121,6 @@
       "name": "冀衡医药",
       "market": "SZ",
       "full_code": "002742.SZ",
-      "circ_mv_yi": 18.6,
-      "total_mv_yi": 24.29,
-      "pe": null,
       "industry": "化学制药"
     },
     {
@@ -1608,9 +1128,6 @@
       "name": "坤泰股份",
       "market": "SZ",
       "full_code": "001260.SZ",
-      "circ_mv_yi": 18.61,
-      "total_mv_yi": 18.61,
-      "pe": 45.1926,
       "industry": "汽车配件"
     },
     {
@@ -1618,9 +1135,6 @@
       "name": "同兴科技",
       "market": "SZ",
       "full_code": "003027.SZ",
-      "circ_mv_yi": 18.65,
-      "total_mv_yi": 23.26,
-      "pe": 31.4353,
       "industry": "环境保护"
     },
     {
@@ -1628,9 +1142,6 @@
       "name": "四方新材",
       "market": "SH",
       "full_code": "605122.SH",
-      "circ_mv_yi": 18.73,
-      "total_mv_yi": 18.73,
-      "pe": null,
       "industry": "水泥"
     },
     {
@@ -1638,9 +1149,6 @@
       "name": "大龙地产",
       "market": "SH",
       "full_code": "600159.SH",
-      "circ_mv_yi": 18.76,
-      "total_mv_yi": 18.76,
-      "pe": null,
       "industry": "区域地产"
     },
     {
@@ -1648,9 +1156,6 @@
       "name": "南都物业",
       "market": "SH",
       "full_code": "603506.SH",
-      "circ_mv_yi": 18.78,
-      "total_mv_yi": 18.78,
-      "pe": 18.9198,
       "industry": "房产服务"
     },
     {
@@ -1658,9 +1163,6 @@
       "name": "赛福天",
       "market": "SH",
       "full_code": "603028.SH",
-      "circ_mv_yi": 18.81,
-      "total_mv_yi": 19.0,
-      "pe": null,
       "industry": "钢加工"
     },
     {
@@ -1668,9 +1170,6 @@
       "name": "大庆华科",
       "market": "SZ",
       "full_code": "000985.SZ",
-      "circ_mv_yi": 18.85,
-      "total_mv_yi": 18.85,
-      "pe": 253.8362,
       "industry": "化工原料"
     },
     {
@@ -1678,9 +1177,6 @@
       "name": "百洋股份",
       "market": "SZ",
       "full_code": "002696.SZ",
-      "circ_mv_yi": 18.85,
-      "total_mv_yi": 19.5,
-      "pe": 47.9941,
       "industry": "饲料"
     },
     {
@@ -1688,9 +1184,6 @@
       "name": "国统股份",
       "market": "SZ",
       "full_code": "002205.SZ",
-      "circ_mv_yi": 18.88,
-      "total_mv_yi": 18.88,
-      "pe": null,
       "industry": "水泥"
     },
     {
@@ -1698,9 +1191,6 @@
       "name": "天禾股份",
       "market": "SZ",
       "full_code": "002999.SZ",
-      "circ_mv_yi": 18.89,
-      "total_mv_yi": 19.12,
-      "pe": 31.9593,
       "industry": "批发业"
     },
     {
@@ -1708,9 +1198,6 @@
       "name": "合金投资",
       "market": "SZ",
       "full_code": "000633.SZ",
-      "circ_mv_yi": 18.91,
-      "total_mv_yi": 18.91,
-      "pe": 249.7292,
       "industry": "小金属"
     },
     {
@@ -1718,9 +1205,6 @@
       "name": "济高发展",
       "market": "SH",
       "full_code": "600807.SH",
-      "circ_mv_yi": 18.97,
-      "total_mv_yi": 21.32,
-      "pe": null,
       "industry": "医疗保健"
     },
     {
@@ -1728,9 +1212,6 @@
       "name": "集泰股份",
       "market": "SZ",
       "full_code": "002909.SZ",
-      "circ_mv_yi": 18.98,
-      "total_mv_yi": 19.46,
-      "pe": null,
       "industry": "化工原料"
     },
     {
@@ -1738,9 +1219,6 @@
       "name": "华瓷股份",
       "market": "SZ",
       "full_code": "001216.SZ",
-      "circ_mv_yi": 19.08,
-      "total_mv_yi": 42.33,
-      "pe": 19.2029,
       "industry": "家居用品"
     },
     {
@@ -1748,9 +1226,6 @@
       "name": "广宇集团",
       "market": "SZ",
       "full_code": "002133.SZ",
-      "circ_mv_yi": 19.17,
-      "total_mv_yi": 19.28,
-      "pe": 50.375,
       "industry": "全国地产"
     },
     {
@@ -1758,9 +1233,6 @@
       "name": "惠达卫浴",
       "market": "SH",
       "full_code": "603385.SH",
-      "circ_mv_yi": 19.19,
-      "total_mv_yi": 19.19,
-      "pe": null,
       "industry": "家居用品"
     },
     {
@@ -1768,9 +1240,6 @@
       "name": "皇氏集团",
       "market": "SZ",
       "full_code": "002329.SZ",
-      "circ_mv_yi": 19.22,
-      "total_mv_yi": 24.56,
-      "pe": null,
       "industry": "乳制品"
     },
     {
@@ -1778,9 +1247,6 @@
       "name": "京能热力",
       "market": "SZ",
       "full_code": "002893.SZ",
-      "circ_mv_yi": 19.24,
-      "total_mv_yi": 25.02,
-      "pe": 40.1732,
       "industry": "供气供热"
     },
     {
@@ -1788,9 +1254,6 @@
       "name": "苏豪弘业",
       "market": "SH",
       "full_code": "600128.SH",
-      "circ_mv_yi": 19.25,
-      "total_mv_yi": 19.63,
-      "pe": 40.6697,
       "industry": "商贸代理"
     },
     {
@@ -1798,9 +1261,6 @@
       "name": "万向德农",
       "market": "SH",
       "full_code": "600371.SH",
-      "circ_mv_yi": 19.25,
-      "total_mv_yi": 19.25,
-      "pe": 347.3203,
       "industry": "种植业"
     },
     {
@@ -1808,9 +1268,6 @@
       "name": "上海雅仕",
       "market": "SH",
       "full_code": "603329.SH",
-      "circ_mv_yi": 19.26,
-      "total_mv_yi": 23.33,
-      "pe": 61.2995,
       "industry": "仓储物流"
     },
     {
@@ -1818,9 +1275,6 @@
       "name": "国机通用",
       "market": "SH",
       "full_code": "600444.SH",
-      "circ_mv_yi": 19.28,
-      "total_mv_yi": 19.28,
-      "pe": 33.059,
       "industry": "专用机械"
     },
     {
@@ -1828,9 +1282,6 @@
       "name": "丰山集团",
       "market": "SH",
       "full_code": "603810.SH",
-      "circ_mv_yi": 19.31,
-      "total_mv_yi": 19.31,
-      "pe": 49.5291,
       "industry": "农药化肥"
     },
     {
@@ -1838,9 +1289,6 @@
       "name": "天域生物",
       "market": "SH",
       "full_code": "603717.SH",
-      "circ_mv_yi": 19.32,
-      "total_mv_yi": 19.32,
-      "pe": null,
       "industry": "农业综合"
     },
     {
@@ -1848,9 +1296,6 @@
       "name": "友升股份",
       "market": "SH",
       "full_code": "603418.SH",
-      "circ_mv_yi": 19.33,
-      "total_mv_yi": 90.24,
-      "pe": 18.4058,
       "industry": "汽车配件"
     },
     {
@@ -1858,9 +1303,6 @@
       "name": "泉峰汽车",
       "market": "SH",
       "full_code": "603982.SH",
-      "circ_mv_yi": 19.35,
-      "total_mv_yi": 20.81,
-      "pe": null,
       "industry": "汽车配件"
     },
     {
@@ -1868,9 +1310,6 @@
       "name": "福建金森",
       "market": "SZ",
       "full_code": "002679.SZ",
-      "circ_mv_yi": 19.36,
-      "total_mv_yi": 19.36,
-      "pe": 209.6893,
       "industry": "林业"
     },
     {
@@ -1878,9 +1317,6 @@
       "name": "美思德",
       "market": "SH",
       "full_code": "603041.SH",
-      "circ_mv_yi": 19.36,
-      "total_mv_yi": 19.36,
-      "pe": 34.1588,
       "industry": "化工原料"
     },
     {
@@ -1888,9 +1324,6 @@
       "name": "惠发食品",
       "market": "SH",
       "full_code": "603536.SH",
-      "circ_mv_yi": 19.36,
-      "total_mv_yi": 19.51,
-      "pe": null,
       "industry": "食品"
     },
     {
@@ -1898,9 +1331,6 @@
       "name": "中晟高科",
       "market": "SZ",
       "full_code": "002778.SZ",
-      "circ_mv_yi": 19.38,
-      "total_mv_yi": 19.59,
-      "pe": 26.5637,
       "industry": "环境保护"
     },
     {
@@ -1908,9 +1338,6 @@
       "name": "庄园牧场",
       "market": "SZ",
       "full_code": "002910.SZ",
-      "circ_mv_yi": 19.38,
-      "total_mv_yi": 22.15,
-      "pe": null,
       "industry": "乳制品"
     },
     {
@@ -1918,9 +1345,6 @@
       "name": "汉商集团",
       "market": "SH",
       "full_code": "600774.SH",
-      "circ_mv_yi": 19.4,
-      "total_mv_yi": 19.41,
-      "pe": null,
       "industry": "化学制药"
     },
     {
@@ -1928,9 +1352,6 @@
       "name": "醋化股份",
       "market": "SH",
       "full_code": "603968.SH",
-      "circ_mv_yi": 19.49,
-      "total_mv_yi": 19.49,
-      "pe": null,
       "industry": "化工原料"
     },
     {
@@ -1938,9 +1359,6 @@
       "name": "时代万恒",
       "market": "SH",
       "full_code": "600241.SH",
-      "circ_mv_yi": 19.51,
-      "total_mv_yi": 19.51,
-      "pe": null,
       "industry": "电气设备"
     },
     {
@@ -1948,9 +1366,6 @@
       "name": "开创国际",
       "market": "SH",
       "full_code": "600097.SH",
-      "circ_mv_yi": 19.52,
-      "total_mv_yi": 19.52,
-      "pe": 26.4106,
       "industry": "渔业"
     },
     {
@@ -1958,9 +1373,6 @@
       "name": "博隆技术",
       "market": "SH",
       "full_code": "603325.SH",
-      "circ_mv_yi": 19.52,
-      "total_mv_yi": 45.68,
-      "pe": 11.1379,
       "industry": "化工机械"
     },
     {
@@ -1968,9 +1380,6 @@
       "name": "渤海股份",
       "market": "SZ",
       "full_code": "000605.SZ",
-      "circ_mv_yi": 19.54,
-      "total_mv_yi": 19.54,
-      "pe": 229.1434,
       "industry": "水务"
     },
     {
@@ -1978,9 +1387,6 @@
       "name": "广济药业",
       "market": "SZ",
       "full_code": "000952.SZ",
-      "circ_mv_yi": 19.54,
-      "total_mv_yi": 19.7,
-      "pe": null,
       "industry": "化学制药"
     },
     {
@@ -1988,9 +1394,6 @@
       "name": "嘉华股份",
       "market": "SH",
       "full_code": "603182.SH",
-      "circ_mv_yi": 19.58,
-      "total_mv_yi": 19.58,
-      "pe": 20.6772,
       "industry": "食品"
     },
     {
@@ -1998,9 +1401,6 @@
       "name": "环球印务",
       "market": "SZ",
       "full_code": "002799.SZ",
-      "circ_mv_yi": 19.59,
-      "total_mv_yi": 19.59,
-      "pe": null,
       "industry": "广告包装"
     },
     {
@@ -2008,9 +1408,6 @@
       "name": "邦基科技",
       "market": "SH",
       "full_code": "603151.SH",
-      "circ_mv_yi": 19.61,
-      "total_mv_yi": 19.61,
-      "pe": 17.6924,
       "industry": "饲料"
     },
     {
@@ -2018,9 +1415,6 @@
       "name": "福建水泥",
       "market": "SH",
       "full_code": "600802.SH",
-      "circ_mv_yi": 19.61,
-      "total_mv_yi": 19.61,
-      "pe": null,
       "industry": "水泥"
     },
     {
@@ -2028,9 +1422,6 @@
       "name": "苏豪时尚",
       "market": "SH",
       "full_code": "600287.SH",
-      "circ_mv_yi": 19.66,
-      "total_mv_yi": 19.66,
-      "pe": 78.3108,
       "industry": "商贸代理"
     },
     {
@@ -2038,9 +1429,6 @@
       "name": "亚光股份",
       "market": "SH",
       "full_code": "603282.SH",
-      "circ_mv_yi": 19.67,
-      "total_mv_yi": 19.67,
-      "pe": 20.5084,
       "industry": "专用机械"
     },
     {
@@ -2048,9 +1436,6 @@
       "name": "锦江航运",
       "market": "SH",
       "full_code": "601083.SH",
-      "circ_mv_yi": 19.76,
-      "total_mv_yi": 131.74,
-      "pe": 8.7809,
       "industry": "水运"
     },
     {
@@ -2058,9 +1443,6 @@
       "name": "中哲精化",
       "market": "SZ",
       "full_code": "000953.SZ",
-      "circ_mv_yi": 19.77,
-      "total_mv_yi": 19.77,
-      "pe": 302.9947,
       "industry": "化学制药"
     },
     {
@@ -2068,9 +1450,6 @@
       "name": "博菲电气",
       "market": "SZ",
       "full_code": "001255.SZ",
-      "circ_mv_yi": 19.78,
-      "total_mv_yi": 22.27,
-      "pe": 144.8935,
       "industry": "电气设备"
     },
     {
@@ -2078,9 +1457,6 @@
       "name": "江山欧派",
       "market": "SH",
       "full_code": "603208.SH",
-      "circ_mv_yi": 19.79,
-      "total_mv_yi": 19.79,
-      "pe": null,
       "industry": "家居用品"
     },
     {
@@ -2088,9 +1464,6 @@
       "name": "新赛股份",
       "market": "SH",
       "full_code": "600540.SH",
-      "circ_mv_yi": 19.82,
-      "total_mv_yi": 19.82,
-      "pe": null,
       "industry": "种植业"
     },
     {
@@ -2098,9 +1471,6 @@
       "name": "润本股份",
       "market": "SH",
       "full_code": "603193.SH",
-      "circ_mv_yi": 19.88,
-      "total_mv_yi": 77.84,
-      "pe": 24.7515,
       "industry": "日用化工"
     },
     {
@@ -2108,9 +1478,6 @@
       "name": "盘龙药业",
       "market": "SZ",
       "full_code": "002864.SZ",
-      "circ_mv_yi": 19.9,
-      "total_mv_yi": 28.7,
-      "pe": 29.8048,
       "industry": "中成药"
     },
     {
@@ -2118,9 +1485,6 @@
       "name": "燕塘乳业",
       "market": "SZ",
       "full_code": "002732.SZ",
-      "circ_mv_yi": 19.99,
-      "total_mv_yi": 20.09,
-      "pe": 34.8695,
       "industry": "乳制品"
     },
     {
@@ -2128,9 +1492,6 @@
       "name": "大洋生物",
       "market": "SZ",
       "full_code": "003017.SZ",
-      "circ_mv_yi": 20.0,
-      "total_mv_yi": 24.24,
-      "pe": 24.2777,
       "industry": "化工原料"
     },
     {
@@ -2138,9 +1499,6 @@
       "name": "依依股份",
       "market": "SZ",
       "full_code": "001206.SZ",
-      "circ_mv_yi": 20.02,
-      "total_mv_yi": 34.63,
-      "pe": 18.9218,
       "industry": "造纸"
     },
     {
@@ -2148,9 +1506,6 @@
       "name": "德联集团",
       "market": "SZ",
       "full_code": "002666.SZ",
-      "circ_mv_yi": 20.03,
-      "total_mv_yi": 31.52,
-      "pe": 69.0786,
       "industry": "化工原料"
     },
     {
@@ -2158,9 +1513,6 @@
       "name": "深华发A",
       "market": "SZ",
       "full_code": "000020.SZ",
-      "circ_mv_yi": 20.07,
-      "total_mv_yi": 31.37,
-      "pe": 88.5257,
       "industry": "元器件"
     },
     {
@@ -2168,9 +1520,6 @@
       "name": "汇通集团",
       "market": "SH",
       "full_code": "603176.SH",
-      "circ_mv_yi": 20.09,
-      "total_mv_yi": 20.67,
-      "pe": 52.3604,
       "industry": "建筑工程"
     },
     {
@@ -2178,9 +1527,6 @@
       "name": "天顺股份",
       "market": "SZ",
       "full_code": "002800.SZ",
-      "circ_mv_yi": 20.12,
-      "total_mv_yi": 20.72,
-      "pe": null,
       "industry": "仓储物流"
     },
     {
@@ -2188,9 +1534,6 @@
       "name": "奥佳华",
       "market": "SZ",
       "full_code": "002614.SZ",
-      "circ_mv_yi": 20.12,
-      "total_mv_yi": 28.44,
-      "pe": 231.7192,
       "industry": "家用电器"
     },
     {
@@ -2198,9 +1541,6 @@
       "name": "海阳科技",
       "market": "SH",
       "full_code": "603382.SH",
-      "circ_mv_yi": 20.14,
-      "total_mv_yi": 31.61,
-      "pe": 27.5228,
       "industry": "化纤"
     },
     {
@@ -2208,9 +1548,6 @@
       "name": "莱绅通灵",
       "market": "SH",
       "full_code": "603900.SH",
-      "circ_mv_yi": 20.19,
-      "total_mv_yi": 20.2,
-      "pe": 33.8117,
       "industry": "服饰"
     },
     {
@@ -2218,9 +1555,6 @@
       "name": "浩物股份",
       "market": "SZ",
       "full_code": "000757.SZ",
-      "circ_mv_yi": 20.19,
-      "total_mv_yi": 20.19,
-      "pe": 42.2856,
       "industry": "汽车服务"
     },
     {
@@ -2228,9 +1562,6 @@
       "name": "梅轮电梯",
       "market": "SH",
       "full_code": "603321.SH",
-      "circ_mv_yi": 20.19,
-      "total_mv_yi": 20.44,
-      "pe": 63.3861,
       "industry": "运输设备"
     },
     {
@@ -2238,9 +1569,6 @@
       "name": "栖霞建设",
       "market": "SH",
       "full_code": "600533.SH",
-      "circ_mv_yi": 20.26,
-      "total_mv_yi": 20.27,
-      "pe": null,
       "industry": "区域地产"
     },
     {
@@ -2248,9 +1576,6 @@
       "name": "东亚药业",
       "market": "SH",
       "full_code": "605177.SH",
-      "circ_mv_yi": 20.3,
-      "total_mv_yi": 20.49,
-      "pe": null,
       "industry": "化学制药"
     },
     {
@@ -2258,9 +1583,6 @@
       "name": "古汉医药",
       "market": "SZ",
       "full_code": "000590.SZ",
-      "circ_mv_yi": 20.35,
-      "total_mv_yi": 20.36,
-      "pe": null,
       "industry": "中成药"
     },
     {
@@ -2268,9 +1590,6 @@
       "name": "我乐家居",
       "market": "SH",
       "full_code": "603326.SH",
-      "circ_mv_yi": 20.36,
-      "total_mv_yi": 20.36,
-      "pe": 11.6782,
       "industry": "家居用品"
     },
     {
@@ -2278,9 +1597,6 @@
       "name": "新农股份",
       "market": "SZ",
       "full_code": "002942.SZ",
-      "circ_mv_yi": 20.38,
-      "total_mv_yi": 22.84,
-      "pe": 23.9397,
       "industry": "农药化肥"
     },
     {
@@ -2288,9 +1604,6 @@
       "name": "甘源食品",
       "market": "SZ",
       "full_code": "002991.SZ",
-      "circ_mv_yi": 20.46,
-      "total_mv_yi": 38.19,
-      "pe": 18.3225,
       "industry": "食品"
     },
     {
@@ -2298,9 +1611,6 @@
       "name": "诺邦股份",
       "market": "SH",
       "full_code": "603238.SH",
-      "circ_mv_yi": 20.54,
-      "total_mv_yi": 20.54,
-      "pe": 17.5064,
       "industry": "纺织"
     },
     {
@@ -2308,9 +1618,6 @@
       "name": "华生科技",
       "market": "SH",
       "full_code": "605180.SH",
-      "circ_mv_yi": 20.55,
-      "total_mv_yi": 20.55,
-      "pe": 78.3935,
       "industry": "纺织"
     },
     {
@@ -2318,9 +1625,6 @@
       "name": "正裕工业",
       "market": "SH",
       "full_code": "603089.SH",
-      "circ_mv_yi": 20.67,
-      "total_mv_yi": 23.74,
-      "pe": 22.5163,
       "industry": "汽车配件"
     },
     {
@@ -2328,9 +1632,6 @@
       "name": "龙泉股份",
       "market": "SZ",
       "full_code": "002671.SZ",
-      "circ_mv_yi": 20.69,
-      "total_mv_yi": 21.12,
-      "pe": 44.4934,
       "industry": "水泥"
     },
     {
@@ -2338,9 +1639,6 @@
       "name": "优彩资源",
       "market": "SZ",
       "full_code": "002998.SZ",
-      "circ_mv_yi": 20.69,
-      "total_mv_yi": 27.14,
-      "pe": 52.1421,
       "industry": "化纤"
     },
     {
@@ -2348,9 +1646,6 @@
       "name": "泰山石油",
       "market": "SZ",
       "full_code": "000554.SZ",
-      "circ_mv_yi": 20.73,
-      "total_mv_yi": 27.55,
-      "pe": 17.8132,
       "industry": "石油贸易"
     },
     {
@@ -2358,9 +1653,6 @@
       "name": "大晟文化",
       "market": "SH",
       "full_code": "600892.SH",
-      "circ_mv_yi": 20.81,
-      "total_mv_yi": 20.81,
-      "pe": null,
       "industry": "互联网"
     },
     {
@@ -2368,9 +1660,6 @@
       "name": "南卫股份",
       "market": "SH",
       "full_code": "603880.SH",
-      "circ_mv_yi": 20.81,
-      "total_mv_yi": 20.81,
-      "pe": null,
       "industry": "医疗保健"
     },
     {
@@ -2378,9 +1667,6 @@
       "name": "金煤科技",
       "market": "SH",
       "full_code": "600844.SH",
-      "circ_mv_yi": 20.82,
-      "total_mv_yi": 25.72,
-      "pe": null,
       "industry": "化工原料"
     },
     {
@@ -2388,9 +1674,6 @@
       "name": "湖南投资",
       "market": "SZ",
       "full_code": "000548.SZ",
-      "circ_mv_yi": 20.87,
-      "total_mv_yi": 20.87,
-      "pe": 49.6043,
       "industry": "路桥"
     },
     {
@@ -2398,9 +1681,6 @@
       "name": "盛通股份",
       "market": "SZ",
       "full_code": "002599.SZ",
-      "circ_mv_yi": 20.89,
-      "total_mv_yi": 27.97,
-      "pe": 371.5809,
       "industry": "广告包装"
     },
     {
@@ -2408,9 +1688,6 @@
       "name": "万林物流",
       "market": "SH",
       "full_code": "603117.SH",
-      "circ_mv_yi": 20.91,
-      "total_mv_yi": 20.91,
-      "pe": 134.6585,
       "industry": "仓储物流"
     },
     {
@@ -2418,9 +1695,6 @@
       "name": "鼎际得",
       "market": "SH",
       "full_code": "603255.SH",
-      "circ_mv_yi": 20.93,
-      "total_mv_yi": 46.42,
-      "pe": 406.4429,
       "industry": "化工原料"
     },
     {
@@ -2428,9 +1702,6 @@
       "name": "海欣食品",
       "market": "SZ",
       "full_code": "002702.SZ",
-      "circ_mv_yi": 20.96,
-      "total_mv_yi": 25.4,
-      "pe": null,
       "industry": "食品"
     },
     {
@@ -2438,9 +1709,6 @@
       "name": "中国瑞林",
       "market": "SH",
       "full_code": "603257.SH",
-      "circ_mv_yi": 20.97,
-      "total_mv_yi": 101.04,
-      "pe": 62.6291,
       "industry": "建筑工程"
     },
     {
@@ -2448,9 +1716,6 @@
       "name": "彩虹集团",
       "market": "SZ",
       "full_code": "003023.SZ",
-      "circ_mv_yi": 20.99,
-      "total_mv_yi": 21.04,
-      "pe": 33.0402,
       "industry": "家用电器"
     },
     {
@@ -2458,9 +1723,6 @@
       "name": "第一医药",
       "market": "SH",
       "full_code": "600833.SH",
-      "circ_mv_yi": 21.01,
-      "total_mv_yi": 21.01,
-      "pe": 36.3909,
       "industry": "医药商业"
     },
     {
@@ -2468,9 +1730,6 @@
       "name": "道道全",
       "market": "SZ",
       "full_code": "002852.SZ",
-      "circ_mv_yi": 21.03,
-      "total_mv_yi": 25.32,
-      "pe": 10.8389,
       "industry": "食品"
     },
     {
@@ -2478,9 +1737,6 @@
       "name": "威帝股份",
       "market": "SH",
       "full_code": "603023.SH",
-      "circ_mv_yi": 21.04,
-      "total_mv_yi": 21.04,
-      "pe": 517.5913,
       "industry": "汽车配件"
     },
     {
@@ -2488,9 +1744,6 @@
       "name": "百合股份",
       "market": "SH",
       "full_code": "603102.SH",
-      "circ_mv_yi": 21.04,
-      "total_mv_yi": 21.04,
-      "pe": 16.3843,
       "industry": "医疗保健"
     },
     {
@@ -2498,9 +1751,6 @@
       "name": "宁波富邦",
       "market": "SH",
       "full_code": "600768.SH",
-      "circ_mv_yi": 21.05,
-      "total_mv_yi": 21.05,
-      "pe": 35.9327,
       "industry": "铝"
     },
     {
@@ -2508,9 +1758,6 @@
       "name": "民和股份",
       "market": "SZ",
       "full_code": "002234.SZ",
-      "circ_mv_yi": 21.07,
-      "total_mv_yi": 24.39,
-      "pe": null,
       "industry": "农业综合"
     },
     {
@@ -2518,9 +1765,6 @@
       "name": "德生科技",
       "market": "SZ",
       "full_code": "002908.SZ",
-      "circ_mv_yi": 21.08,
-      "total_mv_yi": 28.26,
-      "pe": 316.1403,
       "industry": "软件服务"
     },
     {
@@ -2528,9 +1772,6 @@
       "name": "长春一东",
       "market": "SH",
       "full_code": "600148.SH",
-      "circ_mv_yi": 21.09,
-      "total_mv_yi": 21.09,
-      "pe": 184.4599,
       "industry": "汽车配件"
     },
     {
@@ -2538,9 +1779,6 @@
       "name": "三星新材",
       "market": "SH",
       "full_code": "603578.SH",
-      "circ_mv_yi": 21.17,
-      "total_mv_yi": 27.48,
-      "pe": null,
       "industry": "家用电器"
     },
     {
@@ -2548,9 +1786,6 @@
       "name": "鑫源智造",
       "market": "SH",
       "full_code": "600615.SH",
-      "circ_mv_yi": 21.24,
-      "total_mv_yi": 21.28,
-      "pe": null,
       "industry": "铝"
     },
     {
@@ -2558,9 +1793,6 @@
       "name": "纳尔股份",
       "market": "SZ",
       "full_code": "002825.SZ",
-      "circ_mv_yi": 21.25,
-      "total_mv_yi": 28.31,
-      "pe": 20.0893,
       "industry": "化工原料"
     },
     {
@@ -2568,9 +1800,6 @@
       "name": "新农开发",
       "market": "SH",
       "full_code": "600359.SH",
-      "circ_mv_yi": 21.25,
-      "total_mv_yi": 21.25,
-      "pe": null,
       "industry": "种植业"
     },
     {
@@ -2578,9 +1807,6 @@
       "name": "新经典",
       "market": "SH",
       "full_code": "603096.SH",
-      "circ_mv_yi": 21.28,
-      "total_mv_yi": 21.28,
-      "pe": 27.6409,
       "industry": "出版业"
     },
     {
@@ -2588,9 +1814,6 @@
       "name": "昂立教育",
       "market": "SH",
       "full_code": "600661.SH",
-      "circ_mv_yi": 21.29,
-      "total_mv_yi": 21.29,
-      "pe": 24.5934,
       "industry": "文教休闲"
     },
     {
@@ -2598,9 +1821,6 @@
       "name": "先锋电子",
       "market": "SZ",
       "full_code": "002767.SZ",
-      "circ_mv_yi": 21.36,
-      "total_mv_yi": 24.6,
-      "pe": 88.5279,
       "industry": "电器仪表"
     },
     {
@@ -2608,9 +1828,6 @@
       "name": "万里股份",
       "market": "SH",
       "full_code": "600847.SH",
-      "circ_mv_yi": 21.37,
-      "total_mv_yi": 21.37,
-      "pe": null,
       "industry": "电气设备"
     },
     {
@@ -2618,9 +1835,6 @@
       "name": "川大智胜",
       "market": "SZ",
       "full_code": "002253.SZ",
-      "circ_mv_yi": 21.37,
-      "total_mv_yi": 22.97,
-      "pe": null,
       "industry": "软件服务"
     },
     {
@@ -2628,9 +1842,6 @@
       "name": "汇洁股份",
       "market": "SZ",
       "full_code": "002763.SZ",
-      "circ_mv_yi": 21.37,
-      "total_mv_yi": 28.86,
-      "pe": 52.6459,
       "industry": "服饰"
     },
     {
@@ -2638,9 +1849,6 @@
       "name": "文科股份",
       "market": "SZ",
       "full_code": "002775.SZ",
-      "circ_mv_yi": 21.43,
-      "total_mv_yi": 23.81,
-      "pe": null,
       "industry": "建筑工程"
     },
     {
@@ -2648,9 +1856,6 @@
       "name": "新日股份",
       "market": "SH",
       "full_code": "603787.SH",
-      "circ_mv_yi": 21.45,
-      "total_mv_yi": 21.45,
-      "pe": 42.3897,
       "industry": "摩托车"
     },
     {
@@ -2658,9 +1863,6 @@
       "name": "慈文传媒",
       "market": "SZ",
       "full_code": "002343.SZ",
-      "circ_mv_yi": 21.46,
-      "total_mv_yi": 21.46,
-      "pe": null,
       "industry": "影视音像"
     },
     {
@@ -2668,9 +1870,6 @@
       "name": "大连友谊",
       "market": "SZ",
       "full_code": "000679.SZ",
-      "circ_mv_yi": 21.53,
-      "total_mv_yi": 21.53,
-      "pe": null,
       "industry": "百货"
     },
     {
@@ -2678,9 +1877,6 @@
       "name": "精艺股份",
       "market": "SZ",
       "full_code": "002295.SZ",
-      "circ_mv_yi": 21.54,
-      "total_mv_yi": 21.55,
-      "pe": null,
       "industry": "铜"
     },
     {
@@ -2688,9 +1884,6 @@
       "name": "贵绳股份",
       "market": "SH",
       "full_code": "600992.SH",
-      "circ_mv_yi": 21.57,
-      "total_mv_yi": 21.57,
-      "pe": 72.0354,
       "industry": "钢加工"
     },
     {
@@ -2698,9 +1891,6 @@
       "name": "大湖股份",
       "market": "SH",
       "full_code": "600257.SH",
-      "circ_mv_yi": 21.66,
-      "total_mv_yi": 21.66,
-      "pe": 427.5292,
       "industry": "渔业"
     },
     {
@@ -2708,9 +1898,6 @@
       "name": "獐子岛",
       "market": "SZ",
       "full_code": "002069.SZ",
-      "circ_mv_yi": 21.66,
-      "total_mv_yi": 21.69,
-      "pe": null,
       "industry": "渔业"
     },
     {
@@ -2718,9 +1905,6 @@
       "name": "惠天热电",
       "market": "SZ",
       "full_code": "000692.SZ",
-      "circ_mv_yi": 21.69,
-      "total_mv_yi": 21.69,
-      "pe": null,
       "industry": "供气供热"
     },
     {
@@ -2728,9 +1912,6 @@
       "name": "韩建河山",
       "market": "SH",
       "full_code": "603616.SH",
-      "circ_mv_yi": 21.71,
-      "total_mv_yi": 21.88,
-      "pe": null,
       "industry": "水泥"
     },
     {
@@ -2738,9 +1919,6 @@
       "name": "蒙娜丽莎",
       "market": "SZ",
       "full_code": "002918.SZ",
-      "circ_mv_yi": 21.72,
-      "total_mv_yi": 41.45,
-      "pe": 79.0701,
       "industry": "陶瓷"
     },
     {
@@ -2748,9 +1926,6 @@
       "name": "众鑫股份",
       "market": "SH",
       "full_code": "603091.SH",
-      "circ_mv_yi": 21.72,
-      "total_mv_yi": 70.64,
-      "pe": 26.5322,
       "industry": "家居用品"
     },
     {
@@ -2758,9 +1933,6 @@
       "name": "永泰运",
       "market": "SZ",
       "full_code": "001228.SZ",
-      "circ_mv_yi": 21.72,
-      "total_mv_yi": 28.25,
-      "pe": 26.4392,
       "industry": "仓储物流"
     },
     {
@@ -2768,9 +1940,6 @@
       "name": "春兰股份",
       "market": "SH",
       "full_code": "600854.SH",
-      "circ_mv_yi": 21.77,
-      "total_mv_yi": 21.77,
-      "pe": 17.0534,
       "industry": "家用电器"
     },
     {
@@ -2778,9 +1947,6 @@
       "name": "天目药业",
       "market": "SH",
       "full_code": "600671.SH",
-      "circ_mv_yi": 21.78,
-      "total_mv_yi": 21.79,
-      "pe": 123.6266,
       "industry": "中成药"
     },
     {
@@ -2788,9 +1954,6 @@
       "name": "百达精工",
       "market": "SH",
       "full_code": "603331.SH",
-      "circ_mv_yi": 21.79,
-      "total_mv_yi": 21.79,
-      "pe": null,
       "industry": "专用机械"
     },
     {
@@ -2798,9 +1961,6 @@
       "name": "恒基达鑫",
       "market": "SZ",
       "full_code": "002492.SZ",
-      "circ_mv_yi": 21.8,
-      "total_mv_yi": 22.19,
-      "pe": null,
       "industry": "仓储物流"
     },
     {
@@ -2808,9 +1968,6 @@
       "name": "广电网络",
       "market": "SH",
       "full_code": "600831.SH",
-      "circ_mv_yi": 21.83,
-      "total_mv_yi": 21.83,
-      "pe": null,
       "industry": "影视音像"
     },
     {
@@ -2818,9 +1975,6 @@
       "name": "永臻股份",
       "market": "SH",
       "full_code": "603381.SH",
-      "circ_mv_yi": 21.93,
-      "total_mv_yi": 36.61,
-      "pe": null,
       "industry": "电气设备"
     },
     {
@@ -2828,9 +1982,6 @@
       "name": "真视通",
       "market": "SZ",
       "full_code": "002771.SZ",
-      "circ_mv_yi": 22.01,
-      "total_mv_yi": 26.45,
-      "pe": null,
       "industry": "软件服务"
     },
     {
@@ -2838,9 +1989,6 @@
       "name": "华阳新材",
       "market": "SH",
       "full_code": "600281.SH",
-      "circ_mv_yi": 22.02,
-      "total_mv_yi": 22.02,
-      "pe": null,
       "industry": "小金属"
     },
     {
@@ -2848,9 +1996,6 @@
       "name": "圣达生物",
       "market": "SH",
       "full_code": "603079.SH",
-      "circ_mv_yi": 22.04,
-      "total_mv_yi": 22.04,
-      "pe": 35.4607,
       "industry": "食品"
     },
     {
@@ -2858,9 +2003,6 @@
       "name": "威奥股份",
       "market": "SH",
       "full_code": "605001.SH",
-      "circ_mv_yi": 22.04,
-      "total_mv_yi": 22.04,
-      "pe": 25.6468,
       "industry": "运输设备"
     },
     {
@@ -2868,9 +2010,6 @@
       "name": "粤宏远A",
       "market": "SZ",
       "full_code": "000573.SZ",
-      "circ_mv_yi": 22.09,
-      "total_mv_yi": 22.28,
-      "pe": 32.4664,
       "industry": "区域地产"
     },
     {
@@ -2878,9 +2017,6 @@
       "name": "明牌珠宝",
       "market": "SZ",
       "full_code": "002574.SZ",
-      "circ_mv_yi": 22.12,
-      "total_mv_yi": 22.12,
-      "pe": null,
       "industry": "服饰"
     },
     {
@@ -2888,9 +2024,6 @@
       "name": "天地在线",
       "market": "SZ",
       "full_code": "002995.SZ",
-      "circ_mv_yi": 22.12,
-      "total_mv_yi": 34.92,
-      "pe": null,
       "industry": "互联网"
     },
     {
@@ -2898,9 +2031,6 @@
       "name": "贝肯能源",
       "market": "SZ",
       "full_code": "002828.SZ",
-      "circ_mv_yi": 22.13,
-      "total_mv_yi": 22.13,
-      "pe": 100.1054,
       "industry": "石油开采"
     },
     {
@@ -2908,9 +2038,6 @@
       "name": "三晖电气",
       "market": "SZ",
       "full_code": "002857.SZ",
-      "circ_mv_yi": 22.13,
-      "total_mv_yi": 22.48,
-      "pe": null,
       "industry": "电器仪表"
     },
     {
@@ -2918,9 +2045,6 @@
       "name": "双枪科技",
       "market": "SZ",
       "full_code": "001211.SZ",
-      "circ_mv_yi": 22.13,
-      "total_mv_yi": 23.71,
-      "pe": 968.2631,
       "industry": "家居用品"
     },
     {
@@ -2928,9 +2052,6 @@
       "name": "新宏泽",
       "market": "SZ",
       "full_code": "002836.SZ",
-      "circ_mv_yi": 22.16,
-      "total_mv_yi": 22.16,
-      "pe": 52.4832,
       "industry": "广告包装"
     },
     {
@@ -2938,9 +2059,6 @@
       "name": "毅昌科技",
       "market": "SZ",
       "full_code": "002420.SZ",
-      "circ_mv_yi": 22.22,
-      "total_mv_yi": 22.58,
-      "pe": 11.7966,
       "industry": "家用电器"
     },
     {
@@ -2948,9 +2066,6 @@
       "name": "南矿集团",
       "market": "SZ",
       "full_code": "001360.SZ",
-      "circ_mv_yi": 22.25,
-      "total_mv_yi": 36.17,
-      "pe": 72.3796,
       "industry": "工程机械"
     },
     {
@@ -2958,9 +2073,6 @@
       "name": "乐通股份",
       "market": "SZ",
       "full_code": "002319.SZ",
-      "circ_mv_yi": 22.29,
-      "total_mv_yi": 22.29,
-      "pe": null,
       "industry": "染料涂料"
     },
     {
@@ -2968,9 +2080,6 @@
       "name": "哈尔斯",
       "market": "SZ",
       "full_code": "002615.SZ",
-      "circ_mv_yi": 22.33,
-      "total_mv_yi": 41.37,
-      "pe": 58.9293,
       "industry": "家居用品"
     },
     {
@@ -2978,9 +2087,6 @@
       "name": "联泰环保",
       "market": "SH",
       "full_code": "603797.SH",
-      "circ_mv_yi": 22.37,
-      "total_mv_yi": 22.37,
-      "pe": 17.3836,
       "industry": "环境保护"
     },
     {
@@ -2988,9 +2094,6 @@
       "name": "金牌家居",
       "market": "SH",
       "full_code": "603180.SH",
-      "circ_mv_yi": 22.38,
-      "total_mv_yi": 22.38,
-      "pe": 102.2934,
       "industry": "家居用品"
     },
     {
@@ -2998,9 +2101,6 @@
       "name": "常青股份",
       "market": "SH",
       "full_code": "603768.SH",
-      "circ_mv_yi": 22.44,
-      "total_mv_yi": 22.44,
-      "pe": null,
       "industry": "汽车配件"
     },
     {
@@ -3008,9 +2108,6 @@
       "name": "茂硕电源",
       "market": "SZ",
       "full_code": "002660.SZ",
-      "circ_mv_yi": 22.5,
-      "total_mv_yi": 23.39,
-      "pe": null,
       "industry": "电气设备"
     },
     {
@@ -3018,9 +2115,6 @@
       "name": "神奇制药",
       "market": "SH",
       "full_code": "600613.SH",
-      "circ_mv_yi": 22.53,
-      "total_mv_yi": 25.1,
-      "pe": 65.6347,
       "industry": "中成药"
     },
     {
@@ -3028,9 +2122,6 @@
       "name": "国创高新",
       "market": "SZ",
       "full_code": "002377.SZ",
-      "circ_mv_yi": 22.6,
-      "total_mv_yi": 23.73,
-      "pe": 120.1565,
       "industry": "其他建材"
     },
     {
@@ -3038,9 +2129,6 @@
       "name": "沙河股份",
       "market": "SZ",
       "full_code": "000014.SZ",
-      "circ_mv_yi": 22.61,
-      "total_mv_yi": 22.61,
-      "pe": null,
       "industry": "全国地产"
     },
     {
@@ -3048,9 +2136,6 @@
       "name": "通达创智",
       "market": "SZ",
       "full_code": "001368.SZ",
-      "circ_mv_yi": 22.64,
-      "total_mv_yi": 23.81,
-      "pe": 24.2402,
       "industry": "文教休闲"
     },
     {
@@ -3058,9 +2143,6 @@
       "name": "青岛食品",
       "market": "SZ",
       "full_code": "001219.SZ",
-      "circ_mv_yi": 22.66,
-      "total_mv_yi": 23.24,
-      "pe": 20.9632,
       "industry": "食品"
     },
     {
@@ -3068,9 +2150,6 @@
       "name": "高斯贝尔",
       "market": "SZ",
       "full_code": "002848.SZ",
-      "circ_mv_yi": 22.66,
-      "total_mv_yi": 22.9,
-      "pe": null,
       "industry": "家用电器"
     },
     {
@@ -3078,9 +2157,6 @@
       "name": "申科股份",
       "market": "SZ",
       "full_code": "002633.SZ",
-      "circ_mv_yi": 22.67,
-      "total_mv_yi": 22.75,
-      "pe": 440.9901,
       "industry": "机械基件"
     },
     {
@@ -3088,9 +2164,6 @@
       "name": "日上集团",
       "market": "SZ",
       "full_code": "002593.SZ",
-      "circ_mv_yi": 22.7,
-      "total_mv_yi": 32.56,
-      "pe": 29.5841,
       "industry": "钢加工"
     },
     {
@@ -3098,9 +2171,6 @@
       "name": "方大集团",
       "market": "SZ",
       "full_code": "000055.SZ",
-      "circ_mv_yi": 22.71,
-      "total_mv_yi": 36.08,
-      "pe": null,
       "industry": "其他建材"
     },
     {
@@ -3108,9 +2178,6 @@
       "name": "百通能源",
       "market": "SZ",
       "full_code": "001376.SZ",
-      "circ_mv_yi": 22.75,
-      "total_mv_yi": 48.99,
-      "pe": 24.4686,
       "industry": "供气供热"
     },
     {
@@ -3118,9 +2185,6 @@
       "name": "澳洋健康",
       "market": "SZ",
       "full_code": "002172.SZ",
-      "circ_mv_yi": 22.8,
-      "total_mv_yi": 22.82,
-      "pe": 55.263,
       "industry": "医疗保健"
     },
     {
@@ -3128,9 +2192,6 @@
       "name": "宁水集团",
       "market": "SH",
       "full_code": "603700.SH",
-      "circ_mv_yi": 22.84,
-      "total_mv_yi": 22.84,
-      "pe": 24.4627,
       "industry": "电器仪表"
     },
     {
@@ -3138,9 +2199,6 @@
       "name": "得利斯",
       "market": "SZ",
       "full_code": "002330.SZ",
-      "circ_mv_yi": 22.87,
-      "total_mv_yi": 22.87,
-      "pe": 502.9238,
       "industry": "食品"
     },
     {
@@ -3148,9 +2206,6 @@
       "name": "捷荣技术",
       "market": "SZ",
       "full_code": "002855.SZ",
-      "circ_mv_yi": 22.87,
-      "total_mv_yi": 22.89,
-      "pe": null,
       "industry": "元器件"
     },
     {
@@ -3158,9 +2213,6 @@
       "name": "肯特催化",
       "market": "SH",
       "full_code": "603120.SH",
-      "circ_mv_yi": 22.88,
-      "total_mv_yi": 54.57,
-      "pe": 66.204,
       "industry": "化工原料"
     },
     {
@@ -3168,9 +2220,6 @@
       "name": "苏州龙杰",
       "market": "SH",
       "full_code": "603332.SH",
-      "circ_mv_yi": 22.89,
-      "total_mv_yi": 22.89,
-      "pe": 29.8684,
       "industry": "化纤"
     },
     {
@@ -3178,9 +2227,6 @@
       "name": "盛航股份",
       "market": "SZ",
       "full_code": "001205.SZ",
-      "circ_mv_yi": 22.89,
-      "total_mv_yi": 25.85,
-      "pe": 23.7982,
       "industry": "水运"
     },
     {
@@ -3188,9 +2234,6 @@
       "name": "嘉德利",
       "market": "SH",
       "full_code": "603435.SH",
-      "circ_mv_yi": 22.9,
-      "total_mv_yi": 294.6,
-      "pe": 120.9763,
       "industry": "元器件"
     },
     {
@@ -3198,9 +2241,6 @@
       "name": "乔治白",
       "market": "SZ",
       "full_code": "002687.SZ",
-      "circ_mv_yi": 22.9,
-      "total_mv_yi": 27.96,
-      "pe": 32.7395,
       "industry": "服饰"
     },
     {
@@ -3208,9 +2248,6 @@
       "name": "安正时尚",
       "market": "SH",
       "full_code": "603839.SH",
-      "circ_mv_yi": 22.91,
-      "total_mv_yi": 22.91,
-      "pe": null,
       "industry": "服饰"
     },
     {
@@ -3218,9 +2255,6 @@
       "name": "日辰股份",
       "market": "SH",
       "full_code": "603755.SH",
-      "circ_mv_yi": 22.95,
-      "total_mv_yi": 22.95,
-      "pe": 27.2501,
       "industry": "食品"
     },
     {
@@ -3228,9 +2262,6 @@
       "name": "华菱精工",
       "market": "SH",
       "full_code": "603356.SH",
-      "circ_mv_yi": 22.95,
-      "total_mv_yi": 22.95,
-      "pe": null,
       "industry": "运输设备"
     },
     {
@@ -3238,9 +2269,6 @@
       "name": "中广天择",
       "market": "SH",
       "full_code": "603721.SH",
-      "circ_mv_yi": 22.96,
-      "total_mv_yi": 22.96,
-      "pe": 86.6044,
       "industry": "影视音像"
     },
     {
@@ -3248,9 +2276,6 @@
       "name": "金鹰股份",
       "market": "SH",
       "full_code": "600232.SH",
-      "circ_mv_yi": 22.98,
-      "total_mv_yi": 22.98,
-      "pe": 110.2757,
       "industry": "纺织机械"
     },
     {
@@ -3258,9 +2283,6 @@
       "name": "绿茵生态",
       "market": "SZ",
       "full_code": "002887.SZ",
-      "circ_mv_yi": 22.98,
-      "total_mv_yi": 32.37,
-      "pe": 26.6621,
       "industry": "环境保护"
     },
     {
@@ -3268,9 +2290,6 @@
       "name": "思美传媒",
       "market": "SZ",
       "full_code": "002712.SZ",
-      "circ_mv_yi": 22.99,
-      "total_mv_yi": 23.13,
-      "pe": null,
       "industry": "广告包装"
     },
     {
@@ -3278,9 +2297,6 @@
       "name": "英力特",
       "market": "SZ",
       "full_code": "000635.SZ",
-      "circ_mv_yi": 23.0,
-      "total_mv_yi": 24.71,
-      "pe": null,
       "industry": "化工原料"
     },
     {
@@ -3288,9 +2304,6 @@
       "name": "惠泉啤酒",
       "market": "SH",
       "full_code": "600573.SH",
-      "circ_mv_yi": 23.0,
-      "total_mv_yi": 23.0,
-      "pe": 28.7534,
       "industry": "啤酒"
     },
     {
@@ -3298,9 +2311,6 @@
       "name": "东瑞股份",
       "market": "SZ",
       "full_code": "001201.SZ",
-      "circ_mv_yi": 23.02,
-      "total_mv_yi": 29.46,
-      "pe": null,
       "industry": "农业综合"
     },
     {
@@ -3308,9 +2318,6 @@
       "name": "克明食品",
       "market": "SZ",
       "full_code": "002661.SZ",
-      "circ_mv_yi": 23.03,
-      "total_mv_yi": 24.15,
-      "pe": 26.1735,
       "industry": "食品"
     },
     {
@@ -3318,9 +2325,6 @@
       "name": "中兴商业",
       "market": "SZ",
       "full_code": "000715.SZ",
-      "circ_mv_yi": 23.04,
-      "total_mv_yi": 25.62,
-      "pe": 22.4271,
       "industry": "百货"
     },
     {
@@ -3328,9 +2332,6 @@
       "name": "建发合诚",
       "market": "SH",
       "full_code": "603909.SH",
-      "circ_mv_yi": 23.1,
-      "total_mv_yi": 23.1,
-      "pe": 21.151,
       "industry": "建筑工程"
     },
     {
@@ -3338,9 +2339,6 @@
       "name": "华神科技",
       "market": "SZ",
       "full_code": "000790.SZ",
-      "circ_mv_yi": 23.16,
-      "total_mv_yi": 23.2,
-      "pe": null,
       "industry": "中成药"
     },
     {
@@ -3348,9 +2346,6 @@
       "name": "信通电子",
       "market": "SZ",
       "full_code": "001388.SZ",
-      "circ_mv_yi": 23.27,
-      "total_mv_yi": 42.95,
-      "pe": 31.3402,
       "industry": "电气设备"
     },
     {
@@ -3358,9 +2353,6 @@
       "name": "垒知集团",
       "market": "SZ",
       "full_code": "002398.SZ",
-      "circ_mv_yi": 23.28,
-      "total_mv_yi": 26.67,
-      "pe": 49.2619,
       "industry": "其他建材"
     },
     {
@@ -3368,9 +2360,6 @@
       "name": "长青股份",
       "market": "SZ",
       "full_code": "002391.SZ",
-      "circ_mv_yi": 23.3,
-      "total_mv_yi": 33.32,
-      "pe": 82.203,
       "industry": "农药化肥"
     },
     {
@@ -3378,9 +2367,6 @@
       "name": "通达动力",
       "market": "SZ",
       "full_code": "002576.SZ",
-      "circ_mv_yi": 23.3,
-      "total_mv_yi": 23.74,
-      "pe": 28.8197,
       "industry": "电气设备"
     },
     {
@@ -3388,9 +2374,6 @@
       "name": "朝阳科技",
       "market": "SZ",
       "full_code": "002981.SZ",
-      "circ_mv_yi": 23.31,
-      "total_mv_yi": 26.84,
-      "pe": 36.3812,
       "industry": "元器件"
     },
     {
@@ -3398,9 +2381,6 @@
       "name": "曲美家居",
       "market": "SH",
       "full_code": "603818.SH",
-      "circ_mv_yi": 23.34,
-      "total_mv_yi": 23.34,
-      "pe": null,
       "industry": "家居用品"
     },
     {
@@ -3408,9 +2388,6 @@
       "name": "亚邦股份",
       "market": "SH",
       "full_code": "603188.SH",
-      "circ_mv_yi": 23.38,
-      "total_mv_yi": 23.38,
-      "pe": null,
       "industry": "染料涂料"
     },
     {
@@ -3418,9 +2395,6 @@
       "name": "凯文教育",
       "market": "SZ",
       "full_code": "002659.SZ",
-      "circ_mv_yi": 23.39,
-      "total_mv_yi": 23.39,
-      "pe": null,
       "industry": "文教休闲"
     },
     {
@@ -3428,9 +2402,6 @@
       "name": "天目湖",
       "market": "SH",
       "full_code": "603136.SH",
-      "circ_mv_yi": 23.42,
-      "total_mv_yi": 23.42,
-      "pe": 24.5696,
       "industry": "旅游景点"
     },
     {
@@ -3438,9 +2409,6 @@
       "name": "路畅科技",
       "market": "SZ",
       "full_code": "002813.SZ",
-      "circ_mv_yi": 23.44,
-      "total_mv_yi": 23.47,
-      "pe": null,
       "industry": "汽车配件"
     },
     {
@@ -3448,9 +2416,6 @@
       "name": "罗平锌电",
       "market": "SZ",
       "full_code": "002114.SZ",
-      "circ_mv_yi": 23.45,
-      "total_mv_yi": 23.45,
-      "pe": null,
       "industry": "铅锌"
     },
     {
@@ -3458,9 +2423,6 @@
       "name": "恒丰纸业",
       "market": "SH",
       "full_code": "600356.SH",
-      "circ_mv_yi": 23.48,
-      "total_mv_yi": 25.9,
-      "pe": 13.0999,
       "industry": "造纸"
     },
     {
@@ -3468,9 +2430,6 @@
       "name": "银座股份",
       "market": "SH",
       "full_code": "600858.SH",
-      "circ_mv_yi": 23.5,
-      "total_mv_yi": 23.61,
-      "pe": 39.8491,
       "industry": "百货"
     },
     {
@@ -3478,9 +2437,6 @@
       "name": "海程邦达",
       "market": "SH",
       "full_code": "603836.SH",
-      "circ_mv_yi": 23.51,
-      "total_mv_yi": 24.13,
-      "pe": 92.3393,
       "industry": "仓储物流"
     },
     {
@@ -3488,9 +2444,6 @@
       "name": "海森药业",
       "market": "SZ",
       "full_code": "001367.SZ",
-      "circ_mv_yi": 23.52,
-      "total_mv_yi": 29.46,
-      "pe": 21.6844,
       "industry": "化学制药"
     },
     {
@@ -3498,9 +2451,6 @@
       "name": "安邦护卫",
       "market": "SH",
       "full_code": "603373.SH",
-      "circ_mv_yi": 23.53,
-      "total_mv_yi": 55.7,
-      "pe": 43.9969,
       "industry": "仓储物流"
     },
     {
@@ -3508,9 +2458,6 @@
       "name": "空港股份",
       "market": "SH",
       "full_code": "600463.SH",
-      "circ_mv_yi": 23.55,
-      "total_mv_yi": 23.55,
-      "pe": null,
       "industry": "园区开发"
     },
     {
@@ -3518,9 +2465,6 @@
       "name": "扬州金泉",
       "market": "SH",
       "full_code": "603307.SH",
-      "circ_mv_yi": 23.57,
-      "total_mv_yi": 23.95,
-      "pe": 21.9271,
       "industry": "文教休闲"
     },
     {
@@ -3528,9 +2472,6 @@
       "name": "海鸥住工",
       "market": "SZ",
       "full_code": "002084.SZ",
-      "circ_mv_yi": 23.59,
-      "total_mv_yi": 23.65,
-      "pe": null,
       "industry": "家居用品"
     },
     {
@@ -3538,9 +2479,6 @@
       "name": "扬子新材",
       "market": "SZ",
       "full_code": "002652.SZ",
-      "circ_mv_yi": 23.61,
-      "total_mv_yi": 23.61,
-      "pe": null,
       "industry": "其他建材"
     },
     {
@@ -3548,9 +2486,6 @@
       "name": "浔兴股份",
       "market": "SZ",
       "full_code": "002098.SZ",
-      "circ_mv_yi": 23.63,
-      "total_mv_yi": 23.63,
-      "pe": 11.4787,
       "industry": "服饰"
     },
     {
@@ -3558,9 +2493,6 @@
       "name": "美邦股份",
       "market": "SH",
       "full_code": "605033.SH",
-      "circ_mv_yi": 23.66,
-      "total_mv_yi": 23.66,
-      "pe": 48.6184,
       "industry": "农药化肥"
     },
     {
@@ -3568,9 +2500,6 @@
       "name": "先达股份",
       "market": "SH",
       "full_code": "603086.SH",
-      "circ_mv_yi": 23.7,
-      "total_mv_yi": 23.7,
-      "pe": 17.3313,
       "industry": "农药化肥"
     },
     {
@@ -3578,9 +2507,6 @@
       "name": "万丰股份",
       "market": "SH",
       "full_code": "603172.SH",
-      "circ_mv_yi": 23.71,
-      "total_mv_yi": 23.71,
-      "pe": 49.1412,
       "industry": "染料涂料"
     },
     {
@@ -3588,9 +2514,6 @@
       "name": "广博股份",
       "market": "SZ",
       "full_code": "002103.SZ",
-      "circ_mv_yi": 23.72,
-      "total_mv_yi": 32.64,
-      "pe": 19.8375,
       "industry": "文教休闲"
     },
     {
@@ -3598,9 +2521,6 @@
       "name": "丰林集团",
       "market": "SH",
       "full_code": "601996.SH",
-      "circ_mv_yi": 23.76,
-      "total_mv_yi": 23.76,
-      "pe": null,
       "industry": "家居用品"
     },
     {
@@ -3608,9 +2528,6 @@
       "name": "健之佳",
       "market": "SH",
       "full_code": "605266.SH",
-      "circ_mv_yi": 23.85,
-      "total_mv_yi": 23.85,
-      "pe": 16.0959,
       "industry": "医药商业"
     },
     {
@@ -3618,9 +2535,6 @@
       "name": "泰瑞机器",
       "market": "SH",
       "full_code": "603289.SH",
-      "circ_mv_yi": 23.91,
-      "total_mv_yi": 23.91,
-      "pe": 26.2955,
       "industry": "专用机械"
     },
     {
@@ -3628,9 +2542,6 @@
       "name": "天海电子",
       "market": "SZ",
       "full_code": "001365.SZ",
-      "circ_mv_yi": 23.92,
-      "total_mv_yi": 218.4,
-      "pe": 34.0565,
       "industry": "汽车配件"
     },
     {
@@ -3638,9 +2549,6 @@
       "name": "众望布艺",
       "market": "SH",
       "full_code": "605003.SH",
-      "circ_mv_yi": 23.94,
-      "total_mv_yi": 23.94,
-      "pe": 33.0157,
       "industry": "纺织"
     },
     {
@@ -3648,9 +2556,6 @@
       "name": "日丰股份",
       "market": "SZ",
       "full_code": "002953.SZ",
-      "circ_mv_yi": 23.96,
-      "total_mv_yi": 43.41,
-      "pe": 27.4224,
       "industry": "电气设备"
     },
     {
@@ -3658,9 +2563,6 @@
       "name": "辉丰股份",
       "market": "SZ",
       "full_code": "002496.SZ",
-      "circ_mv_yi": 23.98,
-      "total_mv_yi": 30.6,
-      "pe": null,
       "industry": "农药化肥"
     },
     {
@@ -3668,9 +2570,6 @@
       "name": "古麒绒材",
       "market": "SZ",
       "full_code": "001390.SZ",
-      "circ_mv_yi": 24.03,
-      "total_mv_yi": 40.46,
-      "pe": 22.6921,
       "industry": "纺织"
     },
     {
@@ -3678,9 +2577,6 @@
       "name": "陕西金叶",
       "market": "SZ",
       "full_code": "000812.SZ",
-      "circ_mv_yi": 24.03,
-      "total_mv_yi": 24.05,
-      "pe": null,
       "industry": "广告包装"
     },
     {
@@ -3688,9 +2584,6 @@
       "name": "惠康科技",
       "market": "SZ",
       "full_code": "001237.SZ",
-      "circ_mv_yi": 24.05,
-      "total_mv_yi": 102.38,
-      "pe": 26.1685,
       "industry": "电气设备"
     },
     {
@@ -3698,9 +2591,6 @@
       "name": "S佳通",
       "market": "SH",
       "full_code": "600182.SH",
-      "circ_mv_yi": 24.06,
-      "total_mv_yi": 48.11,
-      "pe": 24.4106,
       "industry": "汽车配件"
     },
     {
@@ -3708,9 +2598,6 @@
       "name": "联合精密",
       "market": "SZ",
       "full_code": "001268.SZ",
-      "circ_mv_yi": 24.15,
-      "total_mv_yi": 38.66,
-      "pe": 73.0539,
       "industry": "机械基件"
     },
     {
@@ -3718,9 +2605,6 @@
       "name": "锡装股份",
       "market": "SZ",
       "full_code": "001332.SZ",
-      "circ_mv_yi": 24.23,
-      "total_mv_yi": 55.78,
-      "pe": 24.5404,
       "industry": "专用机械"
     },
     {
@@ -3728,9 +2612,6 @@
       "name": "丰原药业",
       "market": "SZ",
       "full_code": "000153.SZ",
-      "circ_mv_yi": 24.27,
-      "total_mv_yi": 24.58,
-      "pe": 24.7263,
       "industry": "化学制药"
     },
     {
@@ -3738,9 +2619,6 @@
       "name": "星光股份",
       "market": "SZ",
       "full_code": "002076.SZ",
-      "circ_mv_yi": 24.28,
-      "total_mv_yi": 25.84,
-      "pe": null,
       "industry": "家用电器"
     },
     {
@@ -3748,9 +2626,6 @@
       "name": "双环科技",
       "market": "SZ",
       "full_code": "000707.SZ",
-      "circ_mv_yi": 24.34,
-      "total_mv_yi": 25.84,
-      "pe": null,
       "industry": "化工原料"
     },
     {
@@ -3758,9 +2633,6 @@
       "name": "科华生物",
       "market": "SZ",
       "full_code": "002022.SZ",
-      "circ_mv_yi": 24.38,
-      "total_mv_yi": 24.38,
-      "pe": null,
       "industry": "医疗保健"
     },
     {
@@ -3768,9 +2640,6 @@
       "name": "志邦家居",
       "market": "SH",
       "full_code": "603801.SH",
-      "circ_mv_yi": 24.41,
-      "total_mv_yi": 24.41,
-      "pe": 11.9244,
       "industry": "家居用品"
     },
     {
@@ -3778,9 +2647,6 @@
       "name": "爱丽家居",
       "market": "SH",
       "full_code": "603221.SH",
-      "circ_mv_yi": 24.42,
-      "total_mv_yi": 24.65,
-      "pe": 143.4976,
       "industry": "家居用品"
     },
     {
@@ -3788,9 +2654,6 @@
       "name": "瑞贝卡",
       "market": "SH",
       "full_code": "600439.SH",
-      "circ_mv_yi": 24.45,
-      "total_mv_yi": 24.45,
-      "pe": null,
       "industry": "服饰"
     },
     {
@@ -3798,9 +2661,6 @@
       "name": "西大门",
       "market": "SH",
       "full_code": "605155.SH",
-      "circ_mv_yi": 24.51,
-      "total_mv_yi": 25.1,
-      "pe": 22.4747,
       "industry": "家居用品"
     },
     {
@@ -3808,9 +2668,6 @@
       "name": "深粮控股",
       "market": "SZ",
       "full_code": "000019.SZ",
-      "circ_mv_yi": 24.56,
-      "total_mv_yi": 68.0,
-      "pe": 27.9585,
       "industry": "农业综合"
     },
     {
@@ -3818,9 +2675,6 @@
       "name": "金陵饭店",
       "market": "SH",
       "full_code": "601007.SH",
-      "circ_mv_yi": 24.57,
-      "total_mv_yi": 24.57,
-      "pe": 38.7349,
       "industry": "酒店餐饮"
     },
     {
@@ -3828,9 +2682,6 @@
       "name": "龙洲股份",
       "market": "SZ",
       "full_code": "002682.SZ",
-      "circ_mv_yi": 24.58,
-      "total_mv_yi": 24.58,
-      "pe": null,
       "industry": "仓储物流"
     },
     {
@@ -3838,9 +2689,6 @@
       "name": "弘宇股份",
       "market": "SZ",
       "full_code": "002890.SZ",
-      "circ_mv_yi": 24.59,
-      "total_mv_yi": 25.87,
-      "pe": 249.9515,
       "industry": "农用机械"
     },
     {
@@ -3848,9 +2696,6 @@
       "name": "汇得科技",
       "market": "SH",
       "full_code": "603192.SH",
-      "circ_mv_yi": 24.62,
-      "total_mv_yi": 29.53,
-      "pe": 36.3226,
       "industry": "化工原料"
     },
     {
@@ -3858,9 +2703,6 @@
       "name": "金逸影视",
       "market": "SZ",
       "full_code": "002905.SZ",
-      "circ_mv_yi": 24.64,
-      "total_mv_yi": 26.53,
-      "pe": 89.8622,
       "industry": "影视音像"
     },
     {
@@ -3868,9 +2710,6 @@
       "name": "天润乳业",
       "market": "SH",
       "full_code": "600419.SH",
-      "circ_mv_yi": 24.64,
-      "total_mv_yi": 24.64,
-      "pe": 59.4022,
       "industry": "乳制品"
     },
     {
@@ -3878,9 +2717,6 @@
       "name": "金帝股份",
       "market": "SH",
       "full_code": "603270.SH",
-      "circ_mv_yi": 24.67,
-      "total_mv_yi": 76.42,
-      "pe": 51.9253,
       "industry": "机械基件"
     },
     {
@@ -3888,9 +2724,6 @@
       "name": "五芳斋",
       "market": "SH",
       "full_code": "603237.SH",
-      "circ_mv_yi": 24.71,
-      "total_mv_yi": 25.52,
-      "pe": 20.9842,
       "industry": "食品"
     },
     {
@@ -3898,9 +2731,6 @@
       "name": "安泰集团",
       "market": "SH",
       "full_code": "600408.SH",
-      "circ_mv_yi": 24.87,
-      "total_mv_yi": 24.87,
-      "pe": null,
       "industry": "焦炭加工"
     },
     {
@@ -3908,9 +2738,6 @@
       "name": "南京商旅",
       "market": "SH",
       "full_code": "600250.SH",
-      "circ_mv_yi": 24.9,
-      "total_mv_yi": 24.9,
-      "pe": 281.5714,
       "industry": "商贸代理"
     },
     {
@@ -3918,9 +2745,6 @@
       "name": "西上海",
       "market": "SH",
       "full_code": "605151.SH",
-      "circ_mv_yi": 24.92,
-      "total_mv_yi": 24.92,
-      "pe": null,
       "industry": "汽车配件"
     },
     {
@@ -3928,9 +2752,6 @@
       "name": "益佰制药",
       "market": "SH",
       "full_code": "600594.SH",
-      "circ_mv_yi": 25.02,
-      "total_mv_yi": 25.02,
-      "pe": null,
       "industry": "中成药"
     },
     {
@@ -3938,9 +2759,6 @@
       "name": "倍加洁",
       "market": "SH",
       "full_code": "603059.SH",
-      "circ_mv_yi": 25.03,
-      "total_mv_yi": 25.07,
-      "pe": 21.8426,
       "industry": "日用化工"
     },
     {
@@ -3948,9 +2766,6 @@
       "name": "奇精机械",
       "market": "SH",
       "full_code": "603677.SH",
-      "circ_mv_yi": 25.04,
-      "total_mv_yi": 25.04,
-      "pe": 51.9116,
       "industry": "家用电器"
     },
     {
@@ -3958,9 +2773,6 @@
       "name": "光华股份",
       "market": "SZ",
       "full_code": "001333.SZ",
-      "circ_mv_yi": 25.1,
-      "total_mv_yi": 25.1,
-      "pe": 21.6706,
       "industry": "化工原料"
     },
     {
@@ -3968,9 +2780,6 @@
       "name": "普路通",
       "market": "SZ",
       "full_code": "002769.SZ",
-      "circ_mv_yi": 25.1,
-      "total_mv_yi": 25.12,
-      "pe": 76.608,
       "industry": "仓储物流"
     },
     {
@@ -3978,9 +2787,6 @@
       "name": "凯撒文化",
       "market": "SZ",
       "full_code": "002425.SZ",
-      "circ_mv_yi": 25.12,
-      "total_mv_yi": 26.12,
-      "pe": null,
       "industry": "互联网"
     },
     {
@@ -3988,9 +2794,6 @@
       "name": "金浦钛业",
       "market": "SZ",
       "full_code": "000545.SZ",
-      "circ_mv_yi": 25.13,
-      "total_mv_yi": 25.16,
-      "pe": null,
       "industry": "化工原料"
     },
     {
@@ -3998,9 +2801,6 @@
       "name": "金自天正",
       "market": "SH",
       "full_code": "600560.SH",
-      "circ_mv_yi": 25.16,
-      "total_mv_yi": 25.16,
-      "pe": 48.7568,
       "industry": "电气设备"
     },
     {
@@ -4008,9 +2808,6 @@
       "name": "梦洁股份",
       "market": "SZ",
       "full_code": "002397.SZ",
-      "circ_mv_yi": 25.27,
-      "total_mv_yi": 29.16,
-      "pe": 61.1774,
       "industry": "纺织"
     },
     {
@@ -4018,9 +2815,6 @@
       "name": "桂林旅游",
       "market": "SZ",
       "full_code": "000978.SZ",
-      "circ_mv_yi": 25.28,
-      "total_mv_yi": 25.28,
-      "pe": 229.1268,
       "industry": "旅游景点"
     },
     {
@@ -4028,9 +2822,6 @@
       "name": "汇源通信",
       "market": "SZ",
       "full_code": "000586.SZ",
-      "circ_mv_yi": 25.31,
-      "total_mv_yi": 25.61,
-      "pe": null,
       "industry": "通信设备"
     },
     {
@@ -4038,9 +2829,6 @@
       "name": "亚星化学",
       "market": "SH",
       "full_code": "600319.SH",
-      "circ_mv_yi": 25.32,
-      "total_mv_yi": 25.32,
-      "pe": null,
       "industry": "化工原料"
     },
     {
@@ -4048,9 +2836,6 @@
       "name": "海得控制",
       "market": "SZ",
       "full_code": "002184.SZ",
-      "circ_mv_yi": 25.34,
-      "total_mv_yi": 37.09,
-      "pe": null,
       "industry": "机械基件"
     },
     {
@@ -4058,9 +2843,6 @@
       "name": "上海汽配",
       "market": "SH",
       "full_code": "603107.SH",
-      "circ_mv_yi": 25.35,
-      "total_mv_yi": 39.2,
-      "pe": 25.0817,
       "industry": "汽车配件"
     },
     {
@@ -4068,9 +2850,6 @@
       "name": "两面针",
       "market": "SH",
       "full_code": "600249.SH",
-      "circ_mv_yi": 25.36,
-      "total_mv_yi": 25.36,
-      "pe": 257.5119,
       "industry": "日用化工"
     },
     {
@@ -4078,9 +2857,6 @@
       "name": "皮阿诺",
       "market": "SZ",
       "full_code": "002853.SZ",
-      "circ_mv_yi": 25.39,
-      "total_mv_yi": 36.09,
-      "pe": null,
       "industry": "家居用品"
     },
     {
@@ -4088,9 +2864,6 @@
       "name": "豪尔赛",
       "market": "SZ",
       "full_code": "002963.SZ",
-      "circ_mv_yi": 25.4,
-      "total_mv_yi": 31.05,
-      "pe": null,
       "industry": "装修装饰"
     },
     {
@@ -4098,9 +2871,6 @@
       "name": "天有为",
       "market": "SH",
       "full_code": "603202.SH",
-      "circ_mv_yi": 25.41,
-      "total_mv_yi": 80.96,
-      "pe": 8.7816,
       "industry": "汽车配件"
     },
     {
@@ -4108,9 +2878,6 @@
       "name": "南华生物",
       "market": "SZ",
       "full_code": "000504.SZ",
-      "circ_mv_yi": 25.41,
-      "total_mv_yi": 25.48,
-      "pe": 88.3765,
       "industry": "医疗保健"
     },
     {
@@ -4118,9 +2885,6 @@
       "name": "通程控股",
       "market": "SZ",
       "full_code": "000419.SZ",
-      "circ_mv_yi": 25.44,
-      "total_mv_yi": 25.44,
-      "pe": 20.6898,
       "industry": "百货"
     },
     {
@@ -4128,9 +2892,6 @@
       "name": "隆基机械",
       "market": "SZ",
       "full_code": "002363.SZ",
-      "circ_mv_yi": 25.44,
-      "total_mv_yi": 25.51,
-      "pe": 38.0961,
       "industry": "汽车配件"
     },
     {
@@ -4138,9 +2899,6 @@
       "name": "维通利",
       "market": "SZ",
       "full_code": "001393.SZ",
-      "circ_mv_yi": 25.45,
-      "total_mv_yi": 132.07,
-      "pe": 43.852,
       "industry": "电气设备"
     },
     {
@@ -4148,9 +2906,6 @@
       "name": "金溢科技",
       "market": "SZ",
       "full_code": "002869.SZ",
-      "circ_mv_yi": 25.52,
-      "total_mv_yi": 28.66,
-      "pe": null,
       "industry": "通信设备"
     },
     {
@@ -4158,9 +2913,6 @@
       "name": "绿康生化",
       "market": "SZ",
       "full_code": "002868.SZ",
-      "circ_mv_yi": 25.56,
-      "total_mv_yi": 37.13,
-      "pe": null,
       "industry": "农业综合"
     },
     {
@@ -4168,9 +2920,6 @@
       "name": "神力股份",
       "market": "SH",
       "full_code": "603819.SH",
-      "circ_mv_yi": 25.61,
-      "total_mv_yi": 25.61,
-      "pe": 129.8684,
       "industry": "电气设备"
     },
     {
@@ -4178,9 +2927,6 @@
       "name": "普邦股份",
       "market": "SZ",
       "full_code": "002663.SZ",
-      "circ_mv_yi": 25.61,
-      "total_mv_yi": 25.85,
-      "pe": null,
       "industry": "建筑工程"
     },
     {
@@ -4188,9 +2934,6 @@
       "name": "常润股份",
       "market": "SH",
       "full_code": "603201.SH",
-      "circ_mv_yi": 25.64,
-      "total_mv_yi": 25.86,
-      "pe": 11.986,
       "industry": "汽车配件"
     },
     {
@@ -4198,9 +2941,6 @@
       "name": "金麒麟",
       "market": "SH",
       "full_code": "603586.SH",
-      "circ_mv_yi": 25.66,
-      "total_mv_yi": 25.66,
-      "pe": 18.8189,
       "industry": "汽车配件"
     },
     {
@@ -4208,9 +2948,6 @@
       "name": "科安达",
       "market": "SZ",
       "full_code": "002972.SZ",
-      "circ_mv_yi": 25.68,
-      "total_mv_yi": 46.91,
-      "pe": 53.6559,
       "industry": "运输设备"
     },
     {
@@ -4218,9 +2955,6 @@
       "name": "清源股份",
       "market": "SH",
       "full_code": "603628.SH",
-      "circ_mv_yi": 25.72,
-      "total_mv_yi": 25.81,
-      "pe": 44.9358,
       "industry": "电气设备"
     },
     {
@@ -4228,9 +2962,6 @@
       "name": "蓝科高新",
       "market": "SH",
       "full_code": "601798.SH",
-      "circ_mv_yi": 25.74,
-      "total_mv_yi": 25.74,
-      "pe": 52.9193,
       "industry": "化工机械"
     },
     {
@@ -4238,9 +2969,6 @@
       "name": "宜宾纸业",
       "market": "SH",
       "full_code": "600793.SH",
-      "circ_mv_yi": 25.74,
-      "total_mv_yi": 25.74,
-      "pe": 94.1455,
       "industry": "造纸"
     },
     {
@@ -4248,9 +2976,6 @@
       "name": "广弘控股",
       "market": "SZ",
       "full_code": "000529.SZ",
-      "circ_mv_yi": 25.76,
-      "total_mv_yi": 26.39,
-      "pe": 21.4745,
       "industry": "食品"
     },
     {
@@ -4258,9 +2983,6 @@
       "name": "北巴传媒",
       "market": "SH",
       "full_code": "600386.SH",
-      "circ_mv_yi": 25.8,
-      "total_mv_yi": 25.8,
-      "pe": null,
       "industry": "汽车服务"
     },
     {
@@ -4268,9 +2990,6 @@
       "name": "星网宇达",
       "market": "SZ",
       "full_code": "002829.SZ",
-      "circ_mv_yi": 25.81,
-      "total_mv_yi": 36.72,
-      "pe": null,
       "industry": "航空"
     },
     {
@@ -4278,9 +2997,6 @@
       "name": "纵横通信",
       "market": "SH",
       "full_code": "603602.SH",
-      "circ_mv_yi": 25.83,
-      "total_mv_yi": 25.83,
-      "pe": null,
       "industry": "通信设备"
     },
     {
@@ -4288,9 +3004,6 @@
       "name": "渝三峡A",
       "market": "SZ",
       "full_code": "000565.SZ",
-      "circ_mv_yi": 25.84,
-      "total_mv_yi": 25.84,
-      "pe": 319.0241,
       "industry": "染料涂料"
     },
     {
@@ -4298,9 +3011,6 @@
       "name": "贝瑞基因",
       "market": "SZ",
       "full_code": "000710.SZ",
-      "circ_mv_yi": 25.87,
-      "total_mv_yi": 27.75,
-      "pe": null,
       "industry": "医疗保健"
     },
     {
@@ -4308,9 +3018,6 @@
       "name": "和展能源",
       "market": "SZ",
       "full_code": "000809.SZ",
-      "circ_mv_yi": 25.9,
-      "total_mv_yi": 25.9,
-      "pe": null,
       "industry": "电气设备"
     },
     {
@@ -4318,9 +3025,6 @@
       "name": "南宁百货",
       "market": "SH",
       "full_code": "600712.SH",
-      "circ_mv_yi": 25.91,
-      "total_mv_yi": 26.2,
-      "pe": null,
       "industry": "百货"
     },
     {
@@ -4328,9 +3032,6 @@
       "name": "洪通燃气",
       "market": "SH",
       "full_code": "605169.SH",
-      "circ_mv_yi": 25.94,
-      "total_mv_yi": 25.94,
-      "pe": 21.3338,
       "industry": "供气供热"
     },
     {
@@ -4338,9 +3039,6 @@
       "name": "锦泓集团",
       "market": "SH",
       "full_code": "603518.SH",
-      "circ_mv_yi": 25.94,
-      "total_mv_yi": 26.04,
-      "pe": 11.501,
       "industry": "服饰"
     },
     {
@@ -4348,9 +3046,6 @@
       "name": "松炀资源",
       "market": "SH",
       "full_code": "603863.SH",
-      "circ_mv_yi": 26.07,
-      "total_mv_yi": 26.07,
-      "pe": null,
       "industry": "造纸"
     },
     {
@@ -4358,9 +3053,6 @@
       "name": "金枫酒业",
       "market": "SH",
       "full_code": "600616.SH",
-      "circ_mv_yi": 26.09,
-      "total_mv_yi": 26.09,
-      "pe": 1278.7595,
       "industry": "红黄酒"
     },
     {
@@ -4368,9 +3060,6 @@
       "name": "上海亚虹",
       "market": "SH",
       "full_code": "603159.SH",
-      "circ_mv_yi": 26.1,
-      "total_mv_yi": 26.1,
-      "pe": null,
       "industry": "专用机械"
     },
     {
@@ -4378,9 +3067,6 @@
       "name": "北京文化",
       "market": "SZ",
       "full_code": "000802.SZ",
-      "circ_mv_yi": 26.11,
-      "total_mv_yi": 26.13,
-      "pe": null,
       "industry": "影视音像"
     },
     {
@@ -4388,9 +3074,6 @@
       "name": "珠江股份",
       "market": "SH",
       "full_code": "600684.SH",
-      "circ_mv_yi": 26.12,
-      "total_mv_yi": 33.85,
-      "pe": 45.737,
       "industry": "区域地产"
     },
     {
@@ -4398,9 +3081,6 @@
       "name": "敦煌种业",
       "market": "SH",
       "full_code": "600354.SH",
-      "circ_mv_yi": 26.13,
-      "total_mv_yi": 26.13,
-      "pe": 55.2929,
       "industry": "种植业"
     },
     {
@@ -4408,9 +3088,6 @@
       "name": "今飞凯达",
       "market": "SZ",
       "full_code": "002863.SZ",
-      "circ_mv_yi": 26.14,
-      "total_mv_yi": 26.14,
-      "pe": 43.6046,
       "industry": "汽车配件"
     },
     {
@@ -4418,9 +3095,6 @@
       "name": "徐家汇",
       "market": "SZ",
       "full_code": "002561.SZ",
-      "circ_mv_yi": 26.19,
-      "total_mv_yi": 26.28,
-      "pe": null,
       "industry": "百货"
     },
     {
@@ -4428,9 +3102,6 @@
       "name": "世龙实业",
       "market": "SZ",
       "full_code": "002748.SZ",
-      "circ_mv_yi": 26.26,
-      "total_mv_yi": 26.26,
-      "pe": 45.5784,
       "industry": "化工原料"
     },
     {
@@ -4438,9 +3109,6 @@
       "name": "合力科技",
       "market": "SH",
       "full_code": "603917.SH",
-      "circ_mv_yi": 26.3,
-      "total_mv_yi": 26.3,
-      "pe": 91.5573,
       "industry": "汽车配件"
     },
     {
@@ -4448,9 +3116,6 @@
       "name": "欣贺股份",
       "market": "SZ",
       "full_code": "003016.SZ",
-      "circ_mv_yi": 26.3,
-      "total_mv_yi": 26.91,
-      "pe": 149.9848,
       "industry": "服饰"
     },
     {
@@ -4458,9 +3123,6 @@
       "name": "全聚德",
       "market": "SZ",
       "full_code": "002186.SZ",
-      "circ_mv_yi": 26.32,
-      "total_mv_yi": 26.33,
-      "pe": 339.7195,
       "industry": "酒店餐饮"
     },
     {
@@ -4468,9 +3130,6 @@
       "name": "龙星科技",
       "market": "SZ",
       "full_code": "002442.SZ",
-      "circ_mv_yi": 26.34,
-      "total_mv_yi": 26.98,
-      "pe": 68.1907,
       "industry": "化工原料"
     },
     {
@@ -4478,9 +3137,6 @@
       "name": "威龙股份",
       "market": "SH",
       "full_code": "603779.SH",
-      "circ_mv_yi": 26.37,
-      "total_mv_yi": 26.37,
-      "pe": null,
       "industry": "红黄酒"
     },
     {
@@ -4488,9 +3144,6 @@
       "name": "乐惠国际",
       "market": "SH",
       "full_code": "603076.SH",
-      "circ_mv_yi": 26.37,
-      "total_mv_yi": 26.37,
-      "pe": 99.7059,
       "industry": "专用机械"
     },
     {
@@ -4498,9 +3151,6 @@
       "name": "嘉欣丝绸",
       "market": "SZ",
       "full_code": "002404.SZ",
-      "circ_mv_yi": 26.38,
-      "total_mv_yi": 32.43,
-      "pe": 18.0064,
       "industry": "纺织"
     },
     {
@@ -4508,9 +3158,6 @@
       "name": "永安药业",
       "market": "SZ",
       "full_code": "002365.SZ",
-      "circ_mv_yi": 26.42,
-      "total_mv_yi": 31.74,
-      "pe": 141.0959,
       "industry": "化学制药"
     },
     {
@@ -4518,9 +3165,6 @@
       "name": "欣龙控股",
       "market": "SZ",
       "full_code": "000955.SZ",
-      "circ_mv_yi": 26.43,
-      "total_mv_yi": 26.44,
-      "pe": 3681.3064,
       "industry": "纺织"
     },
     {
@@ -4528,9 +3172,6 @@
       "name": "国际实业",
       "market": "SZ",
       "full_code": "000159.SZ",
-      "circ_mv_yi": 26.44,
-      "total_mv_yi": 26.44,
-      "pe": 69.5415,
       "industry": "石油贸易"
     },
     {
@@ -4538,9 +3179,6 @@
       "name": "森林包装",
       "market": "SH",
       "full_code": "605500.SH",
-      "circ_mv_yi": 26.44,
-      "total_mv_yi": 26.44,
-      "pe": 43.176,
       "industry": "造纸"
     },
     {
@@ -4548,9 +3186,6 @@
       "name": "深中华A",
       "market": "SZ",
       "full_code": "000017.SZ",
-      "circ_mv_yi": 26.45,
-      "total_mv_yi": 41.35,
-      "pe": 100.5396,
       "industry": "服饰"
     },
     {
@@ -4558,9 +3193,6 @@
       "name": "百花医药",
       "market": "SH",
       "full_code": "600721.SH",
-      "circ_mv_yi": 26.53,
-      "total_mv_yi": 26.53,
-      "pe": 65.2129,
       "industry": "生物制药"
     },
     {
@@ -4568,9 +3200,6 @@
       "name": "大千生态",
       "market": "SH",
       "full_code": "603955.SH",
-      "circ_mv_yi": 26.56,
-      "total_mv_yi": 26.56,
-      "pe": null,
       "industry": "建筑工程"
     },
     {
@@ -4578,9 +3207,6 @@
       "name": "赛象科技",
       "market": "SZ",
       "full_code": "002337.SZ",
-      "circ_mv_yi": 26.7,
-      "total_mv_yi": 26.72,
-      "pe": 54.3942,
       "industry": "化工机械"
     },
     {
@@ -4588,9 +3214,6 @@
       "name": "天地源",
       "market": "SH",
       "full_code": "600665.SH",
-      "circ_mv_yi": 26.7,
-      "total_mv_yi": 26.7,
-      "pe": null,
       "industry": "全国地产"
     },
     {
@@ -4598,9 +3221,6 @@
       "name": "全筑股份",
       "market": "SH",
       "full_code": "603030.SH",
-      "circ_mv_yi": 26.73,
-      "total_mv_yi": 26.73,
-      "pe": null,
       "industry": "装修装饰"
     },
     {
@@ -4608,9 +3228,6 @@
       "name": "长青集团",
       "market": "SZ",
       "full_code": "002616.SZ",
-      "circ_mv_yi": 26.79,
-      "total_mv_yi": 39.18,
-      "pe": 13.9818,
       "industry": "环境保护"
     },
     {
@@ -4618,9 +3235,6 @@
       "name": "德美化工",
       "market": "SZ",
       "full_code": "002054.SZ",
-      "circ_mv_yi": 26.8,
-      "total_mv_yi": 33.65,
-      "pe": 28.4741,
       "industry": "染料涂料"
     },
     {
@@ -4628,9 +3242,6 @@
       "name": "苏常柴A",
       "market": "SZ",
       "full_code": "000570.SZ",
-      "circ_mv_yi": 26.84,
-      "total_mv_yi": 34.08,
-      "pe": 67.0686,
       "industry": "农用机械"
     },
     {
@@ -4638,9 +3249,6 @@
       "name": "中水渔业",
       "market": "SZ",
       "full_code": "000798.SZ",
-      "circ_mv_yi": 26.85,
-      "total_mv_yi": 26.85,
-      "pe": 32.0629,
       "industry": "渔业"
     },
     {
@@ -4648,9 +3256,6 @@
       "name": "北纬科技",
       "market": "SZ",
       "full_code": "002148.SZ",
-      "circ_mv_yi": 26.87,
-      "total_mv_yi": 33.3,
-      "pe": null,
       "industry": "互联网"
     },
     {
@@ -4658,9 +3263,6 @@
       "name": "迪贝电气",
       "market": "SH",
       "full_code": "603320.SH",
-      "circ_mv_yi": 26.88,
-      "total_mv_yi": 26.88,
-      "pe": 33.3674,
       "industry": "电气设备"
     },
     {
@@ -4668,9 +3270,6 @@
       "name": "长青科技",
       "market": "SZ",
       "full_code": "001324.SZ",
-      "circ_mv_yi": 26.91,
-      "total_mv_yi": 26.91,
-      "pe": 63.6623,
       "industry": "运输设备"
     },
     {
@@ -4678,9 +3277,6 @@
       "name": "新亚制程",
       "market": "SZ",
       "full_code": "002388.SZ",
-      "circ_mv_yi": 26.93,
-      "total_mv_yi": 27.17,
-      "pe": null,
       "industry": "元器件"
     },
     {
@@ -4688,9 +3284,6 @@
       "name": "科华控股",
       "market": "SH",
       "full_code": "603161.SH",
-      "circ_mv_yi": 26.93,
-      "total_mv_yi": 27.45,
-      "pe": 28.153,
       "industry": "汽车配件"
     },
     {
@@ -4698,9 +3291,6 @@
       "name": "物产金轮",
       "market": "SZ",
       "full_code": "002722.SZ",
-      "circ_mv_yi": 26.99,
-      "total_mv_yi": 27.0,
-      "pe": 17.7463,
       "industry": "钢加工"
     },
     {
@@ -4708,9 +3298,6 @@
       "name": "欢瑞世纪",
       "market": "SZ",
       "full_code": "000892.SZ",
-      "circ_mv_yi": 27.01,
-      "total_mv_yi": 37.28,
-      "pe": null,
       "industry": "影视音像"
     },
     {
@@ -4718,9 +3305,6 @@
       "name": "凯众股份",
       "market": "SH",
       "full_code": "603037.SH",
-      "circ_mv_yi": 27.07,
-      "total_mv_yi": 27.11,
-      "pe": 36.838,
       "industry": "汽车配件"
     },
     {
@@ -4728,9 +3312,6 @@
       "name": "君禾股份",
       "market": "SH",
       "full_code": "603617.SH",
-      "circ_mv_yi": 27.07,
-      "total_mv_yi": 27.29,
-      "pe": 54.0331,
       "industry": "机械基件"
     },
     {
@@ -4738,9 +3319,6 @@
       "name": "安奈儿",
       "market": "SZ",
       "full_code": "002875.SZ",
-      "circ_mv_yi": 27.09,
-      "total_mv_yi": 31.63,
-      "pe": null,
       "industry": "服饰"
     },
     {
@@ -4748,9 +3326,6 @@
       "name": "国旅联合",
       "market": "SH",
       "full_code": "600358.SH",
-      "circ_mv_yi": 27.17,
-      "total_mv_yi": 27.17,
-      "pe": null,
       "industry": "广告包装"
     },
     {
@@ -4758,9 +3333,6 @@
       "name": "津滨发展",
       "market": "SZ",
       "full_code": "000897.SZ",
-      "circ_mv_yi": 27.17,
-      "total_mv_yi": 27.17,
-      "pe": null,
       "industry": "区域地产"
     },
     {
@@ -4768,9 +3340,6 @@
       "name": "立方制药",
       "market": "SZ",
       "full_code": "003020.SZ",
-      "circ_mv_yi": 27.19,
-      "total_mv_yi": 36.81,
-      "pe": 22.2838,
       "industry": "化学制药"
     },
     {
@@ -4778,9 +3347,6 @@
       "name": "中农立华",
       "market": "SH",
       "full_code": "603970.SH",
-      "circ_mv_yi": 27.2,
-      "total_mv_yi": 27.2,
-      "pe": 15.7665,
       "industry": "农药化肥"
     },
     {
@@ -4788,9 +3354,6 @@
       "name": "闽发铝业",
       "market": "SZ",
       "full_code": "002578.SZ",
-      "circ_mv_yi": 27.21,
-      "total_mv_yi": 29.66,
-      "pe": null,
       "industry": "铝"
     },
     {
@@ -4798,9 +3361,6 @@
       "name": "宏英智能",
       "market": "SZ",
       "full_code": "001266.SZ",
-      "circ_mv_yi": 27.23,
-      "total_mv_yi": 48.54,
-      "pe": 317.4755,
       "industry": "电器仪表"
     },
     {
@@ -4808,9 +3368,6 @@
       "name": "新疆火炬",
       "market": "SH",
       "full_code": "603080.SH",
-      "circ_mv_yi": 27.3,
-      "total_mv_yi": 27.3,
-      "pe": 12.946,
       "industry": "供气供热"
     },
     {
@@ -4818,9 +3375,6 @@
       "name": "南山控股",
       "market": "SZ",
       "full_code": "002314.SZ",
-      "circ_mv_yi": 27.3,
-      "total_mv_yi": 55.24,
-      "pe": null,
       "industry": "区域地产"
     },
     {
@@ -4828,9 +3382,6 @@
       "name": "兴民智通",
       "market": "SZ",
       "full_code": "002355.SZ",
-      "circ_mv_yi": 27.32,
-      "total_mv_yi": 29.55,
-      "pe": null,
       "industry": "汽车配件"
     },
     {
@@ -4838,9 +3389,6 @@
       "name": "三力士",
       "market": "SZ",
       "full_code": "002224.SZ",
-      "circ_mv_yi": 27.34,
-      "total_mv_yi": 30.58,
-      "pe": 166.5066,
       "industry": "橡胶"
     },
     {
@@ -4848,9 +3396,6 @@
       "name": "寿仙谷",
       "market": "SH",
       "full_code": "603896.SH",
-      "circ_mv_yi": 27.34,
-      "total_mv_yi": 27.34,
-      "pe": 150.4205,
       "industry": "中成药"
     },
     {
@@ -4858,9 +3403,6 @@
       "name": "远程股份",
       "market": "SZ",
       "full_code": "002692.SZ",
-      "circ_mv_yi": 27.35,
-      "total_mv_yi": 27.36,
-      "pe": 1542.8166,
       "industry": "电气设备"
     },
     {
@@ -4868,9 +3410,6 @@
       "name": "苏利股份",
       "market": "SH",
       "full_code": "603585.SH",
-      "circ_mv_yi": 27.37,
-      "total_mv_yi": 27.83,
-      "pe": 14.441,
       "industry": "农药化肥"
     },
     {
@@ -4878,9 +3417,6 @@
       "name": "中衡设计",
       "market": "SH",
       "full_code": "603017.SH",
-      "circ_mv_yi": 27.37,
-      "total_mv_yi": 27.37,
-      "pe": 55.796,
       "industry": "建筑工程"
     },
     {
@@ -4888,9 +3424,6 @@
       "name": "比依股份",
       "market": "SH",
       "full_code": "603215.SH",
-      "circ_mv_yi": 27.37,
-      "total_mv_yi": 31.37,
-      "pe": 38.5079,
       "industry": "家用电器"
     },
     {
@@ -4898,9 +3431,6 @@
       "name": "润都股份",
       "market": "SZ",
       "full_code": "002923.SZ",
-      "circ_mv_yi": 27.38,
-      "total_mv_yi": 35.53,
-      "pe": null,
       "industry": "化学制药"
     },
     {
@@ -4908,9 +3438,6 @@
       "name": "张家界",
       "market": "SZ",
       "full_code": "000430.SZ",
-      "circ_mv_yi": 27.38,
-      "total_mv_yi": 59.83,
-      "pe": null,
       "industry": "旅游景点"
     },
     {
@@ -4918,9 +3445,6 @@
       "name": "永艺股份",
       "market": "SH",
       "full_code": "603600.SH",
-      "circ_mv_yi": 27.45,
-      "total_mv_yi": 30.23,
-      "pe": 12.9887,
       "industry": "家居用品"
     },
     {
@@ -4928,9 +3452,6 @@
       "name": "协和电子",
       "market": "SH",
       "full_code": "605258.SH",
-      "circ_mv_yi": 27.54,
-      "total_mv_yi": 27.54,
-      "pe": 41.2767,
       "industry": "元器件"
     },
     {
@@ -4938,9 +3459,6 @@
       "name": "亿利达",
       "market": "SZ",
       "full_code": "002686.SZ",
-      "circ_mv_yi": 27.6,
-      "total_mv_yi": 29.9,
-      "pe": 98.0387,
       "industry": "专用机械"
     },
     {
@@ -4948,9 +3466,6 @@
       "name": "英联股份",
       "market": "SZ",
       "full_code": "002846.SZ",
-      "circ_mv_yi": 27.65,
-      "total_mv_yi": 44.65,
-      "pe": 126.5009,
       "industry": "广告包装"
     },
     {
@@ -4958,9 +3473,6 @@
       "name": "魅视科技",
       "market": "SZ",
       "full_code": "001229.SZ",
-      "circ_mv_yi": 27.66,
-      "total_mv_yi": 53.79,
-      "pe": 77.4163,
       "industry": "IT设备"
     },
     {
@@ -4968,9 +3480,6 @@
       "name": "天宸股份",
       "market": "SH",
       "full_code": "600620.SH",
-      "circ_mv_yi": 27.67,
-      "total_mv_yi": 27.67,
-      "pe": 145.8176,
       "industry": "综合类"
     },
     {
@@ -4978,9 +3487,6 @@
       "name": "南方路机",
       "market": "SH",
       "full_code": "603280.SH",
-      "circ_mv_yi": 27.72,
-      "total_mv_yi": 27.72,
-      "pe": 29.2789,
       "industry": "工程机械"
     },
     {
@@ -4988,9 +3494,6 @@
       "name": "神开股份",
       "market": "SZ",
       "full_code": "002278.SZ",
-      "circ_mv_yi": 27.74,
-      "total_mv_yi": 30.04,
-      "pe": 53.726,
       "industry": "化工机械"
     },
     {
@@ -4998,9 +3501,6 @@
       "name": "滨海能源",
       "market": "SZ",
       "full_code": "000695.SZ",
-      "circ_mv_yi": 27.79,
-      "total_mv_yi": 29.04,
-      "pe": null,
       "industry": "化工原料"
     },
     {
@@ -5008,9 +3508,6 @@
       "name": "浙江黎明",
       "market": "SH",
       "full_code": "603048.SH",
-      "circ_mv_yi": 27.8,
-      "total_mv_yi": 27.8,
-      "pe": 89.2424,
       "industry": "汽车配件"
     },
     {
@@ -5018,9 +3515,6 @@
       "name": "派斯林",
       "market": "SH",
       "full_code": "600215.SH",
-      "circ_mv_yi": 27.82,
-      "total_mv_yi": 27.82,
-      "pe": null,
       "industry": "专用机械"
     },
     {
@@ -5028,9 +3522,6 @@
       "name": "东方海洋",
       "market": "SZ",
       "full_code": "002086.SZ",
-      "circ_mv_yi": 27.83,
-      "total_mv_yi": 34.48,
-      "pe": null,
       "industry": "渔业"
     },
     {
@@ -5038,9 +3529,6 @@
       "name": "元隆雅图",
       "market": "SZ",
       "full_code": "002878.SZ",
-      "circ_mv_yi": 27.84,
-      "total_mv_yi": 30.92,
-      "pe": null,
       "industry": "广告包装"
     },
     {
@@ -5048,9 +3536,6 @@
       "name": "绿能慧充",
       "market": "SH",
       "full_code": "600212.SH",
-      "circ_mv_yi": 27.89,
-      "total_mv_yi": 36.97,
-      "pe": 221.893,
       "industry": "电气设备"
     },
     {
@@ -5058,9 +3543,6 @@
       "name": "三柏硕",
       "market": "SZ",
       "full_code": "001300.SZ",
-      "circ_mv_yi": 27.94,
-      "total_mv_yi": 27.94,
-      "pe": null,
       "industry": "文教休闲"
     },
     {
@@ -5068,9 +3550,6 @@
       "name": "华脉科技",
       "market": "SH",
       "full_code": "603042.SH",
-      "circ_mv_yi": 28.0,
-      "total_mv_yi": 28.0,
-      "pe": null,
       "industry": "通信设备"
     }
   ]
