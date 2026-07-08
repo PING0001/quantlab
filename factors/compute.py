@@ -5,6 +5,7 @@ Factor computation pipeline: read kline data from DuckDB, compute all factors, s
 from __future__ import annotations
 
 import logging
+import re
 
 import duckdb
 import pandas as pd
@@ -12,6 +13,7 @@ import numpy as np
 
 from config import DB_PATH
 from .factors import FACTOR_HUB
+from .ops import decay_linear
 
 log = logging.getLogger(__name__)
 
@@ -30,11 +32,17 @@ _CS_RANK_BASES = {
 }
 
 _CS_RANK_POST_FACTORS = [
-    "alpha001", "alpha007", "alpha013", "alpha014", "alpha017",
-    "alpha018", "alpha019", "alpha020", "alpha035", "alpha038",
-    "alpha046", "alpha050", "alpha053", "alpha057", "alpha101",
-    "alpha191",
+    "alpha001", "alpha013", "alpha014", "alpha018", "alpha019", "alpha020",
+    "alpha050", "alpha101", "alpha191",
 ]
+
+# deferred alphas: factor function stores raw intermediates (prefixed _d{N}_)
+# _compose_deferred_alphas applies cs_rank and composes final values
+_DEFERRED_ALPHAS = {
+    "alpha017": {"cols": ["_d17_a", "_d17_b", "_d17_c"]},
+    "alpha038": {"cols": ["_d38_a", "_d38_b"]},
+    "alpha057": {"cols": ["_d57_a", "_d57_b"]},
+}
 
 
 def _compute_cs_rank_cols(df_all):
@@ -62,6 +70,53 @@ def _apply_cs_rank_post(result):
     return result
 
 
+def _compose_deferred_alphas(result):
+    """Compose deferred alphas from raw intermediate columns.
+
+    Alpha factor functions store raw sub-expressions in _d{N}_* columns.
+    This function applies cross-sectional rank to each intermediate and
+    composes the final alpha value per the formulas in _DEFERRED_ALPHAS.
+    """
+    ptn = re.compile(r"_d\d+_\w+")
+    raw_cols = [c for c in result.columns if ptn.match(c)]
+    if not raw_cols:
+        return result
+
+    # step 1: cs_rank all raw intermediates
+    cs_map = {}
+    for col in raw_cols:
+        cs_name = "_cs" + col
+        result[cs_name] = result.groupby("date")[col].transform(_cs_rank)
+        cs_map[col] = cs_name
+
+    # step 2: compose each deferred alpha
+    for alpha, cfg in _DEFERRED_ALPHAS.items():
+        raw = cfg["cols"]
+        if not all(c in cs_map for c in raw):
+            continue
+
+        if alpha == "alpha057":
+            # alpha057: -1 * (_d57_b) / decay_linear( cs_rank(_d57_a) , 2 )
+            cs_a = result[cs_map["_d57_a"]]
+            decayed = cs_a.groupby(result.index.get_level_values("code")).transform(
+                lambda s: pd.Series(decay_linear(s, 2).values, index=s.index)
+            )
+            result[alpha] = (-result["_d57_b"] / decayed.replace(0, np.nan)).clip(-1e10, 1e10)
+        else:
+            # generic product with negation: -1 * cs_rank(a) * cs_rank(b) * cs_rank(c)
+            parts = [result[cs_map[c]] for c in raw]
+            prod = parts[0]
+            for p in parts[1:]:
+                prod = prod * p
+            result[alpha] = -prod
+
+    # step 3: clean up intermediate columns
+    drop_cols = [c for c in raw_cols if c in result.columns]
+    drop_cols += [cs_map[c] for c in raw_cols if cs_map[c] in result.columns]
+    result.drop(columns=drop_cols, inplace=True, errors="ignore")
+    return result
+
+
 def _merge_rank_factors(result):
     """Generate cross-sectional rank versions of selected factors."""
     rank_map = {
@@ -84,7 +139,12 @@ def compute_factors_for_stock(df_stock, factor_hub=None):
     results = {}
     for name, func in factor_hub.items():
         try:
-            results[name] = func(df_stock)
+            raw = func(df_stock)
+            if isinstance(raw, dict):
+                for k, v in raw.items():
+                    results[k] = v
+            else:
+                results[name] = raw
         except Exception as e:
             log.warning("Factor %s failed for %s: %s", name, code, e)
             results[name] = np.nan
@@ -147,6 +207,7 @@ def compute_panel(con=None, db_path=None, codes=None, max_stocks=None):
 
     result = result.clip(-1e10, 1e10).replace([np.inf, -np.inf], np.nan)
     result = _apply_cs_rank_post(result)
+    result = _compose_deferred_alphas(result)
     result = _merge_rank_factors(result)
     result = _merge_market_features(result, con)
 
@@ -289,6 +350,7 @@ def compute_panel_incremental(con=None, lookback_trading_days=252):
 
     result = result.clip(-1e10, 1e10).replace([np.inf, -np.inf], np.nan)
     result = _apply_cs_rank_post(result)
+    result = _compose_deferred_alphas(result)
     result = _merge_rank_factors(result)
 
     # Broadcast market features

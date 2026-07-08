@@ -255,49 +255,68 @@ def alpha191(data):
 def alpha007(data):
     c, v, amt = data["close"], data["volume"], data["amount"]
     adv20 = ts_mean(amt, 20)
-    return ts_rank(np.sign(delta(correlation(adv20, v, 10), 20)) + 20, 3)
+    dc7 = delta(c, 7)
+    return np.where(adv20 < v, (-ts_rank(np.abs(dc7), 60)) * np.sign(dc7), -1.0)
 
 
 def alpha017(data):
-    c, amt = data["close"], data["amount"]
-    return -correlation(c, ts_mean(amt, 20), 5)
+    c, v, amt = data["close"], data["volume"], data["amount"]
+    adv20 = ts_mean(amt, 20)
+    return {
+        "_d17_a": ts_rank(c, 10),
+        "_d17_b": delta(delta(c, 1), 1),
+        "_d17_c": ts_rank(v / adv20.replace(0, np.nan), 5),
+    }
 
 
 def alpha018(data):
     c, o = data["close"], data["open"]
     intra = c - o
-    part1 = ts_std(np.abs(intra), 5) + intra
-    part2 = correlation(c, delay(c, 5), 10)
-    return -(part1 + part2)
+    return -(ts_std(np.abs(intra), 5) + intra + correlation(c, o, 10))
 
 
 def alpha028(data):
-    h, l = data["high"], data["low"]
-    return scale(correlation(ts_sum(h, 5), ts_sum(l, 5), 5))
+    h, l, c, amt = data["high"], data["low"], data["close"], data["amount"]
+    adv20 = ts_mean(amt, 20)
+    return scale(correlation(adv20, l, 5) + (h + l) / 2 - c)
 
 
 def alpha035(data):
-    return ts_argmax(signed_power(correlation(data["close_cs"], data["volume_cs"], 5), 2), 5)
+    c, h, l, v = data["close"], data["high"], data["low"], data["volume"]
+    ret = c.pct_change().fillna(0)
+    return ts_rank(v, 32) * (1 - ts_rank(c + h - l, 16)) * (1 - ts_rank(ret, 32))
 
 
 def alpha038(data):
-    h, amt = data["high"], data["amount"]
-    return -correlation(h, ts_rank(amt, 10), 10)
+    c, o = data["close"], data["open"]
+    return {
+        "_d38_a": ts_rank(c, 10),
+        "_d38_b": c / o.replace(0, np.nan),
+    }
 
 
 def alpha046(data):
     c = data["close"]
-    return delay(c, 20) / delay(c, 10).replace(0, np.nan) - 1
+    d20 = delay(c, 20)
+    d10 = delay(c, 10)
+    accel = (d20 - d10) / 10 - (d10 - c) / 10
+    return np.where(accel > 0.25, -1.0, np.where(accel < 0, 1.0, -1.0))
 
 
 def alpha053(data):
-    c, v = data["close"], data["volume"]
-    return correlation(delta(c, 1), delta(v, 1), 9)
+    c, h, l = data["close"], data["high"], data["low"]
+    num = 2 * c - l - h
+    den = (c - l).replace(0, np.nan)
+    return -delta(num / den, 9)
 
 
 def alpha057(data):
-    c, amt = data["close"], data["amount"]
-    return -reg_beta(c, ts_rank(amt, 10), 20)
+    c, amt, vol = data["close"], data["amount"], data["volume"]
+    vwap = amt / vol.replace(0, np.nan)
+    return {
+        "_d57_a": ts_argmax(c, 30),
+        "_d57_b": c - vwap,
+    }
 
 
 
