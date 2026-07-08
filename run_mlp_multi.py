@@ -63,12 +63,12 @@ TRAIN_WINDOW = 252
 MIN_TRAIN = 252
 
 HORIZONS = [1, 3, 5, 10]
-WEIGHTS = {1: 0.15, 3: 0.25, 5: 0.35, 10: 0.25}
+WEIGHTS = {1: 0.3, 3: 0.3, 5: 0.2, 10: 0.2}
 
 MLP_KWARGS = dict(
-    hidden_layer_sizes=(25, 12, 8),
-    dropout=0.2,
-    alpha=0.0001,
+    hidden_layer_sizes=(32, 16, 8),
+    dropout=0.1,
+    alpha=0.00001,
     early_stopping=True,
     validation_fraction=0.1,
     n_iter_no_change=20,
