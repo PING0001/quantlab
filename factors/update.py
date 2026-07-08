@@ -66,6 +66,14 @@ def main():
     selected = panel[available]
     df_to_store = selected.reset_index()
 
+    # Create table if it doesn't exist
+    exists = con.execute(
+        "SELECT count(*) FROM information_schema.tables WHERE table_name='factor_values'"
+    ).fetchone()[0]
+    if not exists:
+        log.info("Creating factor_values table ...")
+        con.execute("CREATE TABLE factor_values AS SELECT * FROM df_to_store WHERE 1=0")
+
     log.info("Appending %d rows to factor_values ...", len(df_to_store))
     con.execute("INSERT INTO factor_values SELECT * FROM df_to_store")
     con.execute("CHECKPOINT")
