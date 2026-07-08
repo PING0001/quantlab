@@ -15,8 +15,6 @@ tmp/
 # Python cache
 __pycache__/
 
-AGENTS.md
-
 # Cached predictions
 data/predictions__*
 
