@@ -20,19 +20,24 @@ def signed_power(x, a):
     return np.sign(x) * (np.abs(x) ** a)
 
 def ts_sum(x, d):
-    return x.rolling(d, min_periods=1).sum()
+    mp = (d + 1) // 2
+    return x.rolling(d, min_periods=mp).sum()
 
 def ts_mean(x, d):
-    return x.rolling(d, min_periods=1).mean()
+    mp = (d + 1) // 2
+    return x.rolling(d, min_periods=mp).mean()
 
 def ts_std(x, d):
-    return x.rolling(d, min_periods=1).std(ddof=1)
+    mp = (d + 1) // 2
+    return x.rolling(d, min_periods=mp).std(ddof=1)
 
 def ts_min(x, d):
-    return x.rolling(d, min_periods=1).min()
+    mp = (d + 1) // 2
+    return x.rolling(d, min_periods=mp).min()
 
 def ts_max(x, d):
-    return x.rolling(d, min_periods=1).max()
+    mp = (d + 1) // 2
+    return x.rolling(d, min_periods=mp).max()
 
 def delay(x, d):
     return x.shift(d)
@@ -41,10 +46,12 @@ def delta(x, d):
     return x - x.shift(d)
 
 def correlation(x, y, d):
-    return x.rolling(d, min_periods=1).corr(y)
+    mp = (d + 1) // 2
+    return x.rolling(d, min_periods=mp).corr(y)
 
 def covariance(x, y, d):
-    return x.rolling(d, min_periods=1).cov(y)
+    mp = (d + 1) // 2
+    return x.rolling(d, min_periods=mp).cov(y)
 
 def decay_linear(x, d):
     weights = np.arange(1, d + 1, dtype=float)
@@ -53,7 +60,8 @@ def decay_linear(x, d):
         n = len(arr)
         w = weights[-n:] / weights[-n:].sum() if n < d else weights / wsum
         return float(np.nansum(arr * w))
-    return x.rolling(d, min_periods=1).apply(_decay, raw=True)
+    mp = (d + 1) // 2
+    return x.rolling(d, min_periods=mp).apply(_decay, raw=True)
 
 def ts_rank(x, d):
     def helper(arr):
@@ -61,7 +69,8 @@ def ts_rank(x, d):
         if len(valid) == 0:
             return np.nan
         return float(np.searchsorted(np.sort(valid), valid[-1], side="right")) / len(valid)
-    return x.rolling(d, min_periods=1).apply(helper, raw=True)
+    mp = (d + 1) // 2
+    return x.rolling(d, min_periods=mp).apply(helper, raw=True)
 
 def ts_argmax(x, d):
     def helper(arr):
@@ -69,7 +78,8 @@ def ts_argmax(x, d):
         if not valid.any():
             return np.nan
         return float(len(arr) - 1 - np.nanargmax(arr))
-    return x.rolling(d, min_periods=1).apply(helper, raw=True)
+    mp = (d + 1) // 2
+    return x.rolling(d, min_periods=mp).apply(helper, raw=True)
 
 def ts_argmin(x, d):
     def helper(arr):
@@ -77,7 +87,8 @@ def ts_argmin(x, d):
         if not valid.any():
             return np.nan
         return float(len(arr) - 1 - np.nanargmin(arr))
-    return x.rolling(d, min_periods=1).apply(helper, raw=True)
+    mp = (d + 1) // 2
+    return x.rolling(d, min_periods=mp).apply(helper, raw=True)
 
 def reg_beta(y, x, d):
     cov = y.rolling(d, min_periods=1).cov(x)

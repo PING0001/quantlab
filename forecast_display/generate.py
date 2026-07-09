@@ -79,7 +79,7 @@ def load_and_predict():
     con.close()
 
     available_cols = [c for c in model.factor_names if c in factors.columns]
-    factors = factors[available_cols].dropna()
+    factors = factors[available_cols]
 
     all_dates = sorted(factors.index.get_level_values("date").unique())
     latest_date = all_dates[-1]
@@ -89,6 +89,7 @@ def load_and_predict():
 
     print(f"\n[3/3] Predicting scores for {latest_date.date()} ...")
     X_latest = factors.xs(latest_date, level="date", drop_level=False)
+    X_latest = X_latest.fillna(0)  # fill NaN so model predicts all stocks
     pred_df = model.predict(X_latest)
 
     if isinstance(pred_df.index, pd.MultiIndex):

@@ -26,8 +26,11 @@ def RSI(data, period=14):
     loss = (-delta).clip(lower=0)
     avg_gain = gain.ewm(span=period, adjust=False).mean()
     avg_loss = loss.ewm(span=period, adjust=False).mean()
+    loss_mask = avg_loss == 0
     rs = avg_gain / avg_loss.replace(0, np.nan)
-    return 100 - 100 / (1 + rs)
+    result = 100 - 100 / (1 + rs)
+    result[loss_mask] = 100.0
+    return result
 
 
 def MACD(data, ):
@@ -67,14 +70,18 @@ def CCI(data, period=20):
     tp = (data["high"] + data["low"] + data["close"]) / 3
     sma = ts_mean(tp, period)
     mad = (tp - sma).abs().rolling(period, min_periods=1).mean()
-    return (tp - sma) / (0.015 * mad.replace(0, np.nan))
+    cci = (tp - sma) / (0.015 * mad.replace(0, np.nan))
+    cci[mad == 0] = 0.0
+    return cci
 
 
 def Stochastic_K(data, period=14):
     ll = ts_min(data["low"], period)
     hh = ts_max(data["high"], period)
     rng = (hh - ll).replace(0, np.nan)
-    return (data["close"] - ll) / rng * 100
+    stoch = (data["close"] - ll) / rng * 100
+    stoch[hh == ll] = 50.0
+    return stoch
 
 
 def OBV(data, ):
@@ -83,7 +90,12 @@ def OBV(data, ):
 
 
 def Volume_ratio(data, period=5):
-    return data["volume"] / ts_mean(data["volume"], period).replace(0, np.nan)
+    avg_vol = ts_mean(data["volume"], period)
+    result = data["volume"] / avg_vol.replace(0, np.nan)
+    zero_mask = avg_vol == 0
+    result[zero_mask & (data["volume"] > 0)] = 5.0
+    result[zero_mask & (data["volume"] == 0)] = 0.0
+    return result
 
 
 def Return_1d(data, ):
@@ -122,7 +134,10 @@ def Price_position_252d(data):
 
 
 def Zscore_close(data, period=20):
-    return (data["close"] - ts_mean(data["close"], period)) / ts_std(data["close"], period).replace(0, np.nan)
+    std_val = ts_std(data["close"], period)
+    zscore = (data["close"] - ts_mean(data["close"], period)) / std_val.replace(0, np.nan)
+    zscore[std_val == 0] = 0.0
+    return zscore
 
 
 def Reversal_60d(data):
@@ -149,7 +164,11 @@ def Turnover_3d_ratio(data):
     """Ratio of 3-day to 20-day average turnover."""
     t3 = Turnover_3d(data)
     t20 = Turnover_20d(data)
-    return t3 / t20.replace(0, np.nan)
+    result = t3 / t20.replace(0, np.nan)
+    zero_mask = (t20 == 0) & t3.notna()
+    result[zero_mask & (t3 > 0)] = 5.0
+    result[zero_mask & (t3 == 0)] = 0.0
+    return result
 
 
 def Intraday_return(data):
@@ -306,6 +325,7 @@ def alpha046(data):
 def alpha057(data):
     c, amt, vol = data["close"], data["amount"], data["volume"]
     vwap = amt / vol.replace(0, np.nan)
+    vwap[vol == 0] = c[vol == 0]
     return {
         "_d57_a": ts_argmax(c, 30),
         "_d57_b": c - vwap,
@@ -322,7 +342,9 @@ def Gap_pct(data):
 def Body_pct(data):
     """Candlestick body as fraction of daily range."""
     rng = (data["high"] - data["low"]).replace(0, np.nan)
-    return (data["close"] - data["open"]).abs() / rng
+    body = (data["close"] - data["open"]).abs() / rng
+    body[(data["high"] == data["low"])] = 0.0
+    return body
 
 
 def Trend_strength(data, period=20):
@@ -330,20 +352,32 @@ def Trend_strength(data, period=20):
     ret = data["close"].pct_change()
     ret_20d = data["close"].pct_change(period)
     vol_20d = ret.rolling(period, min_periods=10).std(ddof=1).replace(0, np.nan)
-    return ret_20d.abs() / vol_20d
+    ts = ret_20d.abs() / vol_20d
+    undef = (vol_20d == 0) | vol_20d.isna() | ret_20d.isna()
+    ts[undef & (ret_20d.abs().fillna(0) > 0)] = 5.0
+    ts[undef & (ret_20d.abs().fillna(0) == 0)] = 0.0
+    return ts
 
 
 def Intraday_position(data):
     """Where close sits within the day's range: (close - low) / (high - low)."""
     rng = (data["high"] - data["low"]).replace(0, np.nan)
-    return (data["close"] - data["low"]) / rng
+    pos = (data["close"] - data["low"]) / rng
+    flat = data["high"] == data["low"]
+    prev_close = data["close"].shift(1).fillna(data["close"])
+    pos[flat & (data["close"] > prev_close)] = 1.0
+    pos[flat & (data["close"] < prev_close)] = 0.0
+    pos[flat & (data["close"] == prev_close)] = 0.5
+    return pos
 
 
 def Amihud_illiquidity(data, period=20):
     """Amihud illiquidity ratio: rolling mean of |return| / dollar volume."""
     dollar_vol = (data["volume"] * data["close"]).replace(0, np.nan)
     ret = data["close"].pct_change().abs()
-    return (ret / dollar_vol).rolling(period, min_periods=10).mean()
+    raw = ret / dollar_vol
+    raw[(data["volume"] * data["close"] == 0)] = 1e6
+    return raw.rolling(period, min_periods=10).mean()
 
 
 

@@ -64,7 +64,7 @@ SELECTED_FACTORS = [
 TRAIN_START = pd.Timestamp("2015-01-01")
 TEST_START = pd.Timestamp("2025-06-01")
 TEST_END   = pd.Timestamp("2026-06-01")
-WARMUP_DAYS = 100
+WARMUP_DAYS = 90
 TRAIN_WINDOW = 252
 MIN_TRAIN = 252
 
@@ -79,7 +79,7 @@ MLP_KWARGS = dict(
     validation_fraction=0.05,
     n_iter_no_change=20,
     learning_rate=0.001,
-    batch_size=4096,
+    batch_size=4096*4,
     random_state=42,
 )
 
