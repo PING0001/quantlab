@@ -31,8 +31,8 @@ from backtest.signals import run_portfolio, compute_benchmark
 # ============================================================================
 # CONFIG
 # ============================================================================
-TEST_START = pd.Timestamp("2024-06-01")
-TEST_END = pd.Timestamp("2026-06-26")
+TEST_START = pd.Timestamp("2025-06-01")
+TEST_END = pd.Timestamp("2026-06-01")
 WARMUP_DAYS = 100
 TRAIN_WINDOW = 252
 MIN_TRAIN = 252
@@ -81,10 +81,12 @@ def load_factors(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
     return df
 
 
-def load_labels(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
+def load_labels(con: duckdb.DuckDBPyConnection, codes: list[str]) -> pd.DataFrame:
     """Compute forward returns for all horizons, return DataFrame."""
+    placeholders = ",".join(["?"] * len(codes))
     kline = con.execute(
-        "SELECT code, date, close FROM daily_kline ORDER BY code, date"
+        f"SELECT code, date, close FROM daily_kline WHERE code IN ({placeholders}) ORDER BY code, date",
+        codes,
     ).fetchdf()
     labels = {}
     for h in HORIZONS:
@@ -157,7 +159,7 @@ def load_or_train_predictions(factors: pd.DataFrame, labels: pd.DataFrame,
         hidden_layer_sizes=(25, 12),
         alpha=0.001,
         early_stopping=True,
-        validation_fraction=0.1,
+        validation_fraction=0.05,
         n_iter_no_change=20,
         learning_rate=0.001,
         random_state=42,
@@ -207,7 +209,8 @@ def main():
     factors = load_factors(con)
 
     print("  Computing labels (all horizons) ...")
-    labels = load_labels(con)
+    pool_codes = get_pool_codes()
+    labels = load_labels(con, pool_codes)
 
     common = factors.index.intersection(labels.index)
     factors = factors.loc[common]

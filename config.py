@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-POOL_NAME = os.environ.get("QUANTLAB_POOL", "mainboard_microcap")
+POOL_NAME = os.environ.get("QUANTLAB_POOL", "smallcap_on_mainboard")
 
 log = logging.getLogger("config")
 

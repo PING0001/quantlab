@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 
 import duckdb
 import pandas as pd
@@ -189,13 +190,25 @@ def compute_panel(con=None, db_path=None, codes=None, max_stocks=None):
 
     log.info("Loaded %d rows, %d stocks", len(df_all), df_all["code"].nunique())
 
+    t0 = time.time()
     df_all = _compute_cs_rank_cols(df_all)
+    log.info("cs_rank columns computed in %.1fs", time.time() - t0)
 
     panels = []
-    for code, grp in df_all.groupby("code", sort=False):
+    codes_list = df_all["code"].unique()
+    n_stocks = len(codes_list)
+    t_f = time.time()
+    for i, (code, grp) in enumerate(df_all.groupby("code", sort=False), 1):
         grp = grp.sort_values("date")
         factor_df = compute_factors_for_stock(grp)
         panels.append(factor_df)
+        if i % 500 == 0:
+            elapsed = time.time() - t_f
+            rate = i / elapsed
+            eta = (n_stocks - i) / rate
+            log.info("  factors: %d/%d stocks (%.1f/s, ETA %.0fs)", i, n_stocks, rate, eta)
+
+    log.info("Per-stock factors complete: %d stocks in %.1fs", n_stocks, time.time() - t_f)
 
     if not panels:
         if should_close:
@@ -205,11 +218,16 @@ def compute_panel(con=None, db_path=None, codes=None, max_stocks=None):
     result = pd.concat(panels, ignore_index=True)
     result = result.set_index(["date", "code"]).sort_index()
 
+    t0 = time.time()
     result = result.clip(-1e10, 1e10).replace([np.inf, -np.inf], np.nan)
     result = _apply_cs_rank_post(result)
     result = _compose_deferred_alphas(result)
     result = _merge_rank_factors(result)
+    log.info("Post-processing (cs_rank + deferred alphas) in %.1fs", time.time() - t0)
+
+    t0 = time.time()
     result = _merge_market_features(result, con)
+    log.info("Market features merged in %.1fs", time.time() - t0)
 
     if should_close:
         con.close()
@@ -256,7 +274,7 @@ def load_all_stocks_since(con, min_date):
 
 
 def compute_market_features(con):
-    """Compute market state features from 中证全指 (000985) index data."""
+    """Compute market state features from 中证全指 (000985) and 沪深300 (000300)."""
     idx = con.execute("""
         SELECT date, pct_chg, close FROM index_daily
         WHERE code = '000985' ORDER BY date
@@ -271,8 +289,19 @@ def compute_market_features(con):
     idx["CSI_return_20d"] = idx["close"].pct_change(20)
     idx["CSI_volatility_20d"] = idx["pct_chg"].rolling(20, min_periods=5).std() / 100.0
 
+    hs300 = con.execute("""
+        SELECT date, pct_chg, close FROM index_daily
+        WHERE code = '000300' ORDER BY date
+    """).fetchdf()
+    if not hs300.empty:
+        hs300["date"] = pd.to_datetime(hs300["date"])
+        hs300 = hs300.sort_values("date")
+        hs300["HS300_return_1d"] = hs300["pct_chg"] / 100.0
+        hs300["HS300_return_20d"] = hs300["close"].pct_change(20)
+        idx = idx.merge(hs300[["date", "HS300_return_1d", "HS300_return_20d"]], on="date", how="left")
+
     return idx[["date", "CSI_return_1d", "CSI_return_5d", "CSI_return_20d",
-                "CSI_volatility_20d"]]
+                "CSI_volatility_20d", "HS300_return_1d", "HS300_return_20d"]]
 
 
 def _merge_market_features(result, con):
@@ -286,7 +315,7 @@ def _merge_market_features(result, con):
     return result.set_index(["date", "code"]).sort_index()
 
 
-def compute_panel_incremental(con=None, lookback_trading_days=252):
+def compute_panel_incremental(con=None, lookback_trading_days=252, codes=None):
     """Compute factors only for dates not yet in factor_values.
 
     Uses a lookback window so lookback-dependent factors
@@ -310,7 +339,7 @@ def compute_panel_incremental(con=None, lookback_trading_days=252):
 
     if last_date is None:
         log.info("factor_values empty or missing, doing full compute ...")
-        result = compute_panel(con=con)
+        result = compute_panel(con=con, codes=codes)
         if own_con:
             con.close()
         return result
@@ -328,12 +357,18 @@ def compute_panel_incremental(con=None, lookback_trading_days=252):
     lookback_start = last_date - pd.Timedelta(days=int(lookback_trading_days * 1.6))
     df_all = load_all_stocks_since(con, lookback_start)
 
+    if codes is not None:
+        df_all = df_all[df_all["code"].isin(codes)]
+
     log.info("Loaded %d rows, %d stocks (since %s)",
              len(df_all), df_all["code"].nunique(), lookback_start.date())
 
+    t0 = time.time()
     df_all = _compute_cs_rank_cols(df_all)
+    log.info("cs_rank columns: %.1fs", time.time() - t0)
 
     panels = []
+    t_f = time.time()
     for code, grp in df_all.groupby("code", sort=False):
         grp = grp.sort_values("date")
         factor_df = compute_factors_for_stock(grp)

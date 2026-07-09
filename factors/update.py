@@ -18,7 +18,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import DB_PATH
+from config import DB_PATH, get_pool_codes
 from .compute import compute_panel_incremental
 
 log = logging.getLogger(__name__)
@@ -39,6 +39,7 @@ _CURATED_FACTORS = [
         "Turnover_3d", "Turnover_3d_ratio",
         "Intraday_return",
         "CSI_return_1d", "CSI_return_5d", "CSI_return_20d", "CSI_volatility_20d",
+        "HS300_return_1d", "HS300_return_20d",
         "Return_1d_rank", "Return_20d_rank", "Turnover_3d_rank",
 ]
 
@@ -51,8 +52,9 @@ def main():
     )
 
     con = duckdb.connect(str(DB_PATH))
+    pool_codes = get_pool_codes()
 
-    panel = compute_panel_incremental(con=con)
+    panel = compute_panel_incremental(con=con, codes=pool_codes)
     if panel.empty:
         log.info("factor_values is already up to date. Nothing to do.")
         con.close()

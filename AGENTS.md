@@ -25,10 +25,10 @@ Tushare 数据 → DuckDB 存储 → 因子计算（60个） → 多周期 MLP �
 quantlab/
 ├── config.py                # ★ 中心配置：DB 路径、股票池加载、各模块输出路径
 ├── pools/                   # 股票池定义（JSON，多池支持）
-│   └── mainboard_microcap.json  # ~507只主板微盘股
+│   └── smallcap_on_mainboard.json  # ~2941只主板小市值股票（1e < circ_mv < 40e）
 │
 ├── data/                    # 数据摄入
-│   ├── build_db.py          # 全量建库：拉取日线行情、复权因子、市值
+│   ├── build_db.py          # 全量建库：按日拉全市场日线、复权因子、市值/估值（2008-2026）
 │   ├── build_index_db.py    # 全量建库：拉取指数日线（中证全指 000985 等）
 │   ├── pull_adj.py          # 增量更新：获取上次记录日期之后的新数据（含指数）
 │   └── ashare.duckdb        # DuckDB 数据库（~650 MB），所有数据唯一来源
@@ -106,7 +106,7 @@ quantlab/
 ### 6. 多股票池配置
 - **中心配置**：所有模块通过 `config.py` 获取路径和股票池，不再硬编码
 - **股票池文件**：每个池一个 JSON 文件，放在 `pools/` 下
-- **切换股票池**：通过环境变量 `QUANTLAB_POOL` 设置，默认 `mainboard_microcap`
+- **切换股票池**：通过环境变量 `QUANTLAB_POOL` 设置，默认 `smallcap_on_mainboard`
   ```bash
   set QUANTLAB_POOL=mainboard_smallcap && python run_mlp_multi.py
   ```
@@ -136,7 +136,7 @@ quantlab/
 
 ## Common Workflows
 
-所有命令默认使用 `QUANTLAB_POOL` 环境变量指定的股票池（默认 `mainboard_microcap`）。切换方式：
+所有命令默认使用 `QUANTLAB_POOL` 环境变量指定的股票池（默认 `smallcap_on_mainboard`）。切换方式：
 ```bash
 set QUANTLAB_POOL=mainboard_smallcap && python run_mlp_multi.py
 ```
@@ -184,9 +184,10 @@ python _check_pkgs.py
 
 ## Important Constraints
 
+- **不要启动 `build_db.py` 全量构建**：该脚本拉取 2008-2026 全年全市场 K 线、复权因子和估值指标，按日拉取约 4600 个交易日 × 3 次 API ≈ 13800 次 API 调用，预计耗时 **2-4 小时**。频繁重跑不仅浪费时间，还会加重中转站负担。**除非用户明确要求，否则不要启动 `build_db.py`。**
 - **不要提交 DuckDB 文件**：`.gitignore` 已排除 `*.duckdb`，数据库文件较大且包含敏感配置
 - **不要提交 .env 文件**：包含 Tushare token
-- **Tushare 中继限流**：quicksync 中继每次请求限制 ~2000 行。建库脚本每次请求 1 只股票以避免超限（2008 年以来数据量大）。修改数据拉取代码时注意保持此限制
+- **Tushare 中继限流**：quicksync 中继稳定速率 200次/分钟，上限 600次/分钟。`build_db.py` 按日拉取全市场数据，每交易日 3 次 API（daily + adj_factor + daily_basic），无主动 sleep，由 relay 响应天然限速（实际 ~80-160 次/分钟）。修改数据拉取代码时注意保持此限制
 - **无 notebook**：本项目不使用 Jupyter notebook，所有分析均通过 Python 脚本完成
 - **无正式依赖文件**：项目没有 requirements.txt 或 pyproject.toml。所需包见 `_check_pkgs.py`
 - **仅支持 A 股主板**：股票池定义在 `pools/` 目录下的 JSON 文件中，聚焦流通市值 1-28 亿的主板股票

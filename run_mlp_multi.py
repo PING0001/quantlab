@@ -29,8 +29,8 @@ from strategies.labels import compute_forward_returns
 
 
 SELECTED_FACTORS = [
-    # Momentum (4)
-    "Return_1d", "Return_5d", "Return_20d", "Reversal_60d",
+    # Momentum (3)
+    "Return_5d", "Return_20d", "Reversal_60d",
     # Volatility (5)
     "ATR", "Volatility", "Volatility_60d", "Bollinger_width", "alpha060",
     # Price position / other (6)
@@ -52,16 +52,18 @@ SELECTED_FACTORS = [
     "Turnover_3d", "Turnover_3d_ratio",
     # Intraday (1)
     "Intraday_return",
-    # Market state (4)
-    "CSI_return_1d", "CSI_return_5d", "CSI_return_20d", "CSI_volatility_20d",
-    # Cross-sectional ranks (3)
-    "Return_1d_rank", "Return_20d_rank", "Turnover_3d_rank",
+    # Market state (5)
+    "CSI_return_1d", "CSI_return_20d", "CSI_volatility_20d",
+    "HS300_return_1d", "HS300_return_20d",
+    # Cross-sectional ranks (1)
+    "Return_1d_rank",  
 ]
 
 
 # --- config ---
-TEST_START = pd.Timestamp("2024-06-01")
-TEST_END   = pd.Timestamp("2026-06-26")
+TRAIN_START = pd.Timestamp("2015-01-01")
+TEST_START = pd.Timestamp("2025-06-01")
+TEST_END   = pd.Timestamp("2026-06-01")
 WARMUP_DAYS = 100
 TRAIN_WINDOW = 252
 MIN_TRAIN = 252
@@ -70,14 +72,14 @@ HORIZONS = [1, 3, 5, 10]
 WEIGHTS = {1: 0.3, 3: 0.3, 5: 0.2, 10: 0.2}
 
 MLP_KWARGS = dict(
-    hidden_layer_sizes=(32, 16, 8),
-    dropout=0.1,
-    alpha=0.00001,
+    hidden_layer_sizes=(32, 16,8),
+    dropout=0.2,
+    alpha=0.0001,
     early_stopping=True,
-    validation_fraction=0.1,
+    validation_fraction=0.05,
     n_iter_no_change=20,
     learning_rate=0.001,
-    batch_size=16384 * 2,
+    batch_size=4096,
     random_state=42,
 )
 
@@ -94,10 +96,11 @@ def load_factors(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
 
 
 def load_kline(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
-    """Load kline data for label computation."""
-    return con.execute(
-        "SELECT code, date, close FROM daily_kline ORDER BY code, date"
-    ).fetchdf()
+    """Load kline data for label computation, filtered to current pool."""
+    pool_codes = get_pool_codes()
+    placeholders = ",".join(["?"] * len(pool_codes))
+    query = f"SELECT code, date, close FROM daily_kline WHERE code IN ({placeholders}) ORDER BY code, date"
+    return con.execute(query, pool_codes).fetchdf()
 
 
 def main():
@@ -140,7 +143,13 @@ def main():
     mask = y.notna().all(axis=1)
     X, y = X.loc[mask], y.loc[mask]
 
+    # Restrict to training window start
+    date_level = X.index.get_level_values("date")
+    mask = date_level >= TRAIN_START
+    X, y = X.loc[mask], y.loc[mask]
+
     print(f"  aligned samples: {len(X)}")
+    print(f"  date range: {date_level.min().date()} ~ {date_level.max().date()}")
 
     # ---- strategy (multi-head) ----
     strategy = MLPStrategy(

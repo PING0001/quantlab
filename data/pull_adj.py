@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-A股日线数据库 - 增量更新
+A股日线数据库 - 增量更新（按日拉版本）
 
-从 relay 拉取缺失交易日的最新数据，合并到 daily_raw。
-VIEW daily_kline 自动反映更新，无需额外操作。
+每天运行：查询最新交易日，一次 API 拉取全市场数据。
+与 build_db.py 使用相同的按日拉模式，但只拉取最近一个交易日。
 """
 from __future__ import annotations
 import logging, sys, time
@@ -15,15 +15,13 @@ import pandas as pd
 import tushare as ts
 import tushare.pro.client as client
 client.DataApi._DataApi__http_url = "http://api.quicksync.cn"
-from dotenv import load_dotenv
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import DB_PATH, load_all_pool_stocks
+from dotenv import load_dotenv
+
+from config import DB_PATH
 
 LOG_PATH = Path(__file__).parent / "pull_adj.log"
-BATCH_SIZE = 2
-REQ_INTERVAL = 0.35
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,6 +29,14 @@ logging.basicConfig(
     handlers=[logging.FileHandler(LOG_PATH, encoding="utf-8"), logging.StreamHandler(sys.stdout)],
 )
 log = logging.getLogger(__name__)
+
+BASIC_FIELDS = "ts_code,trade_date,total_mv,circ_mv,pe,pe_ttm,pb,ps,ps_ttm,dv_ratio,dv_ttm"
+BASIC_NUMERIC = ["total_mv", "circ_mv", "pe", "pe_ttm", "pb", "ps", "ps_ttm", "dv_ratio", "dv_ttm"]
+
+TRACKED_INDICES = [
+    ("000985.CSI", "000985"),   # 中证全指
+    ("000300.SH",  "000300"),   # 沪深300
+]
 
 
 def _init_pro():
@@ -51,19 +57,30 @@ def _init_pro():
 _PRO_API = None
 
 
-def batch_ts_codes(stocks, size=2):
-    for i in range(0, len(stocks), size):
-        batch = stocks[i:i+size]
-        ts_codes = ",".join(s["full_code"] for s in batch)
-        codes = [s["code"] for s in batch]
-        yield ts_codes, codes
+def _retry_api(fn, *args, max_retries=3, **kwargs):
+    for attempt in range(max_retries):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            wait = 2 * (2 ** attempt)
+            log.warning("Retry %d/%d after error: %s, waiting %ds...",
+                        attempt + 1, max_retries, e, wait)
+            time.sleep(wait)
 
 
-def fetch_daily(pro, ts_codes, start, end):
-    df = pro.daily(ts_code=ts_codes, start_date=start, end_date=end)
+def _to_code(df):
+    df["code"] = df["ts_code"].str[:6]
+    return df
+
+
+def _fetch_daily(pro, trade_date):
+    df = _retry_api(pro.daily, trade_date=trade_date,
+                    fields='ts_code,trade_date,open,high,low,close,vol,amount,pct_chg')
     if df is None or df.empty:
         return pd.DataFrame()
-    df["code"] = df["ts_code"].str.replace(r"[.](SH|SZ|BJ)$", "", regex=True)
+    _to_code(df)
     df["trade_date"] = pd.to_datetime(df["trade_date"])
     df.rename(columns={"trade_date": "date", "vol": "volume"}, inplace=True)
     for col in ["open", "high", "low", "close", "volume", "amount", "pct_chg"]:
@@ -72,21 +89,123 @@ def fetch_daily(pro, ts_codes, start, end):
     return df[["code", "date", "open", "high", "low", "close", "volume", "amount", "pct_chg"]]
 
 
-def fetch_adj_factor(pro, ts_codes, start, end):
-    df = pro.adj_factor(ts_code=ts_codes, start_date=start, end_date=end)
+def _fetch_adj_factor(pro, trade_date):
+    df = _retry_api(pro.adj_factor, trade_date=trade_date,
+                    fields='ts_code,trade_date,adj_factor')
     if df is None or df.empty:
         return pd.DataFrame()
-    df["code"] = df["ts_code"].str.replace(r"[.](SH|SZ|BJ)$", "", regex=True)
+    _to_code(df)
     df["trade_date"] = pd.to_datetime(df["trade_date"])
     df["adj_factor"] = pd.to_numeric(df["adj_factor"], errors="coerce")
     return df[["code", "trade_date", "adj_factor"]].rename(columns={"trade_date": "date"})
 
 
-def ensure_view(con):
+def _fetch_daily_basic(pro, trade_date):
+    df = _retry_api(pro.daily_basic, ts_code="", trade_date=trade_date,
+                    fields=BASIC_FIELDS)
+    if df is None or df.empty:
+        return pd.DataFrame()
+    _to_code(df)
+    df["trade_date"] = pd.to_datetime(df["trade_date"])
+    df.rename(columns={"trade_date": "date"}, inplace=True)
+    for col in BASIC_NUMERIC:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    cols = [c for c in df.columns if c != "ts_code"]
+    return df[cols]
+
+
+def _get_new_trading_days(pro, con, today_str):
+    """Find trading days after the last date in daily_raw."""
+    max_d = con.execute("SELECT MAX(date) FROM daily_raw").fetchone()[0]
+    if max_d is None:
+        log.warning("daily_raw is empty, run build_db.py first")
+        return []
+
+    max_date = pd.Timestamp(max_d)
+    start = (max_date + timedelta(days=1)).strftime("%Y%m%d")
+    if start > today_str:
+        log.info("Already up to date (latest: %s)", max_date.date())
+        return []
+
+    try:
+        df = _retry_api(pro.trade_cal, exchange='SSE',
+                        start_date=start, end_date=today_str,
+                        fields='cal_date,is_open')
+        if df is not None and not df.empty:
+            days = sorted(df[df['is_open'] == 1]['cal_date'].tolist())
+            return days
+    except Exception as e:
+        log.warning("trade_cal failed: %s", e)
+
+    return []
+
+
+def _ensure_table_schema(con):
+    """Ensure daily_basic has all required columns."""
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS daily_basic (
+            code        VARCHAR NOT NULL,
+            date        DATE    NOT NULL,
+            total_mv    DOUBLE,
+            circ_mv     DOUBLE,
+            pe          DOUBLE,
+            pe_ttm      DOUBLE,
+            pb          DOUBLE,
+            ps          DOUBLE,
+            ps_ttm      DOUBLE,
+            dv_ratio    DOUBLE,
+            dv_ttm      DOUBLE,
+            PRIMARY KEY (code, date)
+        )
+    """)
+    new_cols = [
+        ("pe", "DOUBLE"), ("pe_ttm", "DOUBLE"), ("pb", "DOUBLE"),
+        ("ps", "DOUBLE"), ("ps_ttm", "DOUBLE"), ("dv_ratio", "DOUBLE"),
+        ("dv_ttm", "DOUBLE"),
+    ]
+    existing = con.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='daily_basic'"
+    ).fetchall()
+    existing_names = {r[0] for r in existing}
+    for col_name, col_type in new_cols:
+        if col_name not in existing_names:
+            con.execute(f"ALTER TABLE daily_basic ADD COLUMN {col_name} {col_type}")
+            log.info("Added column daily_basic.%s", col_name)
+
+
+def _ensure_index_daily_table(con):
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS index_daily (
+            code    VARCHAR NOT NULL,
+            date    DATE    NOT NULL,
+            open    DOUBLE,
+            high    DOUBLE,
+            low     DOUBLE,
+            close   DOUBLE,
+            volume  DOUBLE,
+            amount  DOUBLE,
+            pct_chg DOUBLE,
+            PRIMARY KEY (code, date)
+        )
+    """)
+
+
+def _fetch_index(pro, ts_code, start, end):
+    df = pro.index_daily(ts_code=ts_code, start_date=start, end_date=end)
+    if df is None or df.empty:
+        return pd.DataFrame()
+    if "trade_date" in df.columns:
+        df = df.rename(columns={"trade_date": "date", "vol": "volume"})
+    df["date"] = pd.to_datetime(df["date"].astype(str), format="%Y%m%d").dt.date
+    return df[["date", "open", "high", "low", "close", "volume", "amount", "pct_chg"]]
+
+
+def _ensure_view(con):
     try:
         con.execute("SELECT count(*) FROM daily_kline LIMIT 1")
     except Exception:
-        log.info("daily_kline VIEW 不存在，创建中 ...")
+        log.info("daily_kline VIEW missing, creating ...")
         con.execute("DROP VIEW IF EXISTS daily_kline")
         con.execute("""
             CREATE OR REPLACE VIEW daily_kline AS
@@ -106,226 +225,97 @@ def ensure_view(con):
             FROM daily_raw r
             LEFT JOIN latest_adj l ON r.code = l.code
         """)
-        log.info("daily_kline VIEW 已创建")
-
-
-def ensure_data_gaps_table(con):
-    con.execute("""CREATE TABLE IF NOT EXISTS data_gaps (
-        code VARCHAR NOT NULL,
-        date DATE NOT NULL,
-        reason VARCHAR DEFAULT 'suspension',
-        PRIMARY KEY (code, date)
-    )""")
-
-
-def ensure_daily_basic_table(con):
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS daily_basic (
-            code        VARCHAR NOT NULL,
-            date        DATE    NOT NULL,
-            total_mv    DOUBLE,
-            circ_mv     DOUBLE,
-            PRIMARY KEY (code, date)
-        )
-    """)
-    log.info("daily_basic 表已确认")
-
-
-def fetch_daily_basic(pro, full_code):
-    """拉取单只股票的 daily_basic（total_mv, circ_mv）。
-
-    quicksync relay 的 daily_basic 不支持批量与日期过滤，逐只全量拉取。
-    """
-    df = pro.daily_basic(ts_code=full_code)
-    if df is None or df.empty:
-        return pd.DataFrame()
-    df["code"] = df["ts_code"].str.replace(r"[.](SH|SZ|BJ)$", "", regex=True)
-    df["trade_date"] = pd.to_datetime(df["trade_date"])
-    df["total_mv"] = pd.to_numeric(df["total_mv"], errors="coerce")
-    df["circ_mv"] = pd.to_numeric(df["circ_mv"], errors="coerce")
-    result = df[["code", "trade_date", "total_mv", "circ_mv"]].rename(columns={"trade_date": "date"})
-    result = result.drop_duplicates(subset=["code", "date"])
-    return result
-
-
-TRACKED_INDICES = [
-    ("000985.CSI", "000985"),  # 中证全指
-]
-
-
-def fetch_index(pro, ts_code, start, end):
-    df = pro.index_daily(ts_code=ts_code, start_date=start, end_date=end)
-    if df is None or df.empty:
-        return pd.DataFrame()
-    df = df.rename(columns={"trade_date": "date", "vol": "volume"})
-    df["date"] = pd.to_datetime(df["date"])
-    cols = ["code", "date", "open", "high", "low", "close", "volume", "amount", "pct_chg"]
-    return df[cols]
-
-
-def ensure_index_daily_table(con):
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS index_daily (
-            code    VARCHAR NOT NULL,
-            date    DATE    NOT NULL,
-            open    DOUBLE,
-            high    DOUBLE,
-            low     DOUBLE,
-            close   DOUBLE,
-            volume  DOUBLE,
-            amount  DOUBLE,
-            pct_chg DOUBLE,
-            PRIMARY KEY (code, date)
-        )
-    """)
+        log.info("daily_kline VIEW created")
 
 
 def main():
     con = duckdb.connect(str(DB_PATH))
-    ensure_data_gaps_table(con)
-    ensure_daily_basic_table(con)
-    stocks = load_all_pool_stocks()
+    con.execute("SET memory_limit = '2GB'")
+    con.execute("SET threads = 4")
+
+    _ensure_table_schema(con)
     pro = _init_pro()
 
-    today = datetime.now().date()
-    all_daily, all_adj = [], []
-    total_batches = (len(stocks) + BATCH_SIZE - 1) // BATCH_SIZE
+    today_str = datetime.now().strftime("%Y%m%d")
 
-    for batch_idx, (ts_codes, codes) in enumerate(batch_ts_codes(stocks), 1):
-        log.info("[批 %d/%d] %s ~ %s (%d只)",
-                 batch_idx, total_batches, codes[0], codes[-1], len(codes))
-
-        # 按股查最大日期，跳过已记录的缺口
-        batch_start = None
-        for code in codes:
-            max_d = con.execute(
-                "SELECT MAX(date) FROM daily_raw WHERE code=?", (code,)
-            ).fetchone()[0]
-            if max_d is None:
-                s = datetime(2015, 1, 1)
-            else:
-                s = max_d + timedelta(days=1)
-            g = con.execute(
-                "SELECT MAX(date) FROM data_gaps WHERE code=? AND date>=?", (code, s)
-            ).fetchone()[0]
-            if g is not None:
-                s = g + timedelta(days=1)
-            if s <= today:
-                if batch_start is None or s < batch_start:
-                    batch_start = s
-
-        if batch_start is None:
-            log.info("  %s 都已完整或标记为缺口，跳过", codes)
-            continue
-
-        start_str = batch_start.strftime("%Y%m%d")
-        end_str = today.strftime("%Y%m%d")
-        log.info("  拉取: %s ~ %s", start_str, end_str)
-
-        df_d = fetch_daily(pro, ts_codes, start_str, end_str)
-        if not df_d.empty:
-            all_daily.append(df_d)
-            log.info("  daily: %d 行", len(df_d))
-        time.sleep(REQ_INTERVAL)
-
-        df_a = fetch_adj_factor(pro, ts_codes, start_str, end_str)
-        if not df_a.empty:
-            all_adj.append(df_a)
-            log.info("  adj_factor: %d 行", len(df_a))
-        time.sleep(REQ_INTERVAL)
-
-        # 拉完后检查哪些日期还缺失 → 记入 data_gaps
-        for code in codes:
-            max_after = con.execute(
-                "SELECT MAX(date) FROM daily_raw WHERE code=?", (code,)
-            ).fetchone()[0]
-            if max_after is None:
-                continue
-            first_miss = max_after + timedelta(days=1)
-            if first_miss <= today:
-                dates = [(code, d, "suspension") for d in pd.date_range(first_miss, today, freq="D")]
-                if dates:
-                    con.executemany("INSERT OR IGNORE INTO data_gaps VALUES (?, ?, ?)", dates)
-                    log.info("  %s: 标记 %d 个缺口（%s ~ %s）", code, len(dates), first_miss, today)
-
-    if not all_daily:
-        log.info("无新日线数据")
+    # --- 1. Find missing trading days ---
+    new_days = _get_new_trading_days(pro, con, today_str)
+    if not new_days:
+        log.info("No new trading days to pull.")
     else:
-        daily = pd.concat(all_daily, ignore_index=True)
-        adj = pd.concat(all_adj, ignore_index=True) if all_adj else pd.DataFrame()
-        if not adj.empty:
-            daily = daily.merge(adj, on=["code", "date"], how="left")
-        else:
-            daily["adj_factor"] = None
-        if "turn" not in daily.columns:
-            daily["turn"] = None
+        log.info("New trading days: %d (%s ~ %s)", len(new_days), new_days[0],
+                 new_days[-1] if len(new_days) > 1 else new_days[0])
 
-        log.info("合并写入 daily_raw（%d 行）...", len(daily))
-        con.execute("""
-            INSERT OR REPLACE INTO daily_raw
-                (code, date, open, high, low, close, volume, amount, pct_chg, turn, adj_factor)
-            SELECT code, date, open, high, low, close,
-                   volume, amount, pct_chg, turn, adj_factor
-            FROM daily
-        """)
-        con.execute("CHECKPOINT")
+        # --- 2. Pull each new day ---
+        for idx, td in enumerate(new_days, 1):
+            log.info("[%d/%d] %s", idx, len(new_days), td)
+
+            df_d = _fetch_daily(pro, td)
+            df_a = _fetch_adj_factor(pro, td)
+            df_b = _fetch_daily_basic(pro, td)
+
+            daily_items = len(df_d) if not df_d.empty else 0
+            basic_items = len(df_b) if not df_b.empty else 0
+
+            if not df_d.empty:
+                if not df_a.empty:
+                    df_d = df_d.merge(df_a, on=["code", "date"], how="left")
+                else:
+                    df_d["adj_factor"] = None
+                df_d["turn"] = None
+                con.execute("""
+                    INSERT OR REPLACE INTO daily_raw
+                        (code, date, open, high, low, close, volume, amount, pct_chg, turn, adj_factor)
+                    SELECT code, date, open, high, low, close, volume, amount, pct_chg, turn, adj_factor
+                    FROM df_d
+                """)
+
+            if not df_b.empty:
+                bs = "code,date,total_mv,circ_mv,pe,pe_ttm,pb,ps,ps_ttm,dv_ratio,dv_ttm"
+                con.execute(f"INSERT OR REPLACE INTO daily_basic ({bs}) SELECT {bs} FROM df_b")
+
+            con.execute("CHECKPOINT")
+            log.info("  daily: %d rows  basic: %d rows", daily_items, basic_items)
+
         row_count = con.execute("SELECT count(*) FROM daily_raw").fetchone()[0]
-        log.info("完成：daily_raw 当前 %d 行", row_count)
+        log.info("Incremental complete: daily_raw now %d rows", row_count)
 
-    today_dt = datetime.now().date()
-    updated_count = 0
-    for idx, stock in enumerate(stocks, 1):
-        code = stock["code"]
-        full_code = stock["full_code"]
+    # --- 3. Rebuild view ---
+    _ensure_view(con)
 
-        max_d = con.execute(
-            "SELECT MAX(date) FROM daily_basic WHERE code=?", (code,)
-        ).fetchone()[0]
-        if max_d is not None and max_d >= today_dt:
-            continue
-
-        df = fetch_daily_basic(pro, full_code)
-        if not df.empty:
-            con.execute("DELETE FROM daily_basic WHERE code=?", (code,))
-            con.execute("INSERT INTO daily_basic SELECT * FROM df")
-            log.info("  %s: %d 行更新", code, len(df))
-            updated_count += 1
-        elif max_d is None:
-            log.warning("  %s: daily_basic 无数据", code)
-
-        if idx % 50 == 0 or idx == len(stocks):
-            log.info("  progress: %d/%d (%d updated)", idx, len(stocks), updated_count)
-        time.sleep(REQ_INTERVAL)
-
-    log.info("daily_basic 增量更新完成，%d 只股票已刷新", updated_count)
-
-    # --- 指数日线增量拉取 ---
-    ensure_index_daily_table(con)
-    today_str = today.strftime("%Y%m%d")
+    # --- 4. Index daily ---
+    _ensure_index_daily_table(con)
     for ts_code, store_code in TRACKED_INDICES:
-        max_d = con.execute(
+        max_d_idx = con.execute(
             "SELECT MAX(date) FROM index_daily WHERE code=?", (store_code,)
         ).fetchone()[0]
-        if max_d is not None and max_d >= today:
-            log.info("指数 %s 已是最新 (%s)", store_code, max_d)
-            continue
-        start_str = max_d.strftime("%Y%m%d") if max_d else "20080101"
-        log.info("拉取指数 %s: %s ~ %s", store_code, start_str, today_str)
-        df_idx = fetch_index(pro, ts_code, start_str, today_str)
+        if max_d_idx is not None:
+            max_d_idx = pd.Timestamp(max_d_idx)
+            if max_d_idx >= pd.Timestamp(datetime.now().date()):
+                log.info("Index %s up to date (%s)", store_code, max_d_idx.date())
+                continue
+            start_idx = (max_d_idx + timedelta(days=1)).strftime("%Y%m%d")
+        else:
+            start_idx = "20080101"
+
+        log.info("Pulling index %s: %s ~ %s", store_code, start_idx, today_str)
+        df_idx = _fetch_index(pro, ts_code, start_idx, today_str)
         if df_idx.empty:
-            log.info("  无新数据")
+            log.info("  no new data")
             continue
         df_idx["code"] = store_code
-        con.execute("DELETE FROM index_daily WHERE code=? AND date>=?", (store_code, pd.to_datetime(start_str).date()))
+        df_idx = df_idx[["code", "date", "open", "high", "low", "close", "volume", "amount", "pct_chg"]]
+        con.execute(
+            "DELETE FROM index_daily WHERE code=? AND date>=?",
+            (store_code, pd.to_datetime(start_idx).date())
+        )
         con.execute("INSERT INTO index_daily SELECT * FROM df_idx")
-        log.info("  插入 %d 行", len(df_idx))
-        time.sleep(REQ_INTERVAL)
+        n = con.execute("SELECT count(*) FROM index_daily WHERE code=?", (store_code,)).fetchone()[0]
+        log.info("  index_daily: %d rows", n)
 
     con.close()
+    log.info("Pull complete.")
 
 
 if __name__ == "__main__":
-    con = duckdb.connect(str(DB_PATH))
-    ensure_view(con)
-    con.close()
     main()

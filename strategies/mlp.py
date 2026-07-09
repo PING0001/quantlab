@@ -72,7 +72,7 @@ class MLPStrategy(BaseStrategy):
         dropout: float = 0.0,
         alpha: float = 0.001,
         early_stopping: bool = True,
-        validation_fraction: float = 0.1,
+        validation_fraction: float = 0.05,
         n_iter_no_change: int = 20,
         learning_rate: float = 0.001,
         max_iter: int = 500,

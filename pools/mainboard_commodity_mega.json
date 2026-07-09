@@ -1,6 +1,7 @@
 {
   "filter": "main_board + total_mv > 1000e + mining/shipping/chemical",
   "trade_date": "20260707",
+  "data_start_date": "20080101",
   "total": 24,
   "stocks": [
     {
