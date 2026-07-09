@@ -300,7 +300,7 @@ def alpha046(data):
     d20 = delay(c, 20)
     d10 = delay(c, 10)
     accel = (d20 - d10) / 10 - (d10 - c) / 10
-    return np.where(accel > 0.25, -1.0, np.where(accel < 0, 1.0, -1.0))
+    return np.where(accel > 0.25, -1.0, np.where(accel < 0, 1.0, -(c - delay(c, 1))))
 
 
 def alpha057(data):

@@ -46,8 +46,8 @@ SELECTED_FACTORS = [
     "alpha018", "alpha019", "alpha020", "alpha028", "alpha035",
     "alpha038", "alpha046", "alpha050", "alpha057",
     "alpha101", "alpha191",
-    # Market cap / amount (2)
-    "AvgAmount_90d", "LnMktCap",
+    # Market cap / amount (3)
+    "AvgAmount_90d", "LnMktCap", "LnFloatCap",
     # Turnover (2)
     "Turnover_3d", "Turnover_3d_ratio",
     # Intraday (1)
