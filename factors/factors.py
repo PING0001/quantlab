@@ -303,13 +303,6 @@ def alpha046(data):
     return np.where(accel > 0.25, -1.0, np.where(accel < 0, 1.0, -1.0))
 
 
-def alpha053(data):
-    c, h, l = data["close"], data["high"], data["low"]
-    num = 2 * c - l - h
-    den = (c - l).replace(0, np.nan)
-    return -delta(num / den, 9)
-
-
 def alpha057(data):
     c, amt, vol = data["close"], data["amount"], data["volume"]
     vwap = amt / vol.replace(0, np.nan)
@@ -434,7 +427,6 @@ FACTOR_HUB = {
     'alpha035': alpha035,
     'alpha038': alpha038,
     'alpha046': alpha046,
-    'alpha053': alpha053,
     'alpha057': alpha057,
     'Gap_pct': Gap_pct,
     'Body_pct': Body_pct,

@@ -33,7 +33,7 @@ _CURATED_FACTORS = [
     "alpha001", "alpha002", "alpha003", "alpha006", "alpha007",
     "alpha009", "alpha012", "alpha013", "alpha014", "alpha017",
     "alpha018", "alpha019", "alpha020", "alpha028", "alpha035",
-    "alpha038", "alpha046", "alpha050", "alpha053", "alpha057",
+    "alpha038", "alpha046", "alpha050", "alpha057",
     "alpha101", "alpha191",
         "LnMktCap", "LnFloatCap", "AvgAmount_90d",
         "Turnover_3d", "Turnover_3d_ratio",
