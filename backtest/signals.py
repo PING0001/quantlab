@@ -129,6 +129,7 @@ def run_portfolio(
     exit_threshold=0.0,
     auction_buffer=0.025,
     sell_markup=0.0005,
+    excluded_codes=None,
     initial_cash_per_stock=10000,
     commission=0.0003,
     risk_free_rate=0.025,
@@ -143,6 +144,8 @@ def run_portfolio(
     all_dates = sorted(set().union(*(ohlcv.index for ohlcv in ohlcv_map.values())))
     total_cash = float(max_positions * initial_cash_per_stock)
     cash = total_cash
+    if excluded_codes is None:
+        excluded_codes = set()
 
     positions = {}       # code -> {"shares", "cost", "entry_date"}
     sell_orders = {}     # code -> limit_price  (for next trading day)
@@ -341,7 +344,11 @@ def run_portfolio(
 
             candidates = today_pred[today_pred > entry_threshold]
             candidates = candidates[~candidates.index.isin(held_codes)]
-            # Also exclude codes with pending buy orders (shouldn't happen, but safe)
+            # Exclude ST/delisting stocks (name-based)
+            candidates = candidates[~candidates.index.isin(excluded_codes)]
+            # Exclude stocks that are ST on today's date
+            st_codes = {code for code in candidates.index if isst_map.get(code, 0) == 1}
+            candidates = candidates[~candidates.index.isin(st_codes)]
             candidates = candidates.sort_values(ascending=False)
 
             new_buys = {}

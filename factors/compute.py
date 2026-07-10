@@ -347,6 +347,18 @@ def _merge_st_flag(result, con):
     st_df["start_date"] = pd.to_datetime(st_df["start_date"]).dt.date
     st_df["end_date"] = pd.to_datetime(st_df["end_date"]).dt.date
 
+    # Fix NULL end_date: use next namechange start_date - 1 day per code
+    for code in st_df["code"].unique():
+        code_mask = st_df["code"] == code
+        code_rows = st_df[code_mask].sort_values("start_date")
+        null_end = code_rows["end_date"].isna()
+        if null_end.any():
+            next_starts = code_rows["start_date"].shift(-1)
+            for idx in code_rows[null_end].index:
+                next_s = next_starts[idx]
+                if pd.notna(next_s):
+                    st_df.at[idx, "end_date"] = next_s - pd.Timedelta(days=1)
+
     result = result.reset_index()
     result["date"] = pd.to_datetime(result["date"])
     result["IsST"] = 0
@@ -358,7 +370,8 @@ def _merge_st_flag(result, con):
         s = st["start_date"]
         e = st["end_date"] if pd.notna(st["end_date"]) else date_series.max()
         mask = (result["code"] == code) & (date_series >= s) & (date_series <= e)
-        result.loc[mask, "IsST"] = 1
+        if mask.any():
+            result.loc[mask, "IsST"] = 1
 
     log.info("ST flag merged: %d ST rows", result["IsST"].sum())
     return result.set_index(["date", "code"]).sort_index()

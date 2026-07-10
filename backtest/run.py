@@ -214,6 +214,22 @@ def main():
     pred_codes = sorted(preds_5d.index.get_level_values("code").unique())
     print(f"  {len(pred_codes)} stocks ...")
     ohlcv_map = load_ohlcv_map(con, pred_codes)
+
+    # Build excluded codes: stocks with "ST" or "退" in name
+    excluded_codes = set()
+    try:
+        placeholders = ",".join(["?"] * len(pred_codes))
+        name_df = con.execute(
+            f"SELECT code, name FROM stock_info WHERE code IN ({placeholders})",
+            pred_codes,
+        ).fetchdf()
+        for _, row in name_df.iterrows():
+            n = row["name"]
+            if isinstance(n, str) and ("ST" in n or "退" in n):
+                excluded_codes.add(row["code"])
+    except Exception:
+        pass
+    print(f"  Excluded (ST/退): {len(excluded_codes)} stocks")
     con.close()
 
     # ---- 4. Portfolio backtest ----
@@ -227,6 +243,7 @@ def main():
         exit_threshold=EXIT_THRESHOLD,
         auction_buffer=AUCTION_BUFFER,
         sell_markup=SELL_MARKUP,
+        excluded_codes=excluded_codes,
         initial_cash_per_stock=CASH_PER_STOCK,
         commission=COMMISSION,
         risk_free_rate=RISK_FREE_RATE,
