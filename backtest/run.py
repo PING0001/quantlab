@@ -1,17 +1,16 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
-Multi-head MLP cross-sectional ranking to event-driven backtest.
+LightGBM long-only backtest with overnight limit orders.
 
-Trains one multi-head MLP (1d/3d/5d/10d), uses the 5d predictions for
-portfolio simulation.
+Loads pre-computed LGB predictions from run_lgb.py output, then simulates
+daily entry/exit screening with call-auction + intraday execution.
 
 Run from project root:
-    python backtest/run.py
+    python -m backtest.run
 """
 from __future__ import annotations
 
 import sys
-import json
 from pathlib import Path
 import warnings
 
@@ -22,9 +21,9 @@ import pandas as pd
 # -- project root --
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import DB_PATH, POOL_NAME, get_pool_codes, get_predictions_path, get_predictions_meta_path, get_backtest_dir
+from config import DB_PATH, POOL_NAME, get_pool_codes, get_lgb_predictions_path, get_backtest_dir
 
-from strategies import MLPStrategy, walk_forward, rank_ic, ic_summary
+from strategies import rank_ic, ic_summary
 from strategies.labels import compute_forward_returns
 from backtest.signals import run_portfolio, compute_benchmark
 
@@ -32,22 +31,23 @@ from backtest.signals import run_portfolio, compute_benchmark
 # CONFIG
 # ============================================================================
 TEST_START = pd.Timestamp("2025-06-01")
-TEST_END = pd.Timestamp("2026-06-01")
-WARMUP_DAYS = 100
-TRAIN_WINDOW = 252
-MIN_TRAIN = 252
 
 HORIZONS = [3, 5, 10, 20]
 FORWARD_HORIZON = 5  # column used for portfolio simulation
 
-TOP_K = 3
-REBAL_INTERVAL = 5
+# ---- Backtest execution params ----
+MAX_POSITIONS = 10
+ENTRY_THRESHOLD = 0.01
+EXIT_THRESHOLD = -0.01
+AUCTION_BUFFER = 0.01
+SELL_MARKUP = 0.0005
 CASH_PER_STOCK = 10000
-COMMISSION = 0.0003
-RISK_FREE_RATE = 0.025  # 1-year China government bond yield
+COMMISSION = 0.0006  # 0.06% per side = 0.12% round-trip
+RISK_FREE_RATE = 0.025
+
 SELECTED_FACTORS = [
-    # Momentum (4)
-    "Return_1d", "Return_5d", "Return_20d", "Reversal_60d",
+    # Momentum (3)
+    "Return_5d", "Return_20d", "Reversal_60d",
     # Volatility (5)
     "ATR", "Volatility", "Volatility_60d", "Bollinger_width", "alpha060",
     # Price position / other (6)
@@ -57,10 +57,25 @@ SELECTED_FACTORS = [
     "Gap_pct", "Body_pct", "Intraday_range_pct",
     # Volume / liquidity (2)
     "Volume_ratio", "Amihud_illiquidity",
-    # Alpha composite (13)
-    "alpha001", "alpha002", "alpha003", "alpha006", "alpha009",
-    "alpha012", "alpha013", "alpha014", "alpha019", "alpha020",
-    "alpha050", "alpha101", "alpha191",
+    # Alpha composite (22)
+    "alpha001", "alpha002", "alpha003", "alpha006", "alpha007",
+    "alpha009", "alpha012", "alpha013", "alpha014", "alpha017",
+    "alpha018", "alpha019", "alpha020", "alpha028", "alpha035",
+    "alpha038", "alpha046", "alpha050", "alpha057",
+    "alpha101", "alpha191",
+    # Market cap / amount (3)
+    "AvgAmount_90d", "LnMktCap", "LnFloatCap",
+    # Turnover (2)
+    "Turnover_3d", "Turnover_3d_ratio",
+    # Intraday (1)
+    "Intraday_return",
+    # Market state (5)
+    "CSI_return_1d", "CSI_return_20d", "CSI_volatility_20d",
+    "HS300_return_1d", "HS300_return_20d",
+    # Cross-sectional ranks (3)
+    "Return_1d_rank", "Return_20d_rank", "Turnover_3d_rank",
+    # ST status (1)
+    "IsST",
 ]
 
 warnings.filterwarnings("ignore")
@@ -95,18 +110,35 @@ def load_labels(con: duckdb.DuckDBPyConnection, codes: list[str]) -> pd.DataFram
 
 
 def load_ohlcv_map(con: duckdb.DuckDBPyConnection, codes: list[str]) -> dict[str, pd.DataFrame]:
-    """Load OHLCV data for specified codes.
+    """Load OHLCV data + IsST flag for specified codes.
 
-    Returns {code: DataFrame} with DatetimeIndex and columns Open/High/Low/Close/Volume.
+    Returns {code: DataFrame} with DatetimeIndex and columns
+    Open/High/Low/Close/Volume/Pct_chg/IsST.
     """
     placeholders = ",".join(["?"] * len(codes))
+
     df = con.execute(
-        f"SELECT code, date, open, high, low, close, volume "
+        f"SELECT code, date, open, high, low, close, volume, pct_chg "
         f"FROM daily_kline WHERE code IN ({placeholders}) "
         f"ORDER BY code, date",
         codes,
     ).fetchdf()
     df["date"] = pd.to_datetime(df["date"])
+
+    # Merge IsST from factor_values
+    try:
+        isst = con.execute(
+            f"SELECT code, date, IsST FROM factor_values WHERE code IN ({placeholders})",
+            codes,
+        ).fetchdf()
+        if not isst.empty:
+            isst["date"] = pd.to_datetime(isst["date"])
+            df = df.merge(isst, on=["code", "date"], how="left")
+        else:
+            df["IsST"] = 0
+    except Exception:
+        df["IsST"] = 0
+    df["IsST"] = df["IsST"].fillna(0).astype(int)
 
     ohlcv_map: dict[str, pd.DataFrame] = {}
     for code, grp in df.groupby("code"):
@@ -114,101 +146,28 @@ def load_ohlcv_map(con: duckdb.DuckDBPyConnection, codes: list[str]) -> dict[str
         grp = grp.rename(columns={
             "open": "Open", "high": "High", "low": "Low",
             "close": "Close", "volume": "Volume",
+            "pct_chg": "Pct_chg",
         })
-        ohlcv_map[code] = grp[["Open", "High", "Low", "Close", "Volume"]]
+        grp["IsST"] = grp.get("IsST", 0)
+        ohlcv_map[code] = grp[["Open", "High", "Low", "Close", "Volume", "Pct_chg", "IsST"]]
 
     return ohlcv_map
 
 
-def load_or_train_predictions(factors: pd.DataFrame, labels: pd.DataFrame,
-                              factor_cols: list[str]) -> pd.DataFrame:
-    """Load cached multi-head predictions if valid; otherwise train and cache.
-
-    Returns a DataFrame with columns pred_1d, pred_3d, pred_5d, pred_10d
-    indexed by (date, code).
-    """
-    pred_path = get_predictions_path()
-    pred_meta_path = get_predictions_meta_path()
-    if pred_path.exists() and pred_meta_path.exists():
-        try:
-            cached_meta = json.loads(pred_meta_path.read_text(encoding="utf-8"))
-            cached_factors = set(cached_meta.get("factor_names", []))
-            cached_start = cached_meta.get("test_start")
-            cached_end = cached_meta.get("test_end")
-            cached_horizons = cached_meta.get("horizons", [1, 3, 5, 10])
-            current_factors = set(factor_cols)
-            if (cached_factors == current_factors and
-                cached_start == str(TEST_START.date()) and
-                cached_end == str(TEST_END.date()) and
-                cached_horizons == HORIZONS):
-                pred_df = pd.read_parquet(pred_path)
-                print("  [CACHE HIT] Loaded predictions from cache.")
-                return pred_df
-            else:
-                print("  [CACHE STALE] Metadata mismatch, retraining ...")
-        except Exception as e:
-            print(f"  [CACHE ERROR] {e}, retraining ...")
-
-    print("  [TRAINING] Walk-forward multi-head MLP predictions ...")
-    print(f"  Horizons: {HORIZONS}")
-    print(f"  Test period: {TEST_START.date()} ~ {TEST_END.date()}")
-
-    strategy = MLPStrategy(
-        factor_names=factor_cols,
-        horizons=tuple(HORIZONS),
-        hidden_layer_sizes=(25, 12),
-        alpha=0.001,
-        early_stopping=True,
-        validation_fraction=0.05,
-        n_iter_no_change=20,
-        learning_rate=0.001,
-        random_state=42,
-    )
-
-    pred_df = walk_forward(
-        strategy, factors, labels,
-        train_window=TRAIN_WINDOW,
-        min_train=MIN_TRAIN,
-        warmup_days=WARMUP_DAYS,
-        test_start=TEST_START,
-        test_end=TEST_END,
-    )
-
-    if isinstance(pred_df, pd.DataFrame) and len(pred_df) > 0:
-        import datetime as dt
-        pred_path.parent.mkdir(parents=True, exist_ok=True)
-        pred_df.to_parquet(pred_path)
-        meta = {
-            "factor_names": factor_cols,
-            "horizons": HORIZONS,
-            "test_start": str(TEST_START.date()),
-            "test_end": str(TEST_END.date()),
-            "hidden_layer_sizes": [25, 12],
-            "generated_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        }
-        pred_meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
-        print(f"  Predictions cached to {pred_path}")
-
-    return pred_df
-
-
-# ============================================================================
-# Main
-# ============================================================================
-
 def main():
     print("=" * 60)
-    print("  Multi-Head MLP Event-Driven Backtest")
+    print("  LightGBM Long-Only Backtest")
+    print(f"  Pool: {POOL_NAME}")
     print("=" * 60)
 
-    # ---- 1. Load ----
+    # ---- 1. Load factors + labels (for IC reference) ----
     print("\n[1/5] Loading data ...")
     con = duckdb.connect(str(DB_PATH), read_only=True)
 
     print("  Loading factors ...")
     factors = load_factors(con)
 
-    print("  Computing labels (all horizons) ...")
+    print("  Computing labels ...")
     pool_codes = get_pool_codes()
     labels = load_labels(con, pool_codes)
 
@@ -218,27 +177,23 @@ def main():
     mask = labels.notna().all(axis=1)
     factors, labels = factors.loc[mask], labels.loc[mask]
 
-    # Restrict to curated factors
     available = [f for f in SELECTED_FACTORS if f in factors.columns]
-    missing = [f for f in SELECTED_FACTORS if f not in factors.columns]
-    if missing:
-        print(f"  WARNING: {len(missing)} selected factors missing: {missing}")
     factor_cols = available
     factors = factors[factor_cols]
     print(f"  Factors: {len(factor_cols)}, Samples: {len(factors)}")
     print(f"  Date range: {factors.index.get_level_values('date').min().date()}"
           f" ~ {factors.index.get_level_values('date').max().date()}")
 
-    # ---- 2. Multi-head MLP predictions (cache-aware) ----
-    print(f"\n[2/5] MLP predictions ...")
-    pred_df = load_or_train_predictions(factors, labels, factor_cols)
-
-    if not isinstance(pred_df, pd.DataFrame) or len(pred_df) == 0:
-        print("  ERROR: No predictions generated. Check data and parameters.")
+    # ---- 2. Load pre-computed LGB predictions ----
+    print(f"\n[2/5] Loading LGB predictions ...")
+    pred_path = get_lgb_predictions_path()
+    if not pred_path.exists():
+        print(f"  ERROR: Predictions not found at {pred_path}")
+        print("  Run: python run_lgb.py")
         con.close()
         return
 
-    # Extract the 5d column for portfolio simulation
+    pred_df = pd.read_parquet(pred_path)
     preds_5d = pred_df["pred_5d"]
 
     n_preds = len(preds_5d)
@@ -246,9 +201,10 @@ def main():
     n_codes = preds_5d.index.get_level_values("code").nunique()
     print(f"  Predictions (5d): {n_preds} rows, {n_dates} dates, {n_codes} stocks")
 
-    # IC on the 5d horizon
+    # IC reference
     labels_5d = labels[FORWARD_HORIZON]
-    ric = rank_ic(preds_5d, labels_5d)
+    common = preds_5d.index.intersection(labels_5d.index)
+    ric = rank_ic(preds_5d.loc[common], labels_5d.loc[common])
     ic_s = ic_summary(ric)
     print(f"  Rank IC (5d): mean={ic_s['mean_ic']:.4f}, IR={ic_s['ir']:.2f}, "
           f"hit_rate={ic_s['hit_rate']:.2%}")
@@ -260,25 +216,26 @@ def main():
     ohlcv_map = load_ohlcv_map(con, pred_codes)
     con.close()
 
-    # ---- 4. Portfolio backtest (long-short) ----
-    print(f"\n[4/5] Running long-short portfolio backtest (top-{TOP_K}, rebal={REBAL_INTERVAL}d) ...")
+    # ---- 4. Portfolio backtest ----
+    print(f"\n[4/5] Running long-only backtest "
+          f"(max_pos={MAX_POSITIONS}, entry>{ENTRY_THRESHOLD}, exit<{EXIT_THRESHOLD}) ...")
     port_stats, equity_df, trade_df = run_portfolio(
         preds_5d, ohlcv_map,
         test_start=str(TEST_START.date()),
-        top_k=TOP_K,
-        rebal_interval=REBAL_INTERVAL,
-        initial_cash_per_side=CASH_PER_STOCK,
+        max_positions=MAX_POSITIONS,
+        entry_threshold=ENTRY_THRESHOLD,
+        exit_threshold=EXIT_THRESHOLD,
+        auction_buffer=AUCTION_BUFFER,
+        sell_markup=SELL_MARKUP,
+        initial_cash_per_stock=CASH_PER_STOCK,
         commission=COMMISSION,
         risk_free_rate=RISK_FREE_RATE,
-        gap_filter=0.015,
     )
 
     n_trades = len(trade_df)
     n_buys = int((trade_df["action"] == "BUY").sum()) if n_trades > 0 else 0
     n_sells = int((trade_df["action"] == "SELL").sum()) if n_trades > 0 else 0
-    n_shorts = int((trade_df["action"] == "SHORT").sum()) if n_trades > 0 else 0
-    n_covers = int((trade_df["action"] == "COVER").sum()) if n_trades > 0 else 0
-    print(f"  Trades: {n_trades} total (BUY={n_buys}, SELL={n_sells}, SHORT={n_shorts}, COVER={n_covers})")
+    print(f"  Trades: {n_trades} total (BUY={n_buys}, SELL={n_sells})")
 
     test_dates = sorted(preds_5d.index.get_level_values("date").unique())
     bench_df = compute_benchmark(ohlcv_map, test_dates)

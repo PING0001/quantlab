@@ -226,13 +226,20 @@ def main():
             safe = ~limit_mask.reindex(preds.index, fill_value=False)
             n_limit = (~safe).sum()
 
+            if st_series is not None:
+                st_mask = st_series.reindex(preds.index, fill_value=False)
+                safe = safe & ~st_mask
+                n_st = st_mask.sum()
+            else:
+                n_st = 0
+
             ric_test = rank_ic(test_pred.loc[safe], test_y.loc[safe])
             pic_test = pearson_ic(test_pred.loc[safe], test_y.loc[safe])
             s_test = ic_summary(ric_test)
             p_test = ic_summary(pic_test)
             print(f"  test-set  Rank IC: mean_ic={s_test['mean_ic']:.4f}, ir={s_test['ir']:.3f}, hit_rate={s_test['hit_rate']:.2%}, {s_test['n_periods']} dates")
             print(f"  test-set Pearson IC: mean_ic={p_test['mean_ic']:.4f}, ir={p_test['ir']:.3f}, hit_rate={p_test['hit_rate']:.2%}, {p_test['n_periods']} dates")
-            print(f"  test-set  limit-hit excluded: {n_limit} observations")
+            print(f"  test-set  excluded: {n_limit} limit-hit + {n_st} ST = {n_limit + n_st} observations")
             print(f"  IC gap (train - test): {s_train['mean_ic'] - s_test['mean_ic']:.4f}")
         else:
             s_test = {"n_periods": 0}

@@ -85,6 +85,11 @@ def get_predictions_meta_path(name: str = None) -> Path:
     return ROOT / "data" / f"predictions__{p}_meta.json"
 
 
+def get_lgb_predictions_path(name: str = None) -> Path:
+    p = name or POOL_NAME
+    return ROOT / "data" / f"predictions__{p}_lgb.parquet"
+
+
 # ---- Backtest output ----
 def get_backtest_dir(name: str = None) -> Path:
     return ROOT / "backtest" / (name or POOL_NAME)

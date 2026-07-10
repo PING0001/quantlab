@@ -1,5 +1,28 @@
 # -*- coding: utf-8 -*-
-"""Portfolio-level long-short backtest with next-day open execution."""
+"""Daily single-entry long-only backtest with call auction + intraday execution.
+
+T+1 constraint: stocks bought today cannot be sold tomorrow.
+
+Entry (buy):
+  trigger   pred_5d > entry_threshold
+  limit     prev_close * (1 + pred - auction_buffer)
+  fill      open <= limit -> fill at open (call auction)
+            low  <= limit -> fill at limit (intraday pullback)
+            frozen-up    -> skip (sealed limit-up)
+
+Exit (sell):
+  trigger   pred_5d < exit_threshold (all held stocks, except T+1 locked)
+  limit     prev_close * (1 + pred + sell_markup)
+  fill      open >= limit -> fill at open (call auction)
+            high >= limit -> fill at limit (intraday spike)
+            frozen-down   -> defer to next day
+            otherwise      -> defer to next day
+  cancel    deferred sell cancelled if pred recovers >= exit_threshold
+
+Price limits:
+  regular   +/-10%
+  ST        +/-5%   (from factor_values.IsST)
+"""
 from __future__ import annotations
 
 import numpy as np
@@ -8,17 +31,50 @@ import pandas as pd
 LOT_SIZE = 100
 
 
-def _is_gap_up(open_price, prev_close, gap_filter=0.015):
-    if pd.isna(open_price) or pd.isna(prev_close) or prev_close <= 0:
-        return True
-    return open_price > prev_close * (1.0 + gap_filter)
+# ============================================================================
+# Price limit helpers
+# ============================================================================
+
+def _limit_pct(is_st) -> float:
+    """Daily price limit ratio."""
+    if isinstance(is_st, (np.floating, float)):
+        is_st = float(is_st)
+    return 0.05 if is_st else 0.10
 
 
-def _is_gap_down(open_price, prev_close, gap_filter=0.015):
-    if pd.isna(open_price) or pd.isna(prev_close) or prev_close <= 0:
-        return True
-    return open_price < prev_close * (1.0 - gap_filter)
+def _limit_up(prev_close, is_st) -> float:
+    return prev_close * (1.0 + _limit_pct(is_st))
 
+
+def _limit_down(prev_close, is_st) -> float:
+    return prev_close * (1.0 - _limit_pct(is_st))
+
+
+def _is_frozen_up(low, limit_up_price) -> bool:
+    return low >= limit_up_price
+
+
+def _is_frozen_down(high, limit_down_price) -> bool:
+    return high <= limit_down_price
+
+
+# ============================================================================
+# Limit price formulas
+# ============================================================================
+
+def _buy_limit(prev_close, pred_score: float, auction_buffer: float = 0.025) -> float:
+    """Overnight buy limit: prev_close * (1 + pred - buffer)."""
+    return prev_close * (1.0 + pred_score - auction_buffer)
+
+
+def _sell_limit(prev_close, pred_score: float, sell_markup: float = 0.0005) -> float:
+    """Overnight sell limit: prev_close * (1 + pred + markup)."""
+    return prev_close * (1.0 + pred_score + sell_markup)
+
+
+# ============================================================================
+# Stats
+# ============================================================================
 
 def _compute_stats(equity_series, risk_free_rate=0.025):
     daily_ret = equity_series.pct_change().dropna()
@@ -60,158 +116,254 @@ def _compute_stats(equity_series, risk_free_rate=0.025):
     return stats, equity_df
 
 
-def run_portfolio(predictions, ohlcv_map, test_start=None, top_k=3, rebal_interval=5,
-                  risk_free_rate=0.025,
-                  initial_cash_per_side=10000, commission=0.0003,
-                  gap_filter=0.015):
-    """Long-short portfolio backtest with next-day open execution.
+# ============================================================================
+# Main backtest loop
+# ============================================================================
 
-    Each rebalancing day:
-      1. Take top_k longs and bottom_k shorts by MLP score.
-      2. Execute at the *next* trading day open price.
-      3. Long entry filtered if open gaps up > gap_filter.
-      4. Short entry filtered if open gaps down > gap_filter.
-      5. Exit always executes at open (no filter).
+def run_portfolio(
+    predictions,
+    ohlcv_map,
+    test_start=None,
+    max_positions=10,
+    entry_threshold=0.03,
+    exit_threshold=0.0,
+    auction_buffer=0.025,
+    sell_markup=0.0005,
+    initial_cash_per_stock=10000,
+    commission=0.0003,
+    risk_free_rate=0.025,
+):
+    """Long-only backtest with overnight limit orders and call auction execution.
 
-    Returns (stats_dict, equity_df, trade_df).
+    predictions : pd.Series, MultiIndex (date, code), values = pred_5d scores
+    ohlcv_map   : {code: DataFrame}, columns must include
+                  Open, High, Low, Close, Volume, IsST
     """
     # ---- trading calendar ----
     all_dates = sorted(set().union(*(ohlcv.index for ohlcv in ohlcv_map.values())))
-
-    # ---- rebalancing schedule ----
-    pred_dates = sorted(predictions.index.get_level_values("date").unique())
-    rebal_dates = pred_dates[::rebal_interval]
-
-    rebal_plan = {}  # {exec_date: {"L": [...], "S": [...]}}
-    for reb in rebal_dates:
-        try:
-            pred = predictions.xs(reb, level="date")
-        except KeyError:
-            continue
-        pred = pred.dropna().sort_values()
-        if len(pred) < top_k * 2:
-            continue
-        # next trading day
-        try:
-            idx = all_dates.index(reb)
-            exec_date = all_dates[idx + 1]
-        except (ValueError, IndexError):
-            continue
-        rebal_plan[exec_date] = {
-            "L": list(pred.nlargest(top_k).index),
-            "S": list(pred.nsmallest(top_k).index),
-        }
-
-    # ---- portfolio state ----
-    total_cash = float(top_k * initial_cash_per_side * 2)
+    total_cash = float(max_positions * initial_cash_per_stock)
     cash = total_cash
-    positions = {}  # {code: {"side": "L"|"S", "shares": int, "cost": float}}
 
-    nav_records = []  # [(date, nav)]
-    trades = []       # [{date, code, action, price, shares}]
+    positions = {}       # code -> {"shares", "cost", "entry_date"}
+    sell_orders = {}     # code -> limit_price  (for next trading day)
+    buy_orders = {}      # code -> limit_price  (for next trading day)
+    buy_lock = set()     # codes bought today (T+1 sell prohibition)
 
-    for date in all_dates:
-        # -- open snapshot --
+    nav_records = []
+    trades = []
+
+    n_dates = len(all_dates)
+
+    for i, date in enumerate(all_dates):
+        # --- open / high / low snapshot ---
         open_map = {}
+        high_map = {}
+        low_map = {}
+        close_map = {}
+        isst_map = {}
         for code, ohlcv in ohlcv_map.items():
             if date in ohlcv.index:
-                px = float(ohlcv.loc[date, "Open"])
-                if not pd.isna(px) and px > 0:
-                    open_map[code] = px
+                row = ohlcv.loc[date]
+                op = float(row["Open"])
+                hi = float(row["High"])
+                lo = float(row["Low"])
+                cl = float(row["Close"])
+                st = int(row.get("IsST", 0)) if "IsST" in row else 0
+                if not pd.isna(op) and op > 0:
+                    open_map[code] = op
+                    high_map[code] = hi
+                    low_map[code] = lo
+                    close_map[code] = cl
+                    isst_map[code] = st
 
-        # -- execute rebal -- #
-        if date in rebal_plan:
-            plan = rebal_plan[date]
+        # ---- helper: get prev_close for a code on this date ----
+        def _prev_close(code):
+            ohlcv = ohlcv_map[code]
+            idx = ohlcv.index.get_loc(date)
+            if idx == 0:
+                return None
+            return float(ohlcv.iloc[idx - 1]["Close"])
 
-            # 1. close all existing positions
-            for code, pos in list(positions.items()):
-                px = open_map.get(code)
-                if px is None:
-                    continue
-                if pos["side"] == "L":
-                    cash += pos["shares"] * px * (1.0 - commission)
-                    trades.append({"date": date, "code": code, "action": "SELL",
-                                   "price": px, "shares": pos["shares"]})
-                else:  # short
-                    cash -= pos["shares"] * px * (1.0 + commission)
-                    trades.append({"date": date, "code": code, "action": "COVER",
-                                   "price": px, "shares": pos["shares"]})
-                del positions[code]
+        # ====================================================================
+        # Phase 1: Execute sell orders (placed last evening)
+        # ====================================================================
+        deferred_sells = set()
+        for code, limit_price in list(sell_orders.items()):
+            ohlcv = ohlcv_map.get(code)
+            if ohlcv is None or date not in ohlcv.index:
+                deferred_sells.add(code)
+                continue
 
-            # 2. filter new entries by gap
-            valid_longs = []
-            for code in plan["L"]:
-                px = open_map.get(code)
-                if px is None:
-                    continue
-                ohlcv = ohlcv_map[code]
-                idx_pos = ohlcv.index.get_loc(date)
-                if idx_pos == 0:
-                    continue
-                prev_close = float(ohlcv.iloc[idx_pos - 1]["Close"])
-                if _is_gap_up(px, prev_close, gap_filter):
-                    continue
-                valid_longs.append((code, px))
+            op = open_map.get(code)
+            hi = high_map.get(code)
+            if op is None:
+                deferred_sells.add(code)
+                continue
 
-            valid_shorts = []
-            for code in plan["S"]:
-                px = open_map.get(code)
-                if px is None:
-                    continue
-                ohlcv = ohlcv_map[code]
-                idx_pos = ohlcv.index.get_loc(date)
-                if idx_pos == 0:
-                    continue
-                prev_close = float(ohlcv.iloc[idx_pos - 1]["Close"])
-                if _is_gap_down(px, prev_close, gap_filter):
-                    continue
-                valid_shorts.append((code, px))
+            prev_cl = _prev_close(code)
+            if prev_cl is None or prev_cl <= 0:
+                deferred_sells.add(code)
+                continue
 
-            n_slots = len(valid_longs) + len(valid_shorts)
-            if n_slots > 0:
-                cash_per_slot = cash / n_slots
+            is_st = isst_map.get(code, 0)
+            limit_dn = _limit_down(prev_cl, is_st)
 
-                for code, px in valid_longs:
-                    cost_unit = px * (1.0 + commission)
-                    shares = int(cash_per_slot / cost_unit / LOT_SIZE) * LOT_SIZE
-                    if shares < LOT_SIZE:
-                        continue
-                    cost = shares * cost_unit
-                    if cost > cash:
-                        continue
-                    cash -= cost
-                    positions[code] = {"side": "L", "shares": shares, "cost": px}
-                    trades.append({"date": date, "code": code, "action": "BUY",
-                                   "price": px, "shares": shares})
+            # sealed limit-down -> defer
+            if _is_frozen_down(hi, limit_dn):
+                deferred_sells.add(code)
+                continue
 
-                # re-spread remaining cash after longs consumed
-                remaining_slots = len(valid_shorts)
-                if remaining_slots > 0:
-                    cash_per_short = cash / remaining_slots
-                    for code, px in valid_shorts:
-                        cost_unit = px * (1.0 + commission)
-                        shares = int(cash_per_short / cost_unit / LOT_SIZE) * LOT_SIZE
-                        if shares < LOT_SIZE:
-                            continue
-                        credit = shares * px * (1.0 - commission)
-                        cash += credit
-                        positions[code] = {"side": "S", "shares": shares, "cost": px}
-                        trades.append({"date": date, "code": code, "action": "SHORT",
-                                       "price": px, "shares": shares})
+            # auction fill
+            if op >= limit_price:
+                fill_px = op
+            elif hi >= limit_price:
+                fill_px = limit_price
+            else:
+                deferred_sells.add(code)
+                continue
 
-        # -- NAV at close -- #
-        nav = cash
-        for code, pos in positions.items():
+            # execute sell
+            pos = positions.get(code)
+            if pos is None:
+                continue
+
+            shares = pos["shares"]
+            cash += shares * fill_px * (1.0 - commission)
+            trades.append({"date": date, "code": code, "action": "SELL",
+                           "price": fill_px, "shares": shares})
+            del positions[code]
+
+        # remove executed sells from order book
+        remaining = {}
+        for code, limit_price in sell_orders.items():
+            if code in deferred_sells:
+                remaining[code] = limit_price
+        sell_orders = remaining
+
+        # ====================================================================
+        # Phase 2: Execute buy orders (placed last evening)
+        # ====================================================================
+        n_buy_orders = len(buy_orders)
+        buy_slots_remaining = max_positions - len(positions)
+
+        for code, limit_price in list(buy_orders.items()):
             ohlcv = ohlcv_map.get(code)
             if ohlcv is None or date not in ohlcv.index:
                 continue
-            close_px = float(ohlcv.loc[date, "Close"])
-            if pd.isna(close_px):
+
+            op = open_map.get(code)
+            lo = low_map.get(code)
+            if op is None:
                 continue
-            if pos["side"] == "L":
-                nav += pos["shares"] * close_px
+
+            prev_cl = _prev_close(code)
+            if prev_cl is None or prev_cl <= 0:
+                continue
+
+            is_st = isst_map.get(code, 0)
+            limit_up_px = _limit_up(prev_cl, is_st)
+
+            # sealed limit-up -> skip
+            if _is_frozen_up(lo, limit_up_px):
+                continue
+
+            # auction fill
+            if op <= limit_price:
+                fill_px = op
+            elif lo <= limit_price:
+                fill_px = limit_price
             else:
-                nav -= pos["shares"] * close_px
+                continue
+
+            # execute buy: target initial_cash_per_stock per position
+            cost_unit = fill_px * (1.0 + commission)
+            target_cost = min(initial_cash_per_stock, cash / max(1, buy_slots_remaining))
+            shares = int(target_cost / cost_unit / LOT_SIZE) * LOT_SIZE
+            if shares < LOT_SIZE:
+                continue
+
+            cost = shares * cost_unit
+            if cost > cash:
+                continue
+
+            cash -= cost
+            positions[code] = {"shares": shares, "cost": fill_px, "entry_date": date}
+            trades.append({"date": date, "code": code, "action": "BUY",
+                           "price": fill_px, "shares": shares})
+            buy_slots_remaining -= 1
+
+        buy_orders.clear()
+
+        # Track stocks bought today (T+1 sell prohibition)
+        buy_lock = {code for code, pos in positions.items() if pos["entry_date"] == date}
+
+        # ====================================================================
+        # Phase 3: Evening — generate orders for tomorrow
+        # ====================================================================
+        next_date = all_dates[i + 1] if i + 1 < n_dates else None
+
+        if next_date is not None and date in predictions.index.get_level_values("date"):
+            try:
+                today_pred = predictions.xs(date, level="date")
+            except KeyError:
+                today_pred = pd.Series(dtype=float)
+
+            # --- 3a. Recalculate / cancel deferred sells ---
+            new_sells = {}
+            for code in list(sell_orders.keys()):
+                pred_val = today_pred.get(code)
+                if pred_val is None or pd.isna(pred_val) or pred_val >= exit_threshold:
+                    continue
+                if code not in positions:
+                    continue
+                prev_cl = close_map.get(code)
+                if prev_cl is None or prev_cl <= 0:
+                    continue
+                new_sells[code] = _sell_limit(prev_cl, float(pred_val), sell_markup)
+
+            # --- 3b. New sell candidates from positions ---
+            for code, pos in positions.items():
+                if code in new_sells:
+                    continue
+                if code in buy_lock:
+                    continue
+                pred_val = today_pred.get(code)
+                if pred_val is None or pd.isna(pred_val) or pred_val >= exit_threshold:
+                    continue
+                prev_cl = close_map.get(code)
+                if prev_cl is None or prev_cl <= 0:
+                    continue
+                new_sells[code] = _sell_limit(prev_cl, float(pred_val), sell_markup)
+
+            # --- 3c. Buy candidates ---
+            effective_slots = max_positions - len(positions) + len(new_sells)
+            held_codes = set(positions.keys())
+
+            candidates = today_pred[today_pred > entry_threshold]
+            candidates = candidates[~candidates.index.isin(held_codes)]
+            # Also exclude codes with pending buy orders (shouldn't happen, but safe)
+            candidates = candidates.sort_values(ascending=False)
+
+            new_buys = {}
+            for code in candidates.head(effective_slots).index:
+                prev_cl = close_map.get(code)
+                if prev_cl is None or prev_cl <= 0:
+                    continue
+                pred_val = float(today_pred[code])
+                new_buys[code] = _buy_limit(prev_cl, pred_val, auction_buffer)
+
+            sell_orders = new_sells
+            buy_orders = new_buys
+
+        # ====================================================================
+        # Phase 4: NAV at close
+        # ====================================================================
+        nav = cash
+        for code, pos in positions.items():
+            cl = close_map.get(code)
+            if cl is None:
+                continue
+            nav += pos["shares"] * cl
 
         nav_records.append((date, nav))
 
@@ -227,7 +379,9 @@ def run_portfolio(predictions, ohlcv_map, test_start=None, top_k=3, rebal_interv
         nav_series = nav_series[nav_series.index >= pd.Timestamp(test_start)]
 
     stats, equity_df = _compute_stats(nav_series, risk_free_rate=risk_free_rate)
-    trade_df = pd.DataFrame(trades) if trades else pd.DataFrame(columns=["date", "code", "action", "price", "shares"])
+    trade_df = pd.DataFrame(trades) if trades else pd.DataFrame(
+        columns=["date", "code", "action", "price", "shares"])
+    stats["n_trades"] = len(trades)
     return stats, equity_df, trade_df
 
 
