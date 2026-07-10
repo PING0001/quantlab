@@ -337,6 +337,9 @@ def _merge_st_flag(result, con):
             FROM namechange
             WHERE change_reason IN ('ST', '*ST')
         """).fetchdf()
+        all_nc = con.execute("""
+            SELECT code, start_date FROM namechange ORDER BY code, start_date
+        """).fetchdf()
     except Exception:
         return result
 
@@ -348,16 +351,19 @@ def _merge_st_flag(result, con):
     st_df["end_date"] = pd.to_datetime(st_df["end_date"]).dt.date
 
     # Fix NULL end_date: use next namechange start_date - 1 day per code
+    all_nc["start_date"] = pd.to_datetime(all_nc["start_date"]).dt.date
     for code in st_df["code"].unique():
         code_mask = st_df["code"] == code
         code_rows = st_df[code_mask].sort_values("start_date")
         null_end = code_rows["end_date"].isna()
         if null_end.any():
-            next_starts = code_rows["start_date"].shift(-1)
+            # Find next start_date from ALL namechange records for this code
+            code_nc = all_nc[all_nc["code"] == code].sort_values("start_date")
             for idx in code_rows[null_end].index:
-                next_s = next_starts[idx]
-                if pd.notna(next_s):
-                    st_df.at[idx, "end_date"] = next_s - pd.Timedelta(days=1)
+                st_start = st_df.at[idx, "start_date"]
+                next_rows = code_nc[code_nc["start_date"] > st_start]
+                if not next_rows.empty:
+                    st_df.at[idx, "end_date"] = next_rows["start_date"].iloc[0] - pd.Timedelta(days=1)
 
     result = result.reset_index()
     result["date"] = pd.to_datetime(result["date"])
