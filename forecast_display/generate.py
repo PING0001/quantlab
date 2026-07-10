@@ -28,8 +28,8 @@ from strategies import MLPStrategy
 from config import DB_PATH, POOL_NAME, get_pool_codes, get_model_path, get_forecast_dir
 
 MODEL_PATH = get_model_path()
-WEIGHTS = {1: 0.15, 3: 0.25, 5: 0.35, 10: 0.25}
-HORIZONS = [1, 3, 5, 10]
+WEIGHTS = {3: 0.25, 5: 0.35, 10: 0.25, 20: 0.15}
+HORIZONS = [3, 5, 10, 20]
 
 HTML_DIR = get_forecast_dir()
 

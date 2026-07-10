@@ -37,7 +37,7 @@ WARMUP_DAYS = 100
 TRAIN_WINDOW = 252
 MIN_TRAIN = 252
 
-HORIZONS = [1, 3, 5, 10]
+HORIZONS = [3, 5, 10, 20]
 FORWARD_HORIZON = 5  # column used for portfolio simulation
 
 TOP_K = 3

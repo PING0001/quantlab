@@ -74,8 +74,8 @@ WARMUP_DAYS = 90
 TRAIN_WINDOW = 252
 MIN_TRAIN = 252
 
-HORIZONS = [1, 3, 5, 10]
-WEIGHTS = {1: 0.3, 3: 0.3, 5: 0.2, 10: 0.2}
+HORIZONS = [3, 5, 10, 20]
+WEIGHTS = {3: 0.25, 5: 0.25, 10: 0.25, 20: 0.25}
 
 MLP_KWARGS = dict(
     hidden_layer_sizes=(48, 24,12),
