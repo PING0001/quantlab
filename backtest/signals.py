@@ -1,23 +1,22 @@
 # -*- coding: utf-8 -*-
-"""Daily single-entry long-only backtest with call auction + intraday execution.
+"""Daily long-only backtest with overnight limit orders.
 
 T+1 constraint: stocks bought today cannot be sold tomorrow.
 
 Entry (buy):
-  trigger   pred_5d > entry_threshold
+  trigger   pred > entry_threshold
   limit     prev_close * (1 + pred - auction_buffer)
   fill      open <= limit -> fill at open (call auction)
-            low  <= limit -> fill at limit (intraday pullback)
-            frozen-up    -> skip (sealed limit-up)
+            low  <= limit -> fill at limit (intraday)
+            sealed limit-up -> skip
 
 Exit (sell):
-  trigger   pred_5d < exit_threshold (all held stocks, except T+1 locked)
-  limit     prev_close * (1 + pred + sell_markup)
-  fill      open >= limit -> fill at open (call auction)
-            high >= limit -> fill at limit (intraday spike)
-            frozen-down   -> defer to next day
-            otherwise      -> defer to next day
-  cancel    deferred sell cancelled if pred recovers >= exit_threshold
+  EVERY evening, for EVERY held position (except T+1 locked):
+    limit   prev_close * (1 + pred + sell_markup)
+    fill    open >= limit -> fill at open (call auction)
+            high >= limit -> fill at limit (intraday)
+            otherwise      -> defer (recalculated next evening)
+            sealed limit-down -> defer
 
 Price limits:
   regular   +/-10%
@@ -126,7 +125,6 @@ def run_portfolio(
     test_start=None,
     max_positions=10,
     entry_threshold=0.03,
-    exit_threshold=0.0,
     auction_buffer=0.025,
     sell_markup=0.0005,
     excluded_codes=None,
@@ -311,34 +309,22 @@ def run_portfolio(
             except KeyError:
                 today_pred = pd.Series(dtype=float)
 
-            # --- 3a. Recalculate / cancel deferred sells ---
+            # --- 3a. Build sell orders for ALL positions (except T+1 locked) ---
+            # Every evening, every held stock gets a new sell limit order.
+            # Previously deferred sells are automatically recalculated here.
             new_sells = {}
-            for code in list(sell_orders.keys()):
-                pred_val = today_pred.get(code)
-                if pred_val is None or pd.isna(pred_val) or pred_val >= exit_threshold:
-                    continue
-                if code not in positions:
-                    continue
-                prev_cl = close_map.get(code)
-                if prev_cl is None or prev_cl <= 0:
-                    continue
-                new_sells[code] = _sell_limit(prev_cl, float(pred_val), sell_markup)
-
-            # --- 3b. New sell candidates from positions ---
             for code, pos in positions.items():
-                if code in new_sells:
-                    continue
                 if code in buy_lock:
                     continue
                 pred_val = today_pred.get(code)
-                if pred_val is None or pd.isna(pred_val) or pred_val >= exit_threshold:
+                if pred_val is None or pd.isna(pred_val):
                     continue
                 prev_cl = close_map.get(code)
                 if prev_cl is None or prev_cl <= 0:
                     continue
                 new_sells[code] = _sell_limit(prev_cl, float(pred_val), sell_markup)
 
-            # --- 3c. Buy candidates ---
+            # --- 3b. Buy candidates ---
             effective_slots = max_positions - len(positions) + len(new_sells)
             held_codes = set(positions.keys())
 
@@ -392,10 +378,23 @@ def run_portfolio(
     return stats, equity_df, trade_df
 
 
-def compute_benchmark(ohlcv_map, test_dates):
-    """Compute equal-weight benchmark daily returns."""
+def compute_benchmark(ohlcv_map, test_dates, delist_info=None):
+    """Compute equal-weight benchmark daily returns, with delisting accounted as -100%."""
     if not test_dates:
         return pd.DataFrame()
+
+    delist_events = []
+    if delist_info:
+        for code in delist_info:
+            if code in ohlcv_map:
+                last_dt = ohlcv_map[code].index[-1]
+                try:
+                    idx = test_dates.index(last_dt)
+                    if idx + 1 < len(test_dates):
+                        delist_events.append((test_dates[idx + 1], code))
+                except (ValueError, IndexError):
+                    pass
+
     daily_rets = {}
     for dt in test_dates:
         rets = []
@@ -409,8 +408,15 @@ def compute_benchmark(ohlcv_map, test_dates):
             curr_close = ohlcv.loc[dt, "Close"]
             if prev_close > 0:
                 rets.append(float(curr_close / prev_close - 1))
+
+        # delisting day: -100% loss
+        for evt_date, _ in delist_events:
+            if evt_date == dt:
+                rets.append(-1.0)
+
         if rets:
             daily_rets[dt] = float(np.mean(rets))
+
     sr = pd.Series(daily_rets, name="benchmark_ret")
     sr.index = pd.to_datetime(sr.index)
     sr = sr.sort_index()

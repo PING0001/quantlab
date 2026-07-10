@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-LightGBM long-only backtest with overnight limit orders.
+MLP long-only backtest with overnight limit orders.
 
-Loads pre-computed LGB predictions from run_lgb.py output, then simulates
+Loads pre-computed MLP predictions from run_mlp_multi.py output, then simulates
 daily entry/exit screening with call-auction + intraday execution.
 
 Run from project root:
@@ -21,7 +21,7 @@ import pandas as pd
 # -- project root --
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import DB_PATH, POOL_NAME, get_pool_codes, get_lgb_predictions_path, get_backtest_dir
+from config import DB_PATH, POOL_NAME, get_pool_codes, get_lgb_predictions_path, get_predictions_path, get_backtest_dir
 
 from strategies import rank_ic, ic_summary
 from strategies.labels import compute_forward_returns
@@ -37,10 +37,9 @@ FORWARD_HORIZON = 5  # column used for portfolio simulation
 
 # ---- Backtest execution params ----
 MAX_POSITIONS = 10
-ENTRY_THRESHOLD = 0.01
-EXIT_THRESHOLD = -0.01
-AUCTION_BUFFER = 0.01
-SELL_MARKUP = 0.0005
+ENTRY_THRESHOLD = -0.02
+AUCTION_BUFFER = 0.02
+SELL_MARKUP = 0.001
 CASH_PER_STOCK = 10000
 COMMISSION = 0.0006  # 0.06% per side = 0.12% round-trip
 RISK_FREE_RATE = 0.025
@@ -156,7 +155,7 @@ def load_ohlcv_map(con: duckdb.DuckDBPyConnection, codes: list[str]) -> dict[str
 
 def main():
     print("=" * 60)
-    print("  LightGBM Long-Only Backtest")
+    print("  MLP Long-Only Backtest")
     print(f"  Pool: {POOL_NAME}")
     print("=" * 60)
 
@@ -184,12 +183,12 @@ def main():
     print(f"  Date range: {factors.index.get_level_values('date').min().date()}"
           f" ~ {factors.index.get_level_values('date').max().date()}")
 
-    # ---- 2. Load pre-computed LGB predictions ----
-    print(f"\n[2/5] Loading LGB predictions ...")
-    pred_path = get_lgb_predictions_path()
+    # ---- 2. Load pre-computed MLP predictions ----
+    print(f"\n[2/5] Loading MLP predictions ...")
+    pred_path = get_predictions_path()
     if not pred_path.exists():
         print(f"  ERROR: Predictions not found at {pred_path}")
-        print("  Run: python run_lgb.py")
+        print("  Run: python run_mlp_multi.py")
         con.close()
         return
 
@@ -212,8 +211,12 @@ def main():
     # ---- 3. Build OHLCV map ----
     print(f"\n[3/5] Loading OHLCV data ...")
     pred_codes = sorted(preds_5d.index.get_level_values("code").unique())
-    print(f"  {len(pred_codes)} stocks ...")
+    print(f"  {len(pred_codes)} prediction stocks ...")
     ohlcv_map = load_ohlcv_map(con, pred_codes)
+
+    # Full OHLCV for benchmark (includes delisted stocks missing from predictions)
+    full_ohlcv = load_ohlcv_map(con, pool_codes)
+    print(f"  {len(full_ohlcv)} total pool stocks for benchmark")
 
     # Build excluded codes: stocks with "ST" or "退" in name
     excluded_codes = set()
@@ -230,17 +233,26 @@ def main():
     except Exception:
         pass
     print(f"  Excluded (ST/退): {len(excluded_codes)} stocks")
+
+    # Load delist info for benchmark correction (before closing DB)
+    delist_info = {}
+    try:
+        dl_df = con.execute("SELECT code, delist_date FROM delist_info").fetchdf()
+        if not dl_df.empty:
+            delist_info = {r["code"]: pd.Timestamp(r["delist_date"]) for _, r in dl_df.iterrows()}
+    except Exception:
+        pass
+    print(f"  Delist info: {len(delist_info)} stocks")
     con.close()
 
     # ---- 4. Portfolio backtest ----
     print(f"\n[4/5] Running long-only backtest "
-          f"(max_pos={MAX_POSITIONS}, entry>{ENTRY_THRESHOLD}, exit<{EXIT_THRESHOLD}) ...")
+          f"(max_pos={MAX_POSITIONS}, entry>{ENTRY_THRESHOLD}) ...")
     port_stats, equity_df, trade_df = run_portfolio(
         preds_5d, ohlcv_map,
         test_start=str(TEST_START.date()),
         max_positions=MAX_POSITIONS,
         entry_threshold=ENTRY_THRESHOLD,
-        exit_threshold=EXIT_THRESHOLD,
         auction_buffer=AUCTION_BUFFER,
         sell_markup=SELL_MARKUP,
         excluded_codes=excluded_codes,
@@ -255,7 +267,7 @@ def main():
     print(f"  Trades: {n_trades} total (BUY={n_buys}, SELL={n_sells})")
 
     test_dates = sorted(preds_5d.index.get_level_values("date").unique())
-    bench_df = compute_benchmark(ohlcv_map, test_dates)
+    bench_df = compute_benchmark(full_ohlcv, test_dates, delist_info=delist_info)
 
     # ========================================================================
     # REPORT
@@ -287,7 +299,7 @@ def main():
         bench_dd = (bench_df['equity'] - bench_peak) / bench_peak
         bench_maxdd = float(bench_dd.min())
 
-        print(f"\n  --- Benchmark (Equal-Weight All {len(ohlcv_map)} stocks) ---")
+        print(f"\n  --- Benchmark (Equal-Weight All {len(full_ohlcv)} stocks) ---")
         print(f"  {'Total Return:':<22} {bench_total:>+10.2%}")
         print(f"  {'Sharpe Ratio:':<22} {bench_sharpe:>10.2f}")
         print(f"  {'Max Drawdown:':<22} {bench_maxdd:>10.2%}")
