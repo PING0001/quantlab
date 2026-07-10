@@ -57,6 +57,8 @@ SELECTED_FACTORS = [
     "Return_1d_rank",  "Return_20d_rank","Turnover_3d_rank",
     # Firm age (1)
     "LnAge",
+    # ST status (1)
+    "IsST",
     # Chip / position cost (4)
     "WinnerRate", "CostPosition", "ChipDispersion", "ChipSkew",
 ]

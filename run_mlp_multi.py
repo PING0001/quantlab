@@ -57,6 +57,8 @@ SELECTED_FACTORS = [
     "HS300_return_1d", "HS300_return_20d",
     # Cross-sectional ranks (3)
     "Return_1d_rank",  "Return_20d_rank","Turnover_3d_rank",
+    # ST status (1)
+    "IsST",
     # Firm age (1)
     # "LnAge",
     # Chip / position cost (3)

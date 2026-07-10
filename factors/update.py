@@ -42,6 +42,7 @@ _CURATED_FACTORS = [
         "HS300_return_1d", "HS300_return_20d",
         "Return_1d_rank", "Return_20d_rank", "Turnover_3d_rank",
         "LnAge",
+        "IsST",
         "WinnerRate", "CostPosition", "ChipDispersion", "ChipSkew",
 ]
 

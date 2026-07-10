@@ -234,6 +234,10 @@ def compute_panel(con=None, db_path=None, codes=None, max_stocks=None):
     result = _merge_market_features(result, con)
     log.info("Market features merged in %.1fs", time.time() - t0)
 
+    t0 = time.time()
+    result = _merge_st_flag(result, con)
+    log.info("ST flag merged in %.1fs", time.time() - t0)
+
     if should_close:
         con.close()
     return result
@@ -325,6 +329,41 @@ def _merge_market_features(result, con):
     return result.set_index(["date", "code"]).sort_index()
 
 
+def _merge_st_flag(result, con):
+    """Add IsST column: 1 if stock was in ST/*ST status on that date."""
+    try:
+        st_df = con.execute("""
+            SELECT code, start_date, end_date
+            FROM namechange
+            WHERE change_reason IN ('ST', '*ST')
+        """).fetchdf()
+    except Exception:
+        return result
+
+    if st_df.empty:
+        result["IsST"] = 0
+        return result
+
+    st_df["start_date"] = pd.to_datetime(st_df["start_date"]).dt.date
+    st_df["end_date"] = pd.to_datetime(st_df["end_date"]).dt.date
+
+    result = result.reset_index()
+    result["date"] = pd.to_datetime(result["date"])
+    result["IsST"] = 0
+
+    date_series = result["date"].dt.date
+
+    for _, st in st_df.iterrows():
+        code = st["code"]
+        s = st["start_date"]
+        e = st["end_date"] if pd.notna(st["end_date"]) else date_series.max()
+        mask = (result["code"] == code) & (date_series >= s) & (date_series <= e)
+        result.loc[mask, "IsST"] = 1
+
+    log.info("ST flag merged: %d ST rows", result["IsST"].sum())
+    return result.set_index(["date", "code"]).sort_index()
+
+
 def compute_panel_incremental(con=None, lookback_trading_days=252, codes=None):
     """Compute factors only for dates not yet in factor_values.
 
@@ -400,6 +439,9 @@ def compute_panel_incremental(con=None, lookback_trading_days=252, codes=None):
 
     # Broadcast market features
     result = _merge_market_features(result, con)
+
+    # Broadcast ST flag
+    result = _merge_st_flag(result, con)
 
     # Keep only rows after the last date in factor_values
     new_data = result[result.index.get_level_values("date") > pd.Timestamp(last_date_ts)]
