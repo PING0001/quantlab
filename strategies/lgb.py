@@ -111,8 +111,8 @@ class LGBStrategy(BaseStrategy):
         train_mask = X_sel.index.get_level_values("date").isin(train_dates)
         val_mask = X_sel.index.get_level_values("date").isin(val_dates)
 
-        X_train_np = X_sel.loc[train_mask].values.astype(np.float64)
-        X_val_np = X_sel.loc[val_mask].values.astype(np.float64)
+        X_train = X_sel.loc[train_mask]
+        X_val = X_sel.loc[val_mask]
 
         self._models = {}
         for h in self.horizons:
@@ -139,8 +139,8 @@ class LGBStrategy(BaseStrategy):
                 verbosity=cfg["verbosity"],
             )
             model.fit(
-                X_train_np, y_h_train,
-                eval_set=[(X_val_np, y_h_val)],
+                X_train, y_h_train,
+                eval_set=[(X_val, y_h_val)],
                 callbacks=callbacks,
             )
             self._models[h] = model
@@ -166,10 +166,10 @@ class LGBStrategy(BaseStrategy):
         if not valid.any():
             return result
 
-        X_np = X_sel.loc[valid].values.astype(np.float64)
+        X_in = X_sel.loc[valid]
 
         for h in self.horizons:
-            pred = self._models[h].predict(X_np)
+            pred = self._models[h].predict(X_in)
             result.loc[valid, f"pred_{h}d"] = pred
 
         return result
