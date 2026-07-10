@@ -30,7 +30,8 @@ quantlab/
 ├── data/                    # 数据摄入
 │   ├── build_db.py          # 全量建库：按日拉全市场日线、复权因子、市值/估值（2008-2026）
 │   ├── build_index_db.py    # 全量建库：拉取指数日线（中证全指 000985 等）
-│   ├── pull_adj.py          # 增量更新：获取上次记录日期之后的新数据（含指数）
+│   ├── build_cyq.py         # 全量/增量拉取筹码分布数据（cyq_perf, 2018-至今）
+│   ├── pull_adj.py          # 增量更新：获取上次记录日期之后的新数据（含指数、cyq_perf）
 │   └── ashare.duckdb        # DuckDB 数据库（~650 MB），所有数据唯一来源
 │
 ├── factors/                 # 因子工程
@@ -143,13 +144,19 @@ set QUANTLAB_POOL=mainboard_smallcap && python run_mlp_multi.py
 
 ### 更新数据（每日运行）
 ```bash
-python data/pull_adj.py      # 拉取最新日线行情（含指数）
+python data/pull_adj.py      # 拉取最新日线行情（含指数、cyq_perf）
 python -m factors.update     # 增量计算因子
 ```
 
 ### 拉取指数数据（首次/补充）
 ```bash
 python data/build_index_db.py   # 拉取指数日线（中证全指等）入库
+```
+
+### 拉取筹码分布数据（首次/补充）
+```bash
+python data/build_cyq.py        # 全量拉取当前池的 cyq_perf（2018-至今）
+python data/build_cyq.py --incr # 增量拉取最近缺失交易日
 ```
 
 ### 训练模型

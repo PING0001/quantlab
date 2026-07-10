@@ -41,6 +41,8 @@ _CURATED_FACTORS = [
         "CSI_return_1d", "CSI_return_5d", "CSI_return_20d", "CSI_volatility_20d",
         "HS300_return_1d", "HS300_return_20d",
         "Return_1d_rank", "Return_20d_rank", "Turnover_3d_rank",
+        "LnAge",
+        "WinnerRate", "CostPosition", "ChipDispersion", "ChipSkew",
 ]
 
 

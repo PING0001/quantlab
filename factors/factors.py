@@ -155,6 +155,31 @@ def Turnover_20d(data):
     return ts_mean(data["turn"], 20)
 
 
+def WinnerRate(data):
+    """Chip win rate: fraction of positions in profit [0, 1]."""
+    wr = data["winner_rate"]
+    wr = wr.replace([np.inf, -np.inf], np.nan)
+    return wr / 100.0
+
+
+def CostPosition(data):
+    """Current price relative to weighted average holding cost."""
+    wa = data["weight_avg"].replace(0, np.nan)
+    return (data["close"] - wa) / wa
+
+
+def ChipDispersion(data):
+    """Width of cost distribution: (P95 - P5) / weighted average cost."""
+    wa = data["weight_avg"].replace(0, np.nan)
+    return (data["cost_95pct"] - data["cost_5pct"]) / wa
+
+
+def ChipSkew(data):
+    """Skew of cost distribution: (weight_avg - median) / inter-percentile range."""
+    rng = (data["cost_95pct"] - data["cost_5pct"]).replace(0, np.nan)
+    return (data["weight_avg"] - data["cost_50pct"]) / rng
+
+
 def Turnover_3d(data):
     """3-day average turnover rate."""
     return ts_mean(data["turn"], 3)
@@ -399,6 +424,18 @@ def LnMktCap(data):
     return np.log(mv)
 
 
+def LnAge(data):
+    """Natural log of calendar days since IPO listing date."""
+    if "list_date" not in data.columns:
+        return pd.Series(np.nan, index=data.index)
+    ld = data["list_date"].iloc[0]
+    if pd.isna(ld):
+        return pd.Series(np.nan, index=data.index)
+    days = (pd.to_datetime(data["date"]) - pd.Timestamp(ld)).dt.days.astype(float)
+    days = np.clip(days, 1, None)
+    return np.log(days)
+
+
 def LnFloatCap(data):
     """Natural log of circulating market capitalisation (万元 -> 元 then ln)."""
     mv = data["circ_mv"] * 1e4
@@ -475,6 +512,11 @@ FACTOR_HUB = {
     'Turnover_3d': Turnover_3d,
     'Turnover_3d_ratio': Turnover_3d_ratio,
     'Intraday_return': Intraday_return,
+    'WinnerRate': WinnerRate,
+    'CostPosition': CostPosition,
+    'ChipDispersion': ChipDispersion,
+    'ChipSkew': ChipSkew,
+    'LnAge': LnAge,
 }
 
 __all__ = list(FACTOR_HUB.keys())

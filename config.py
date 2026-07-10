@@ -70,6 +70,10 @@ def get_model_path(name: str = None) -> Path:
     return get_model_dir(name) / "mlp_multihead.pt"
 
 
+def get_lgb_model_path(name: str = None) -> Path:
+    return get_model_dir(name) / "lgb_multi.joblib"
+
+
 # ---- Predictions cache ----
 def get_predictions_path(name: str = None) -> Path:
     p = name or POOL_NAME
@@ -89,3 +93,7 @@ def get_backtest_dir(name: str = None) -> Path:
 # ---- Forecast HTML ----
 def get_forecast_dir(name: str = None) -> Path:
     return ROOT / "forecast_display" / "html" / (name or POOL_NAME)
+
+
+def get_forecast_lgb_dir(name: str = None) -> Path:
+    return ROOT / "forecast_display" / "html_lgb" / (name or POOL_NAME)

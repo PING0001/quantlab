@@ -1,12 +1,11 @@
-﻿"""
-Multi-horizon MLP walk-forward training (single multi-head model).
+"""
+Multi-horizon LightGBM walk-forward training.
 
-Trains one MLP with shared backbone + per-horizon output heads for
-1d / 3d / 5d / 10d forward returns.  Persists a single model file and
-a single predictions parquet with all horizon columns.
+Trains one LGBMRegressor per horizon (1d / 3d / 5d / 10d).
+Uses the same factor set and train/test split as run_mlp_multi.py.
 
 Usage:
-    python run_mlp_multi.py
+    python run_lgb.py
 """
 from __future__ import annotations
 
@@ -19,12 +18,11 @@ from datetime import datetime
 import duckdb
 import pandas as pd
 
-# --- project root ---
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import ROOT, DB_PATH, POOL_NAME, get_pool_codes, get_model_dir, get_model_path, get_predictions_path, get_predictions_meta_path
+from config import ROOT, DB_PATH, POOL_NAME, get_pool_codes, get_model_dir, get_predictions_path, get_predictions_meta_path
 
-from strategies import MLPStrategy, walk_forward, rank_ic, pearson_ic, ic_summary
+from strategies import LGBStrategy, walk_forward, rank_ic, pearson_ic, ic_summary
 from strategies.labels import compute_forward_returns
 
 
@@ -58,14 +56,14 @@ SELECTED_FACTORS = [
     # Cross-sectional ranks (3)
     "Return_1d_rank",  "Return_20d_rank","Turnover_3d_rank",
     # Firm age (1)
-    # "LnAge",
-    # Chip / position cost (3)
-    # "WinnerRate", "CostPosition", "ChipDispersion",
+    "LnAge",
+    # Chip / position cost (4)
+    "WinnerRate", "CostPosition", "ChipDispersion", "ChipSkew",
 ]
 
 
 # --- config ---
-TRAIN_START = pd.Timestamp("2015-01-01")
+TRAIN_START = pd.Timestamp("2018-01-01")
 TEST_START = pd.Timestamp("2025-06-01")
 TEST_END   = pd.Timestamp("2026-06-01")
 WARMUP_DAYS = 90
@@ -75,21 +73,35 @@ MIN_TRAIN = 252
 HORIZONS = [1, 3, 5, 10]
 WEIGHTS = {1: 0.3, 3: 0.3, 5: 0.2, 10: 0.2}
 
-MLP_KWARGS = dict(
-    hidden_layer_sizes=(48, 24,12),
-    dropout=0.5,
-    alpha=0.0001,
+LGB_KWARGS = dict(
+    num_leaves=31,
+    learning_rate=0.02,
+    n_estimators=3000,
+    min_child_samples=300,
+    reg_alpha=0.5,
+    reg_lambda=0.5,
+    subsample=0.8,
+    colsample_bytree=0.7,
     early_stopping=True,
     validation_fraction=0.05,
-    n_iter_no_change=20,
-    learning_rate=0.001,
-    batch_size=4096,
+    n_iter_no_change=50,
     random_state=42,
+    n_jobs=-1,
+    verbosity=-1,
 )
 
 
+def _get_lgb_model_path(name=None):
+    from config import get_model_dir
+    return get_model_dir(name) / "lgb_multi.joblib"
+
+
+def _get_lgb_predictions_path(name=None):
+    p = name or POOL_NAME
+    return ROOT / "data" / f"predictions__{p}_lgb.parquet"
+
+
 def load_factors(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
-    """Load factor panel from DuckDB, filtered to current pool's stock codes."""
     pool_codes = get_pool_codes()
     placeholders = ",".join(["?"] * len(pool_codes))
     query = f"SELECT * FROM factor_values WHERE code IN ({placeholders})"
@@ -100,7 +112,6 @@ def load_factors(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
 
 
 def load_kline(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
-    """Load kline data for label computation, filtered to current pool."""
     pool_codes = get_pool_codes()
     placeholders = ",".join(["?"] * len(pool_codes))
     query = f"SELECT code, date, close FROM daily_kline WHERE code IN ({placeholders}) ORDER BY code, date"
@@ -118,20 +129,19 @@ def main():
     kline = load_kline(con)
     con.close()
 
-    # Restrict to the curated factors and drop NaN rows
     available = [f for f in SELECTED_FACTORS if f in factors_raw.columns]
     missing = [f for f in SELECTED_FACTORS if f not in factors_raw.columns]
     if missing:
         print(f"  WARNING: {len(missing)} selected factors not in DB: {missing}")
     factor_cols = available
     factors_raw = factors_raw[factor_cols].copy()
-    print(f"  factors: {len(factor_cols)} available: {factor_cols}")
+    print(f"  factors: {len(factor_cols)} available")
     print(f"  full date range: {factors_raw.index.get_level_values('date').min()} ~ {factors_raw.index.get_level_values('date').max()}")
     print(f"  total stocks: {factors_raw.index.get_level_values('code').nunique()}")
 
     t0 = time.time()
 
-    # ---- labels: all horizons at once ----
+    # ---- labels ----
     print(f"  computing labels for horizons {HORIZONS} ...")
     label_dfs = {}
     for h in HORIZONS:
@@ -143,11 +153,9 @@ def main():
     X = factors_raw.loc[common]
     y = labels_raw.loc[common]
 
-    # Drop rows where ANY horizon label is NaN
     mask = y.notna().all(axis=1)
     X, y = X.loc[mask], y.loc[mask]
 
-    # Restrict to training window start
     date_level = X.index.get_level_values("date")
     mask = date_level >= TRAIN_START
     X, y = X.loc[mask], y.loc[mask]
@@ -155,13 +163,13 @@ def main():
     print(f"  aligned samples: {len(X)}")
     print(f"  date range: {date_level.min().date()} ~ {date_level.max().date()}")
 
-    # ---- strategy (multi-head) ----
-    strategy = MLPStrategy(
+    # ---- strategy ----
+    strategy = LGBStrategy(
         factor_names=factor_cols,
         horizons=tuple(HORIZONS),
-        **MLP_KWARGS,
+        **LGB_KWARGS,
     )
-    print(f"  strategy: {strategy.name}, horizons={HORIZONS}, hidden={MLP_KWARGS['hidden_layer_sizes']}")
+    print(f"  strategy: {strategy.name}, horizons={HORIZONS}")
 
     # ---- walk-forward ----
     print(f"  walk-forward: train_window={TRAIN_WINDOW}, test={TEST_START.date()}~{TEST_END.date()}, warmup={WARMUP_DAYS}")
@@ -180,13 +188,12 @@ def main():
         n_pred = len(preds)
         n_dates = preds.index.get_level_values("date").nunique() if isinstance(preds.index, pd.MultiIndex) else 1
         print(f"  predictions: {n_pred} rows over {n_dates} dates ({t_pred - t0:.1f}s)")
-        print(f"  columns: {list(preds.columns)}")
     else:
         n_pred = 0
         n_dates = 0
         print(f"  predictions: NONE ({t_pred - t0:.1f}s)")
 
-    # ---- train-set IC (overfitting check) ----
+    # ---- train-set IC ----
     train_mask = X.index.get_level_values("date") < TEST_START
     preds_train = strategy.predict(X.loc[train_mask])
 
@@ -216,36 +223,35 @@ def main():
             "test_pearson_ic": p_test,
         }
 
-    # ---- persist single model ----
-    model_dir = get_model_dir()
-    model_dir.mkdir(parents=True, exist_ok=True)
-    model_path = get_model_path()
+    # ---- persist model ----
+    model_path = _get_lgb_model_path()
     strategy.save(model_path)
     print(f"\n  model saved: {model_path}")
 
-    # ---- persist single predictions parquet ----
-    pred_path = get_predictions_path()
+    # ---- persist predictions ----
+    pred_path = _get_lgb_predictions_path()
     if isinstance(preds, pd.DataFrame) and not preds.empty:
         preds.to_parquet(pred_path)
         print(f"  predictions saved: {pred_path} ({len(preds)} rows)")
 
-    # ---- save combined meta ----
+    # ---- save meta ----
     meta = {
+        "model": "LightGBM",
         "horizons": HORIZONS,
         "weights": WEIGHTS,
         "factor_names": factor_cols,
         "test_start": str(TEST_START.date()),
         "test_end": str(TEST_END.date()),
         "train_window": TRAIN_WINDOW,
-        "mlp_kwargs": {k: (list(v) if isinstance(v, tuple) else v) for k, v in MLP_KWARGS.items()},
+        "lgb_kwargs": LGB_KWARGS,
         "results_per_horizon": {str(h): all_results[h] for h in HORIZONS},
         "model_path": str(model_path),
         "predictions_path": str(pred_path),
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
-    META_PATH = get_predictions_meta_path()
-    META_PATH.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"  meta saved: {META_PATH}")
+    meta_path = ROOT / "data" / f"predictions__{POOL_NAME}_lgb_meta.json"
+    meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"  meta saved: {meta_path}")
 
     # ---- final summary ----
     print(f"\n{'=' * 60}")
@@ -256,11 +262,6 @@ def main():
         st = r["test_ic"]
         print(f"  Horizon {h}d: train_ic={r['train_ic']['mean_ic']:.4f}, "
               f"test_rank_ic={st.get('mean_ic', float('nan')):.4f}")
-    avg_train = sum(all_results[h]["train_ic"]["mean_ic"] for h in HORIZONS) / len(HORIZONS)
-    avg_test = sum(
-        all_results[h]["test_ic"].get("mean_ic", float("nan")) for h in HORIZONS
-    ) / len(HORIZONS)
-    print(f"  Avg across horizons: train_ic={avg_train:.4f}, test_rank_ic={avg_test:.4f}")
     print("\nDone.")
 
 

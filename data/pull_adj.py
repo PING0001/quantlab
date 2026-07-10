@@ -115,6 +115,63 @@ def _fetch_daily_basic(pro, trade_date):
     return df[cols]
 
 
+CYQ_FIELDS = ("ts_code,trade_date,his_low,his_high,"
+              "cost_5pct,cost_15pct,cost_50pct,cost_85pct,cost_95pct,"
+              "weight_avg,winner_rate")
+CYQ_NUMERIC = ["his_low", "his_high",
+               "cost_5pct", "cost_15pct", "cost_50pct", "cost_85pct", "cost_95pct",
+               "weight_avg", "winner_rate"]
+CYQ_ALL_COLS = ["code", "date"] + CYQ_NUMERIC
+
+
+def _ensure_cyq_table(con):
+    exists = con.execute(
+        "SELECT count(*) FROM information_schema.tables WHERE table_name='cyq_perf'"
+    ).fetchone()[0]
+    if exists:
+        has_pk = con.execute("""
+            SELECT count(*) FROM information_schema.table_constraints
+            WHERE table_name='cyq_perf' AND constraint_type='PRIMARY KEY'
+        """).fetchone()[0]
+        if not has_pk:
+            con.execute("DROP TABLE cyq_perf")
+            exists = False
+    if not exists:
+        con.execute("""
+            CREATE TABLE cyq_perf (
+                code        VARCHAR NOT NULL,
+                date        DATE    NOT NULL,
+                his_low     DOUBLE,
+                his_high    DOUBLE,
+                cost_5pct   DOUBLE,
+                cost_15pct  DOUBLE,
+                cost_50pct  DOUBLE,
+                cost_85pct  DOUBLE,
+                cost_95pct  DOUBLE,
+                weight_avg  DOUBLE,
+                winner_rate DOUBLE,
+                PRIMARY KEY (code, date)
+            )
+        """)
+
+
+def _fetch_cyq_perf(pro, trade_date):
+    df = _retry_api(pro.cyq_perf, ts_code="", trade_date=trade_date,
+                    fields=CYQ_FIELDS)
+    if df is None or df.empty:
+        return pd.DataFrame()
+    _to_code(df)
+    df["trade_date"] = pd.to_datetime(df["trade_date"])
+    df.rename(columns={"trade_date": "date"}, inplace=True)
+    for col in CYQ_NUMERIC:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    for col in CYQ_ALL_COLS:
+        if col not in df.columns:
+            df[col] = None
+    return df[CYQ_ALL_COLS]
+
+
 def _get_new_trading_days(pro, con, today_str):
     """Find trading days after the last date in daily_raw."""
     max_d = con.execute("SELECT MAX(date) FROM daily_raw").fetchone()[0]
@@ -234,6 +291,7 @@ def main():
     con.execute("SET threads = 4")
 
     _ensure_table_schema(con)
+    _ensure_cyq_table(con)
     pro = _init_pro()
 
     today_str = datetime.now().strftime("%Y%m%d")
@@ -274,8 +332,13 @@ def main():
                 bs = "code,date,total_mv,circ_mv,pe,pe_ttm,pb,ps,ps_ttm,dv_ratio,dv_ttm"
                 con.execute(f"INSERT OR REPLACE INTO daily_basic ({bs}) SELECT {bs} FROM df_b")
 
+            df_cq = _fetch_cyq_perf(pro, td)
+            cyq_items = len(df_cq) if not df_cq.empty else 0
+            if not df_cq.empty:
+                con.execute("INSERT OR REPLACE INTO cyq_perf SELECT * FROM df_cq")
+
             con.execute("CHECKPOINT")
-            log.info("  daily: %d rows  basic: %d rows", daily_items, basic_items)
+            log.info("  daily: %d rows  basic: %d rows  cyq: %d rows", daily_items, basic_items, cyq_items)
 
         row_count = con.execute("SELECT count(*) FROM daily_raw").fetchone()[0]
         log.info("Incremental complete: daily_raw now %d rows", row_count)

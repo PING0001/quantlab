@@ -163,9 +163,14 @@ def load_all_stocks(con):
         SELECT k.code, k.date, k.open, k.high, k.low, k.close,
                k.volume, k.amount, k.pct_chg,
                k.volume * k.close / NULLIF(b.circ_mv, 0) AS turn,
-               b.total_mv, b.circ_mv
+               b.total_mv, b.circ_mv,
+               c.his_low, c.his_high, c.cost_5pct, c.cost_15pct, c.cost_50pct,
+               c.cost_85pct, c.cost_95pct, c.weight_avg, c.winner_rate,
+               s.list_date
         FROM daily_kline k
         LEFT JOIN daily_basic b ON k.code = b.code AND k.date = b.date
+        LEFT JOIN cyq_perf c ON k.code = c.code AND k.date = c.date
+        LEFT JOIN stock_info s ON k.code = s.code
         ORDER BY k.code, k.date
     """).fetchdf()
 
@@ -265,9 +270,14 @@ def load_all_stocks_since(con, min_date):
         SELECT k.code, k.date, k.open, k.high, k.low, k.close,
                k.volume, k.amount, k.pct_chg,
                k.volume * k.close / NULLIF(b.circ_mv, 0) AS turn,
-               b.total_mv, b.circ_mv
+               b.total_mv, b.circ_mv,
+               c.his_low, c.his_high, c.cost_5pct, c.cost_15pct, c.cost_50pct,
+               c.cost_85pct, c.cost_95pct, c.weight_avg, c.winner_rate,
+               s.list_date
         FROM daily_kline k
         LEFT JOIN daily_basic b ON k.code = b.code AND k.date = b.date
+        LEFT JOIN cyq_perf c ON k.code = c.code AND k.date = c.date
+        LEFT JOIN stock_info s ON k.code = s.code
         WHERE k.date >= ?
         ORDER BY k.code, k.date
     """, (min_date,)).fetchdf()

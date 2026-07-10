@@ -151,7 +151,8 @@ def create_tables(con):
             code        VARCHAR PRIMARY KEY,
             name        VARCHAR,
             market      VARCHAR,
-            full_code   VARCHAR
+            full_code   VARCHAR,
+            list_date   DATE
         )
     """)
     con.execute("""
@@ -243,7 +244,7 @@ def main():
 
     # Load all A-share stocks
     df_all = pro.stock_basic(exchange='', list_status='L',
-                              fields='ts_code,symbol,name,area,industry,market')
+                              fields='ts_code,symbol,name,area,industry,market,list_date')
     if df_all is not None and not df_all.empty:
         df_all["code"] = df_all["ts_code"].str[:6]
     else:
@@ -254,9 +255,10 @@ def main():
     create_tables(con)
 
     # stock_info
-    records = [(r["code"], r.get("name", ""), r.get("market", ""), r["ts_code"])
+    records = [(r["code"], r.get("name", ""), r.get("market", ""), r["ts_code"],
+                pd.to_datetime(r.get("list_date", ""), format="%Y%m%d"))
                for _, r in df_all.iterrows()]
-    df_info = pd.DataFrame(records, columns=["code", "name", "market", "full_code"])
+    df_info = pd.DataFrame(records, columns=["code", "name", "market", "full_code", "list_date"])
     con.execute("DELETE FROM stock_info")
     con.execute("INSERT INTO stock_info SELECT * FROM df_info")
     log.info("stock_info: %d rows", len(df_info))
