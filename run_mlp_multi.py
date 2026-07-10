@@ -78,14 +78,14 @@ HORIZONS = [3, 5, 10, 20]
 WEIGHTS = {3: 0.25, 5: 0.25, 10: 0.25, 20: 0.25}
 
 MLP_KWARGS = dict(
-    hidden_layer_sizes=(48, 24,12),
+    hidden_layer_sizes=(32, 16,8),
     dropout=0.5,
     alpha=0.0001,
     early_stopping=True,
     validation_fraction=0.05,
     n_iter_no_change=20,
     learning_rate=0.001,
-    batch_size=4096,
+    batch_size=4096*4,
     random_state=42,
 )
 
@@ -151,7 +151,7 @@ def main():
     print(f"  computing labels for horizons {HORIZONS} ...")
     label_dfs = {}
     for h in HORIZONS:
-        label_dfs[h] = compute_forward_returns(kline, horizon=h, delist_info=delist_info)
+        label_dfs[h] = compute_forward_returns(kline, horizon=h, delist_info={})
     labels_raw = pd.DataFrame({h: label_dfs[h] for h in HORIZONS})
 
     # ---- align ----
@@ -171,8 +171,25 @@ def main():
     print(f"  aligned samples: {len(X)}")
     print(f"  date range: {date_level.min().date()} ~ {date_level.max().date()}")
 
-    # ---- limit mask (for test IC filtering) ----
+    # ---- exclude ST + delisted observations from training ----
     st_series = factors_raw["IsST"].astype(bool) if "IsST" in factors_raw.columns else None
+    if st_series is not None:
+        st_mask = st_series.reindex(X.index, fill_value=False)
+    else:
+        st_mask = pd.Series(False, index=X.index)
+    idx_date = X.index.get_level_values("date")
+    idx_code = X.index.get_level_values("code")
+    delist_mask = pd.Series(False, index=X.index)
+    for code, dd in delist_info.items():
+        delist_mask |= (idx_code == code) & (idx_date >= pd.Timestamp(dd))
+    exclude = st_mask | delist_mask
+    if exclude.any():
+        X, y = X.loc[~exclude], y.loc[~exclude]
+        print(f"  excluded from training: {exclude.sum()} ST/delist observations")
+    else:
+        print(f"  excluded from training: 0 ST/delist observations")
+
+    # ---- limit mask (for test IC filtering) ----
     limit_mask = compute_nextopen_limit_mask(kline, st_series=st_series)
     print(f"  limit-hit predictions (next-open): {limit_mask.sum()}")
 

@@ -2,10 +2,10 @@
 
 ## Project Overview
 
-Quantlab 是一个 **A股量化选股系统**，针对主板微盘股（流通市值 1-28 亿）进行多周期收益预测。核心流程：
+Quantlab 是一个 **A股量化选股系统**，针对主板微盘股（流通市值 1-20 亿）进行多周期收益预测。核心流程：
 
 ```
-Tushare 数据 → DuckDB 存储 → 因子计算（60个） → 多周期 MLP 训练（45因子输入） → 回测 → HTML 预测报告 → JSON 交易信号
+Tushare 数据 → DuckDB 存储 → 因子计算（61个） → LightGBM 多周期训练（4 个独立模型） → 回测 → HTML 预测报告
 ```
 
 ## Technology Stack
@@ -15,8 +15,8 @@ Tushare 数据 → DuckDB 存储 → 因子计算（60个） → 多周期 MLP �
 | 数据源 | Tushare（通过 quicksync.cn 中继） |
 | 数据库 | **DuckDB**（嵌入式 OLAP，所有数据单一来源） |
 | 数值计算 | numpy, pandas, scipy |
-| 机器学习 | **PyTorch**（多目标 MLP）、scikit-learn（标准化） |
-| 序列化 | joblib, parquet |
+| 机器学习 | **LightGBM**（主模型，4 个独立 LGBMRegressor 每 horizon 一个）、**PyTorch**（MLP，备选） |
+| 序列化 | joblib（LightGBM）、torch.save（MLP）、parquet（预测缓存）、JSON（meta） |
 | 配置 | python-dotenv（.env 中的 Tushare token）、config.py（中心配置） |
 
 ## Project Structure
@@ -25,50 +25,54 @@ Tushare 数据 → DuckDB 存储 → 因子计算（60个） → 多周期 MLP �
 quantlab/
 ├── config.py                # ★ 中心配置：DB 路径、股票池加载、各模块输出路径
 ├── pools/                   # 股票池定义（JSON，多池支持）
-│   └── smallcap_on_mainboard.json  # ~2941只主板小市值股票（1e < circ_mv < 40e）
+│   ├── mainboard_microcap.json   # ★ 默认池，~1112只主板微盘股（1e < circ_mv < 20e）
+│   ├── smallcap_on_mainboard.json # ~2965只主板小市值股票（1e < circ_mv < 40e）
+│   ├── mainboard_commodity_mega.json # 24只商品周期大盘股
+│   └── build_microcap.py    # 微盘池构建：半年度 circ_mv 通胀调整筛选
 │
 ├── data/                    # 数据摄入
 │   ├── build_db.py          # 全量建库：按日拉全市场日线、复权因子、市值/估值（2008-2026）
 │   ├── build_index_db.py    # 全量建库：拉取指数日线（中证全指 000985 等）
 │   ├── build_cyq.py         # 全量/增量拉取筹码分布数据（cyq_perf, 2018-至今）
-│   ├── pull_adj.py          # 增量更新：获取上次记录日期之后的新数据（含指数、cyq_perf）
-│   └── ashare.duckdb        # DuckDB 数据库（~650 MB），所有数据唯一来源
+│   ├── build_delist_info.py # 全量拉取 namechange → 构建 delist_info + ISST 历史
+│   ├── pull_adj.py          # 增量更新：每日行情 + 每日 namechange 增量
+│   └── ashare.duckdb        # DuckDB 数据库，所有数据唯一来源
 │
 ├── factors/                 # 因子工程
 │   ├── ops.py               # 底层算子：rank, ts_sum, ts_rank, correlation 等
-│   ├── factors.py           # 60个因子函数 + FACTOR_HUB 注册表
-│   ├── compute.py           # 因子计算流水线：读取 K 线 → 全量或增量计算 → 存储
+│   ├── factors.py           # 60个因子函数 + FACTOR_HUB 注册表（不含 IsST）
+│   ├── compute.py           # 因子计算流水线 + IsST/市场特征 merge
 │   ├── update.py            # 增量因子更新入口
 │   └── selection.py         # 因子相关性分析 + 贪心多样化选择（可选）
 │
 ├── strategies/              # 策略与模型
 │   ├── base.py              # BaseStrategy 抽象基类 + walk_forward() 滚动框架
-│   ├── labels.py            # 前向收益标签计算（任意周期）
+│   ├── labels.py            # 前向收益标签 + 退市感知 + 涨跌停 mask
 │   ├── evaluation.py        # rank IC, Pearson IC, IC 汇总统计
-│   ├── mlp.py               # PyTorch 多目标 MLP 实现（MLPStrategy）
+│   ├── lgb.py               # LightGBM 多目标策略（★ 主模型，4 个独立 LGBMRegressor）
+│   ├── mlp.py               # PyTorch 多目标 MLP 实现（备选）
 │   └── test_synthetic.py    # 合成数据冒烟测试
 │
 ├── backtest/                # 回测
-│   ├── run.py               # 完整回测：训练 MLP + 多空组合模拟
-│   ├── signals.py           # 多空组合模拟器，含跳空过滤器
+│   ├── run.py               # LightGBM 回测：long-only 限价单模拟
+│   ├── signals.py           # 组合模拟器，含跳空过滤 + ST 过滤 + 退市处理
 │   └── {pool_name}/         # 输出按股票池分子目录
 │       ├── equity.csv       # 权益曲线
 │       └── benchmark.csv    # 基准权益曲线
 │
 ├── forecast_display/        # 预测展示
-│   ├── generate.py          # 加载模型 → 预测最新日期 → 生成交互式 HTML 报告
-│   └── html/{pool_name}/    # 输出的 HTML 预测报告，按股票池分子目录
-│
-├── trade_signals/           # 交易信号导出
-│   ├── export.py            # JSON 信号导出器
-│   ├── schema.py            # JSON schema 定义
-│   └── output/              # 输出的信号 JSON
+│   ├── generate.py          # MLP 预测 HTML
+│   ├── generate_lgb.py      # LightGBM 预测 HTML（★ 主用），自动过滤 ST/退市股
+│   ├── html/{pool_name}/    # MLP HTML 报告
+│   └── html_lgb/{pool_name}/ # LightGBM HTML 报告
 │
 ├── models/                  # 训练好的模型权重
 │   └── {pool_name}/         # 按股票池分子目录
-│       └── mlp_multihead.pt # 多目标 MLP（主模型）
+│       ├── mlp_multihead.pt     # MLP 模型（备选）
+│       └── lgb_multi.joblib     # LightGBM 模型（★ 主模型）
 │
-├── run_mlp_multi.py         # ★ 主训练入口
+├── run_lgb.py               # ★ 主训练入口：LightGBM 多周期
+├── run_mlp_multi.py         # MLP 训练入口（备选）
 ├── _check_pkgs.py           # 依赖检查工具
 └── .env                     # Tushare API token
 ```
@@ -78,62 +82,98 @@ quantlab/
 ### 1. DuckDB 单一数据源
 所有行情数据和因子值均存储在 `data/ashare.duckdb` 这一个嵌入式数据库中。前复权价格通过 SQL VIEW `daily_kline` 实时计算，原始数据保持不变。**切勿引入其他数据库或文件格式来存储市场数据。**
 
-### 2. 多目标 MLP 架构
-- **共享主干网络**：32→16→8 隐藏层，从45个精选因子中提取共同特征
-- **4个独立线性输出头**：分别预测 1、3、5、10 日收益
-- 带 L2 正则化、dropout、早停和学习率调度防止过拟合
-- 每个周期的目标收益在训练前独立进行 z-score 标准化，预测时再反标准化
+### 2. LightGBM 多目标架构（★ 主模型）
+- **4 个独立 LGBMRegressor**：每 horizon 一个，参数完全不共享，各自训练独立的梯度提升树
+- **61 个精选因子**输入（含 IsST、LnAge、筹码分布因子）
+- 每个模型独立使用早停、L1+L2 正则、bagging 防过拟合
+- 对比 MLP：MLP 共享主干网络（32→16→8）→ 4 个标量输出头，horizon 间的特征提取相互耦合
 
 ### 3. 固定测试集的 Walk-Forward
-- 在 2024-06-01 之前的所有数据上一次性训练（约 3959 个交易日）
-- 使用该冻结模型预测整个测试期（2024-06-01 至 2026-06-26，约 499 个交易日）
+- 在 2025-06-01 之前的所有数据上一次性训练
+- 使用该冻结模型预测整个测试期（2025-06-01 至 2026-06-01，约 242 个交易日）
 - 计算高效，且避免前视偏差
 - **不是**在扩展窗口上迭代重训练
 
-### 4. 精选因子集（45个）
-涵盖：动量（4）、波动率（5）、价格位置/其他（6）、日内形态（4）、成交量/流动性（2）、WorldQuant alpha 复合（13）、市值/成交额（2）、换手率（2）、市场状态（4）、横截面排名（3）。
+### 4. 精选因子集（61个，LightGBM）
+涵盖：动量（3）、波动率（5）、价格位置/其他（6）、日内形态（3）、成交量/流动性（2）、WorldQuant alpha 复合（22）、市值/成交额（3）、换手率（2）、日内（1）、市场状态（5）、横截面排名（3）、个股年龄（1）、ST状态（1）、筹码分布（4）。
 
 关键新增：
 - `LnMktCap`：对数总市值（Size 因子），`total_mv` from daily_basic
 - `Turnover_3d` / `Turnover_3d_ratio`：3日均换手率及其与20日均的比值，换手率由 `volume × close / circ_mv` 实时计算
 - `AvgAmount_90d`：90日均成交额
 - `Intraday_return`：日内收益 `(close-open)/open`
-- `CSI_return_1d/5d/20d`、`CSI_volatility_20d`：中证全指（000985）市场状态特征，横截面广播（同一日期所有股票共享相同值），帮助 MLP 感知大盘环境
+- `CSI_return_1d/5d/20d`、`CSI_volatility_20d`：中证全指（000985）市场状态特征，横截面广播（同一日期所有股票共享相同值）
 - `Return_1d_rank` / `Return_20d_rank` / `Turnover_3d_rank`：对现有因子做横截面排名（同日期所有股票百分位 − 0.5），捕捉相对强弱信号
+- `IsST`：当日是否处于 ST/*ST 状态（从 namechange 表解析，0/1 二值因子）
+- `LnAge`：上市日至今日的自然对数天数
+- `WinnerRate`、`CostPosition`、`ChipDispersion`、`ChipSkew`：筹码分布因子（2018-至今）
 
-### 5. 组合模拟中的跳空过滤器
-仅在次日开盘时建仓，前提是股票未出现向上跳空（多头）或向下跳空（空头）超过 1.5% 的情况。
+### 5. ST/退市处理机制
+- **namechange 表**：通过 Tushare `namechange` API 拉取全池股票的名称变更历史
+  - `change_reason` 识别：`'ST'` / `'*ST'` / `'撤销ST'` / `'终止上市'`
+  - `start_date` / `end_date` 定义状态区间
+- **delist_info 表**：从 namechange 中提取 `终止上市` 记录，存储退市日期
+- **IsST 因子**：`_merge_st_flag()` 在因子计算后处理中广播，对每个 `(code, date)` 判断是否处于 ST 期间
+  - 修复了 NULL end_date 的覆盖问题：自动截断到下一条 namechange 记录之前
+- **退市感知 Forward Return**：`compute_forward_returns()` 对退市股在 `delist_date` 之后、forward horizon 跨过最后交易日时，填充 `-1.0`（价值归零）
+- **训练排除**：训练集中剔除 IsST=1 和退市后的观测（当前尚未实现，在 Plan Mode 中规划）
 
-### 6. 多股票池配置
+### 6. 测试集 IC 过滤
+为保证 IC 反映实盘可复现的预测能力，测试集 IC 计算时排除以下观测：
+- **涨跌停过滤**：`compute_nextopen_limit_mask()` 检测 T+1 日 open 是否在涨跌停价（±10% 普通股 / ±5% ST 股），如封板则剔除该预测——因为买不到/卖不出
+- **ST 过滤**：测试 IC 计算时剔除当日 IsST=1 的所有观测——ST 股流动性差且涨跌停频繁，IC 不可复现
+- 过滤后 IC 不降反升（20d: 0.2564 → 0.2600），说明 ST 在稀释信号而非虚增 IC
+
+### 7. 预测 Horizon
+- **Horizon**：`[3, 5, 10, 20]` 日（从 `[1,3,5,10]` 改为去掉 1d、加 20d）
+- **训练权重**：均分 `{3:0.25, 5:0.25, 10:0.25, 20:0.25}`
+- **展示权重**：偏重 5d `{3:0.25, 5:0.35, 10:0.25, 20:0.15}`
+- 回测建仓用 `pred_5d` 列
+
+### 8. 多股票池配置
 - **中心配置**：所有模块通过 `config.py` 获取路径和股票池，不再硬编码
+- **默认股票池**：`mainboard_microcap`（~1112只，1e < circ_mv < 20e）
 - **股票池文件**：每个池一个 JSON 文件，放在 `pools/` 下
-- **切换股票池**：通过环境变量 `QUANTLAB_POOL` 设置，默认 `smallcap_on_mainboard`
+- **切换股票池**：通过环境变量 `QUANTLAB_POOL` 设置，默认 `mainboard_microcap`
   ```bash
-  set QUANTLAB_POOL=mainboard_smallcap && python run_mlp_multi.py
+  set QUANTLAB_POOL=smallcap_on_mainboard && python run_lgb.py
   ```
 - **输出隔离**：模型、预测缓存、回测、HTML 报告均按 `{pool_name}/` 分子目录存储
 - **数据拉取**：`build_db.py` / `pull_adj.py` 使用 `load_all_pool_stocks()` 加载所有池的并集，确保数据库覆盖所有股票
 
-### 7. 换手率实时计算
+### 9. 换手率实时计算
 `daily_kline` VIEW 继承的 `turn` 字段为 NULL（Tushare `daily` 接口不返回换手率）。计算因子时通过 `volume × close / NULLIF(circ_mv, 0)` 在 `load_all_stocks` SQL 中实时算得换手率。
 
-### 8. 市值数据来源
+### 10. 市值数据来源
 总市值 `total_mv` 和流通市值 `circ_mv` 来自 `daily_basic` 表（Tushare `daily_basic` 接口），单位为**万元**。`daily_raw` 中的同名字段全为 NULL（Tushare `daily` 接口不返回市值）。因子计算时通过 LEFT JOIN `daily_basic` 获取，注意 `daily_basic.code` 不含后缀（`.SH`/`.SZ`）。
 
-### 9. 市场状态特征（中证全指）
+### 11. 市场状态特征（中证全指）
 - 指数日线数据存储在 `index_daily` 表（通过 `data/build_index_db.py` 拉取）
 - 当前使用 **中证全指（000985）**，从 2008 年起全程覆盖
 - 因子计算流水线（`compute_panel`）会自动从 `index_daily` 提取指数数据，计算 `CSI_return_1d/5d/20d` 和 `CSI_volatility_20d`，然后横截面广播到每个股票-日期行
 - 增量计算（`compute_panel_incremental`）同样会自动合并市场特征
 - 如需切换指数，修改 `compute.py` 中 `compute_market_features()` 的 WHERE 条件
 
-### 10. Alpha 因子横截面排名
+### 12. Alpha 因子横截面排名
 - 13 个入选 alpha 因子中的 `rank()` 调用已从**时序排名**（同股票历史上排）修正为**横截面排名**（同日期全市场排），还原 WorldQuant 原始公式语义
 - **实现方式**：因子计算分两阶段：
   1. 预计算阶段 `_compute_cs_rank_cols()`：在全量 DataFrame 上对 close、volume、low 及派生字段（dc1、dv1、ret1d）做 `groupby('date').transform(cs_rank)`，生成 6 个 `_cs` 后缀列供因子函数引用
   2. 后处理阶段 `_apply_cs_rank_post()`：对 8 个需要外层横截面 rank 的 alpha 因子在全量 panel 上重算 rank
 - 新增横截面排名因子 `Return_1d_rank`、`Return_20d_rank`、`Turnover_3d_rank` 通过 `_merge_rank_factors()` 同样在后处理阶段生成
 - 极端值保护：先 `clip(-1e10, 1e10)` 夹住溢出值，再 `replace(inf→NaN)` 兜底，确保 cs_rank 不会遇到不可计算的值
+
+### 13. 数据库表清单
+| 表 / VIEW | 来源 | 说明 |
+|-----------|------|------|
+| `stock_info` | `stock_basic(list_status='L')` | 当前上市股票信息（code, name, market, list_date） |
+| `daily_raw` | `daily` + `adj_factor` | 原始日线 OHLCV + 复权因子（2008-至今） |
+| `daily_basic` | `daily_basic` | 市值/估值指标（total_mv, circ_mv, PE, PB 等） |
+| `daily_kline` | VIEW → daily_raw + latest_adj | 前复权 OHLCV（实时计算） |
+| `factor_values` | `compute.py` | 因子宽表（code, date, 61+ 因子列） |
+| `cyq_perf` | `cyq_perf` | 筹码分布（his_low/high, cost_*, winner_rate, 2018-至今） |
+| `index_daily` | `index_daily` | 指数日线（000985 中证全指, 000300 沪深300） |
+| `namechange` | `namechange` | 股票名称变更历史（ST/*ST/终止上市/改名） |
+| `delist_info` | 从 namechange 提取 | 退市日期（code, delist_date） |
 
 ## Common Workflows
 
@@ -159,9 +199,15 @@ python data/build_cyq.py        # 全量拉取当前池的 cyq_perf（2018-至�
 python data/build_cyq.py --incr # 增量拉取最近缺失交易日
 ```
 
+### 拉取退市/ST 数据（首次/补充）
+```bash
+python data/build_delist_info.py   # 拉取全池 namechange → delist_info + IsST 历史
+```
+
 ### 训练模型
 ```bash
-python run_mlp_multi.py      # 训练多周期 MLP，打印 IC 统计
+python run_lgb.py      # ★ 训练 LightGBM（主模型），打印 IC 统计
+python run_mlp_multi.py      # 训练多周期 MLP（备选）
 ```
 
 ### 运行完整回测
@@ -171,7 +217,8 @@ python -m backtest.run       # 训练 + 多空组合模拟
 
 ### 生成预测报告
 ```bash
-python forecast_display/generate.py   # 输出 HTML 到 forecast_display/html/
+python forecast_display/generate_lgb.py   # 输出 LightGBM HTML 到 forecast_display/html_lgb/
+python forecast_display/generate.py       # 输出 MLP HTML 到 forecast_display/html/
 ```
 
 ### 导出交易信号

@@ -75,6 +75,10 @@ def load_and_predict():
 
     print("      loading stock names ...")
     name_map = load_name_map(con)
+
+    # Build exclusion set: stocks currently ST or in delisting process
+    excluded = {c for c, n in name_map.items() if "ST" in n or "退" in n}
+    print(f"      excluded (ST/退): {len(excluded)} stocks")
     con.close()
 
     available_cols = [c for c in model.factor_names if c in factors.columns]
@@ -93,6 +97,10 @@ def load_and_predict():
 
     if isinstance(pred_df.index, pd.MultiIndex):
         pred_df.index = pred_df.index.droplevel("date")
+
+    # Exclude ST/delisting stocks from display
+    keep_mask = ~pred_df.index.isin(excluded)
+    pred_df = pred_df.loc[keep_mask]
 
     results = pd.DataFrame({"code": pred_df.index})
     results["name"] = results["code"].map(name_map).fillna(results["code"])
@@ -238,10 +246,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <th>#</th>
       <th>Code</th>
       <th>Name</th>
-      <th>1d Pred</th>
-      <th>3d Pred</th>
-      <th>5d Pred</th>
-      <th>10d Pred</th>
+{header_cols}
       <th>Composite</th>
     </tr></thead>
     <tbody id="table-body">
@@ -249,7 +254,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </tbody>
   </table>
   <footer>
-    Composite = 0.15*1d + 0.25*3d + 0.35*5d + 0.25*10d &middot;
+    Composite = {footer_formula} &middot;
     LightGBM model &middot; For reference only
   </footer>
 </div>
@@ -288,29 +293,27 @@ def _score_cell(val):
 
 def build_html(scored, meta):
     rows = []
+    score_cols = [f"score_{h}d" for h in HORIZONS]
     for _, r in scored.iterrows():
+        cells = "".join(_score_cell(r[col]) for col in score_cols)
         row = (
             f"<tr>"
             f"<td>{r['rank']}</td>"
             f"<td>{r['code']}</td>"
             f"<td>{r['name']}</td>"
-            f"{_score_cell(r['score_1d'])}"
-            f"{_score_cell(r['score_3d'])}"
-            f"{_score_cell(r['score_5d'])}"
-            f"{_score_cell(r['score_10d'])}"
+            f"{cells}"
             f"{_score_cell(r['composite'])}"
             f"</tr>"
         )
         rows.append(row)
 
-    weight_display = "/".join(f"{WEIGHTS[h]:.2f}" for h in HORIZONS)
+    meta["table_rows"] = "\n".join(rows)
+    meta["model_tags"] = build_model_tags(meta)
+    meta["weight_display"] = "/".join(f"{WEIGHTS[h]:.2f}" for h in HORIZONS)
+    meta["header_cols"] = "".join(f"<th>{h}d Pred</th>" for h in HORIZONS)
+    meta["footer_formula"] = " + ".join(f"{WEIGHTS[h]:.2f}*{h}d" for h in HORIZONS)
 
-    return HTML_TEMPLATE.format(
-        table_rows="\n".join(rows),
-        model_tags=build_model_tags(meta),
-        weight_display=weight_display,
-        **meta,
-    )
+    return HTML_TEMPLATE.format(**meta)
 
 
 def main():

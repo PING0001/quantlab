@@ -179,8 +179,25 @@ def main():
     print(f"  aligned samples: {len(X)}")
     print(f"  date range: {date_level.min().date()} ~ {date_level.max().date()}")
 
-    # ---- limit mask (for test IC filtering) ----
+    # ---- exclude ST + delisted observations from training ----
     st_series = factors_raw["IsST"].astype(bool) if "IsST" in factors_raw.columns else None
+    if st_series is not None:
+        st_mask = st_series.reindex(X.index, fill_value=False)
+    else:
+        st_mask = pd.Series(False, index=X.index)
+    idx_date = X.index.get_level_values("date")
+    idx_code = X.index.get_level_values("code")
+    delist_mask = pd.Series(False, index=X.index)
+    for code, dd in delist_info.items():
+        delist_mask |= (idx_code == code) & (idx_date >= pd.Timestamp(dd))
+    exclude = st_mask | delist_mask
+    if exclude.any():
+        X, y = X.loc[~exclude], y.loc[~exclude]
+        print(f"  excluded from training: {exclude.sum()} ST/delist observations")
+    else:
+        print(f"  excluded from training: 0 ST/delist observations")
+
+    # ---- limit mask (for test IC filtering) ----
     limit_mask = compute_nextopen_limit_mask(kline, st_series=st_series)
     print(f"  limit-hit predictions (next-open): {limit_mask.sum()}")
 
