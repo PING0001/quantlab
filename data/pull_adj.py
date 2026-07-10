@@ -285,6 +285,81 @@ def _ensure_view(con):
         log.info("daily_kline VIEW created")
 
 
+def _ensure_namechange_tables(con):
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS namechange (
+            code        VARCHAR NOT NULL,
+            ts_code     VARCHAR NOT NULL,
+            name        VARCHAR,
+            start_date  DATE,
+            end_date    DATE,
+            ann_date    DATE,
+            change_reason VARCHAR,
+            PRIMARY KEY (code, start_date)
+        )
+    """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS delist_info (
+            code            VARCHAR PRIMARY KEY,
+            delist_date     DATE NOT NULL
+        )
+    """)
+
+
+def _update_delist_info(con, pro):
+    """Incrementally check for new delisting events and update delist_info."""
+    _ensure_namechange_tables(con)
+
+    # Check if delist_info needs update: look for stocks whose latest
+    # daily_raw trading date is stale (no new data) and are in delist_info.
+    from datetime import date
+    today = date.today()
+    known_delisted = set(r[0] for r in con.execute(
+        "SELECT code FROM delist_info").fetchall())
+
+    # Check for newly delisted stocks not in delist_info
+    new_delist = con.execute("""
+        SELECT DISTINCT s.code, s.full_code
+        FROM stock_info s
+        WHERE s.name LIKE '%退%'
+          AND s.code NOT IN (SELECT code FROM delist_info)
+    """).fetchall()
+
+    if new_delist:
+        log.info("New delisting candidates: %d", len(new_delist))
+        for code, full_code in new_delist:
+            try:
+                df = _retry_api(pro.namechange, ts_code=full_code,
+                                start_date="20080101",
+                                end_date=today.strftime("%Y%m%d"))
+            except Exception as e:
+                log.warning("  namechange failed %s: %s", code, e)
+                continue
+
+            if df is None or df.empty:
+                continue
+
+            df["code"] = code
+            df["start_date"] = pd.to_datetime(df["start_date"], errors="coerce").dt.date
+            df["end_date"] = pd.to_datetime(df["end_date"], errors="coerce")
+            df["ann_date"] = pd.to_datetime(df["ann_date"], errors="coerce").dt.date
+            cols = ["code", "ts_code", "name", "start_date", "end_date",
+                    "ann_date", "change_reason"]
+            df = df[cols]
+
+            con.execute("INSERT OR REPLACE INTO namechange SELECT * FROM df")
+
+            term_row = df[df["change_reason"] == "终止上市"]
+            if not term_row.empty:
+                min_date = term_row["start_date"].min()
+                con.execute(
+                    "INSERT OR REPLACE INTO delist_info VALUES (?, ?)",
+                    (code, min_date)
+                )
+                log.info("  added to delist_info: %s (delist: %s)", code, min_date)
+            con.execute("CHECKPOINT")
+
+
 def main():
     con = duckdb.connect(str(DB_PATH))
     con.execute("SET memory_limit = '2GB'")
@@ -375,6 +450,9 @@ def main():
         con.execute("INSERT INTO index_daily SELECT * FROM df_idx")
         n = con.execute("SELECT count(*) FROM index_daily WHERE code=?", (store_code,)).fetchone()[0]
         log.info("  index_daily: %d rows", n)
+
+    # --- 5. Incremental namechange / delist check ---
+    _update_delist_info(con, pro)
 
     con.close()
     log.info("Pull complete.")

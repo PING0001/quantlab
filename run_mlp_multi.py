@@ -107,6 +107,16 @@ def load_kline(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
     return con.execute(query, pool_codes).fetchdf()
 
 
+def load_delist_info(con: duckdb.DuckDBPyConnection) -> dict[str, pd.Timestamp]:
+    try:
+        df = con.execute("SELECT code, delist_date FROM delist_info").fetchdf()
+        if df.empty:
+            return {}
+        return {r["code"]: pd.Timestamp(r["delist_date"]) for _, r in df.iterrows()}
+    except Exception:
+        return {}
+
+
 def main():
     print(f"=== Loading factor data (pool: {POOL_NAME}) ===")
     con = duckdb.connect(str(DB_PATH), read_only=True)
@@ -116,6 +126,10 @@ def main():
 
     print("  loading kline ...")
     kline = load_kline(con)
+
+    print("  loading delist_info ...")
+    delist_info = load_delist_info(con)
+    print(f"  delisted stocks: {len(delist_info)}")
     con.close()
 
     # Restrict to the curated factors and drop NaN rows
@@ -135,7 +149,7 @@ def main():
     print(f"  computing labels for horizons {HORIZONS} ...")
     label_dfs = {}
     for h in HORIZONS:
-        label_dfs[h] = compute_forward_returns(kline, horizon=h)
+        label_dfs[h] = compute_forward_returns(kline, horizon=h, delist_info=delist_info)
     labels_raw = pd.DataFrame({h: label_dfs[h] for h in HORIZONS})
 
     # ---- align ----
