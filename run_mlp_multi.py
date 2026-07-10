@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from config import ROOT, DB_PATH, POOL_NAME, get_pool_codes, get_model_dir, get_model_path, get_predictions_path, get_predictions_meta_path
 
 from strategies import MLPStrategy, walk_forward, rank_ic, pearson_ic, ic_summary
-from strategies.labels import compute_forward_returns
+from strategies.labels import compute_forward_returns, compute_nextopen_limit_mask
 
 
 SELECTED_FACTORS = [
@@ -105,7 +105,7 @@ def load_kline(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
     """Load kline data for label computation, filtered to current pool."""
     pool_codes = get_pool_codes()
     placeholders = ",".join(["?"] * len(pool_codes))
-    query = f"SELECT code, date, close FROM daily_kline WHERE code IN ({placeholders}) ORDER BY code, date"
+    query = f"SELECT code, date, open, close FROM daily_kline WHERE code IN ({placeholders}) ORDER BY code, date"
     return con.execute(query, pool_codes).fetchdf()
 
 
@@ -171,6 +171,11 @@ def main():
     print(f"  aligned samples: {len(X)}")
     print(f"  date range: {date_level.min().date()} ~ {date_level.max().date()}")
 
+    # ---- limit mask (for test IC filtering) ----
+    st_series = factors_raw["IsST"].astype(bool) if "IsST" in factors_raw.columns else None
+    limit_mask = compute_nextopen_limit_mask(kline, st_series=st_series)
+    print(f"  limit-hit predictions (next-open): {limit_mask.sum()}")
+
     # ---- strategy (multi-head) ----
     strategy = MLPStrategy(
         factor_names=factor_cols,
@@ -215,12 +220,19 @@ def main():
         print(f"  train-set Rank IC: mean_ic={s_train['mean_ic']:.4f}, ir={s_train['ir']:.3f}, hit_rate={s_train['hit_rate']:.2%}, {s_train['n_periods']} dates")
 
         if n_pred > 0 and col in preds.columns:
-            ric_test = rank_ic(preds[col], y.reindex(preds.index)[h])
-            pic_test = pearson_ic(preds[col], y.reindex(preds.index)[h])
+            test_pred = preds[col]
+            test_y = y.reindex(preds.index)[h]
+
+            safe = ~limit_mask.reindex(preds.index, fill_value=False)
+            n_limit = (~safe).sum()
+
+            ric_test = rank_ic(test_pred.loc[safe], test_y.loc[safe])
+            pic_test = pearson_ic(test_pred.loc[safe], test_y.loc[safe])
             s_test = ic_summary(ric_test)
             p_test = ic_summary(pic_test)
             print(f"  test-set  Rank IC: mean_ic={s_test['mean_ic']:.4f}, ir={s_test['ir']:.3f}, hit_rate={s_test['hit_rate']:.2%}, {s_test['n_periods']} dates")
             print(f"  test-set Pearson IC: mean_ic={p_test['mean_ic']:.4f}, ir={p_test['ir']:.3f}, hit_rate={p_test['hit_rate']:.2%}, {p_test['n_periods']} dates")
+            print(f"  test-set  limit-hit excluded: {n_limit} observations")
             print(f"  IC gap (train - test): {s_train['mean_ic'] - s_test['mean_ic']:.4f}")
         else:
             s_test = {"n_periods": 0}
