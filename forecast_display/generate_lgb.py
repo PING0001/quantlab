@@ -76,9 +76,14 @@ def load_and_predict():
     print("      loading stock names ...")
     name_map = load_name_map(con)
 
-    # Build exclusion set: stocks currently ST or in delisting process
+    # Build exclusion set: ST/退 + stocks with < 90 trading days (warmup)
     excluded = {c for c, n in name_map.items() if "ST" in n or "退" in n}
-    print(f"      excluded (ST/退): {len(excluded)} stocks")
+    warmup = con.execute("""
+        SELECT code FROM daily_kline GROUP BY code HAVING COUNT(*) < 90
+    """).fetchall()
+    for (c,) in warmup:
+        excluded.add(c)
+    print(f"      excluded (ST/退: {len(excluded) - len(warmup)} + warmup<90d: {len(warmup)} = {len(excluded)} stocks)")
     con.close()
 
     available_cols = [c for c in model.factor_names if c in factors.columns]
