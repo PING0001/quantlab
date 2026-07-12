@@ -1,8 +1,7 @@
 """
 Multi-horizon LightGBM walk-forward training.
 
-Trains one LGBMRegressor per horizon (1d / 3d / 5d / 10d).
-Uses the same factor set and train/test split as run_mlp_multi.py.
+Trains one LGBMRegressor per horizon (5d / 10d / 20d / 30d).
 
 Usage:
     python run_lgb.py
@@ -20,48 +19,10 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import ROOT, DB_PATH, POOL_NAME, get_pool_codes, get_model_dir, get_predictions_path, get_predictions_meta_path
+from config import DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS, get_lgb_model_path, get_lgb_predictions_path, get_lgb_predictions_meta_path
 
 from strategies import LGBStrategy, walk_forward, rank_ic, pearson_ic, ic_summary
-from strategies.labels import compute_forward_returns, compute_nextopen_limit_mask
-
-
-SELECTED_FACTORS = [
-    # Momentum (3)
-    "Return_5d", "Return_20d", "Reversal_60d",
-    # Volatility (5)
-    "ATR", "Volatility", "Volatility_60d", "Bollinger_width", "alpha060",
-    # Price position / other (6)
-    "Price_position_252d", "Stochastic_K", "Return_skew_20d",
-    "Trend_strength", "SMA", "MACD_signal",
-    # Pattern / intraday (3)
-    "Gap_pct", "Body_pct", "Intraday_range_pct",
-    # Volume / liquidity (2)
-    "Volume_ratio", "Amihud_illiquidity",
-    # Alpha composite (22)
-    "alpha001", "alpha002", "alpha003", "alpha006", "alpha007",
-    "alpha009", "alpha012", "alpha013", "alpha014", "alpha017",
-    "alpha018", "alpha019", "alpha020", "alpha028", "alpha035",
-    "alpha038", "alpha046", "alpha050", "alpha057",
-    "alpha101", "alpha191",
-    # Market cap / amount (3)
-    "AvgAmount_90d", "LnMktCap", "LnFloatCap",
-    # Turnover (2)
-    "Turnover_3d", "Turnover_3d_ratio",
-    # Intraday (1)
-    "Intraday_return",
-    # Market state (5)
-    "CSI_return_1d", "CSI_return_20d", "CSI_volatility_20d",
-    "HS300_return_1d", "HS300_return_20d",
-    # Cross-sectional ranks (3)
-    "Return_1d_rank",  "Return_20d_rank","Turnover_3d_rank",
-    # Firm age (1)
-    "LnAge",
-    # ST status (1)
-    "IsST",
-    # Chip / position cost (4)
-    "WinnerRate", "CostPosition", "ChipDispersion", "ChipSkew",
-]
+from strategies.labels import compute_forward_returns, compute_smoothed_forward_returns, compute_nextopen_limit_mask
 
 
 # --- config ---
@@ -72,35 +33,26 @@ WARMUP_DAYS = 90
 TRAIN_WINDOW = 252
 MIN_TRAIN = 252
 
-HORIZONS = [3, 5, 10, 20]
-WEIGHTS = {3: 0.25, 5: 0.25, 10: 0.25, 20: 0.25}
+HORIZONS = [5, 10, 20, 30]
+WEIGHTS = {5: 0.25, 10: 0.25, 20: 0.25, 30: 0.25}
 
 LGB_KWARGS = dict(
-    num_leaves=31,
+    num_leaves=24,
+    max_depth=8,
     learning_rate=0.02,
     n_estimators=3000,
-    min_child_samples=300,
-    reg_alpha=0.5,
-    reg_lambda=0.5,
+    min_child_samples=600,
+    reg_alpha=1.0,
+    reg_lambda=1.0,
     subsample=0.8,
-    colsample_bytree=0.7,
+    colsample_bytree=0.5,
     early_stopping=True,
-    validation_fraction=0.05,
+    validation_fraction=0.10,
     n_iter_no_change=50,
     random_state=42,
     n_jobs=-1,
     verbosity=-1,
 )
-
-
-def _get_lgb_model_path(name=None):
-    from config import get_model_dir
-    return get_model_dir(name) / "lgb_multi.joblib"
-
-
-def _get_lgb_predictions_path(name=None):
-    p = name or POOL_NAME
-    return ROOT / "data" / f"predictions__{p}_lgb.parquet"
 
 
 def load_factors(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
@@ -145,8 +97,16 @@ def main():
     print(f"  delisted stocks: {len(delist_info)}")
     con.close()
 
-    available = [f for f in SELECTED_FACTORS if f in factors_raw.columns]
-    missing = [f for f in SELECTED_FACTORS if f not in factors_raw.columns]
+    selected_path = Path(__file__).resolve().parent / "factors" / f"selected_{POOL_NAME}.json"
+    if selected_path.exists():
+        selected_data = json.loads(selected_path.read_text())
+        use_factors = selected_data["selected_factors"]
+        print(f"  Using {len(use_factors)} pre-selected factors from {selected_path.name}")
+    else:
+        use_factors = SELECTED_FACTORS
+
+    available = [f for f in use_factors if f in factors_raw.columns]
+    missing = [f for f in use_factors if f not in factors_raw.columns]
     if missing:
         print(f"  WARNING: {len(missing)} selected factors not in DB: {missing}")
     factor_cols = available
@@ -158,10 +118,17 @@ def main():
     t0 = time.time()
 
     # ---- labels ----
+    # Short horizons (5d, 10d): standard close-to-close return
+    # Long horizons (20d, 30d): smoothed return using 6 price points
+    #   avg(close[T+h-1], open[T+h-1], close[T+h], open[T+h], close[T+h+1], open[T+h+1])
+    SMOOTHED_HORIZONS = {20, 30}
     print(f"  computing labels for horizons {HORIZONS} ...")
     label_dfs = {}
     for h in HORIZONS:
-        label_dfs[h] = compute_forward_returns(kline, horizon=h, delist_info=delist_info)
+        if h in SMOOTHED_HORIZONS:
+            label_dfs[h] = compute_smoothed_forward_returns(kline, horizon=h, delist_info=delist_info)
+        else:
+            label_dfs[h] = compute_forward_returns(kline, horizon=h, delist_info=delist_info)
     labels_raw = pd.DataFrame({h: label_dfs[h] for h in HORIZONS})
 
     # ---- align ----
@@ -187,9 +154,10 @@ def main():
         st_mask = pd.Series(False, index=X.index)
     idx_date = X.index.get_level_values("date")
     idx_code = X.index.get_level_values("code")
-    delist_mask = pd.Series(False, index=X.index)
-    for code, dd in delist_info.items():
-        delist_mask |= (idx_code == code) & (idx_date >= pd.Timestamp(dd))
+    delist_series = pd.Series(delist_info)
+    delist_dates = idx_code.map(delist_series)
+    delist_mask = (idx_date >= delist_dates.values)
+    delist_mask = pd.Series(delist_mask, index=X.index).fillna(False)
     exclude = st_mask | delist_mask
     if exclude.any():
         X, y = X.loc[~exclude], y.loc[~exclude]
@@ -241,7 +209,10 @@ def main():
         print(f"\n--- Horizon {h}d ---")
         ric_train = rank_ic(preds_train[col], y[h])
         s_train = ic_summary(ric_train)
-        print(f"  train-set Rank IC: mean_ic={s_train['mean_ic']:.4f}, ir={s_train['ir']:.3f}, hit_rate={s_train['hit_rate']:.2%}, {s_train['n_periods']} dates")
+        if s_train.get("n_periods", 0) > 0:
+            print(f"  train-set Rank IC: mean_ic={s_train['mean_ic']:.4f}, ir={s_train['ir']:.3f}, hit_rate={s_train['hit_rate']:.2%}, {s_train['n_periods']} dates")
+        else:
+            print(f"  train-set Rank IC: NO DATA")
 
         if n_pred > 0 and col in preds.columns:
             test_pred = preds[col]
@@ -276,12 +247,12 @@ def main():
         }
 
     # ---- persist model ----
-    model_path = _get_lgb_model_path()
+    model_path = get_lgb_model_path()
     strategy.save(model_path)
     print(f"\n  model saved: {model_path}")
 
     # ---- persist predictions ----
-    pred_path = _get_lgb_predictions_path()
+    pred_path = get_lgb_predictions_path()
     if isinstance(preds, pd.DataFrame) and not preds.empty:
         preds.to_parquet(pred_path)
         print(f"  predictions saved: {pred_path} ({len(preds)} rows)")
@@ -301,7 +272,7 @@ def main():
         "predictions_path": str(pred_path),
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
-    meta_path = ROOT / "data" / f"predictions__{POOL_NAME}_lgb_meta.json"
+    meta_path = get_lgb_predictions_meta_path()
     meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"  meta saved: {meta_path}")
 

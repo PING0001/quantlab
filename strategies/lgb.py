@@ -2,7 +2,7 @@
 """
 LightGBM multi-horizon strategy.
 
-Trains one LGBMRegressor per prediction horizon (1d / 3d / 5d / 10d).
+Trains one LGBMRegressor per prediction horizon (5d / 10d / 20d / 30d).
 All models share the same factor inputs; each learns its own horizon's
 forward return independently.
 
@@ -41,8 +41,9 @@ class LGBStrategy(BaseStrategy):
     def __init__(
         self,
         factor_names: Sequence[str],
-        horizons: tuple[int, ...] = (1, 3, 5, 10),
+        horizons: tuple[int, ...] = (5, 10, 20, 30),
         num_leaves: int = 63,
+        max_depth: int | None = None,
         learning_rate: float = 0.02,
         n_estimators: int = 2000,
         min_child_samples: int = 100,
@@ -62,6 +63,7 @@ class LGBStrategy(BaseStrategy):
         self.horizons = horizons
         self._config = dict(
             num_leaves=num_leaves,
+            max_depth=max_depth,
             learning_rate=learning_rate,
             n_estimators=n_estimators,
             min_child_samples=min_child_samples,
@@ -86,7 +88,7 @@ class LGBStrategy(BaseStrategy):
     # fit
     # ------------------------------------------------------------------
     def fit(self, X: pd.DataFrame, y: pd.DataFrame) -> "LGBStrategy":
-        X_sel = X[self.factor_names].replace([np.inf, -np.inf], np.nan).dropna()
+        X_sel = X[self.factor_names].replace([np.inf, -np.inf], np.nan)
         common = X_sel.index.intersection(y.index)
         X_sel = X_sel.loc[common]
         y_sel = y.loc[common]
@@ -125,7 +127,7 @@ class LGBStrategy(BaseStrategy):
                 callbacks.append(lgb.early_stopping(cfg["n_iter_no_change"], verbose=False))
             callbacks.append(_make_progress_callback(h, period=50))
 
-            model = lgb.LGBMRegressor(
+            model_kwargs = dict(
                 num_leaves=cfg["num_leaves"],
                 learning_rate=cfg["learning_rate"],
                 n_estimators=cfg["n_estimators"],
@@ -138,6 +140,9 @@ class LGBStrategy(BaseStrategy):
                 n_jobs=cfg["n_jobs"],
                 verbosity=cfg["verbosity"],
             )
+            if cfg.get("max_depth") is not None:
+                model_kwargs["max_depth"] = cfg["max_depth"]
+            model = lgb.LGBMRegressor(**model_kwargs)
             model.fit(
                 X_train, y_h_train,
                 eval_set=[(X_val, y_h_val)],
@@ -162,15 +167,10 @@ class LGBStrategy(BaseStrategy):
             return result
 
         X_sel = X[available].replace([np.inf, -np.inf], np.nan)
-        valid = X_sel.notna().all(axis=1)
-        if not valid.any():
-            return result
-
-        X_in = X_sel.loc[valid]
 
         for h in self.horizons:
-            pred = self._models[h].predict(X_in)
-            result.loc[valid, f"pred_{h}d"] = pred
+            pred = self._models[h].predict(X_sel)
+            result.loc[X_sel.index, f"pred_{h}d"] = pred
 
         return result
 
@@ -201,6 +201,7 @@ class LGBStrategy(BaseStrategy):
             factor_names=bundle["factor_names"],
             horizons=bundle.get("horizons", cfg.get("horizons", (1, 3, 5, 10))),
             num_leaves=cfg["num_leaves"],
+            max_depth=cfg.get("max_depth"),
             learning_rate=cfg["learning_rate"],
             n_estimators=cfg["n_estimators"],
             min_child_samples=cfg["min_child_samples"],
