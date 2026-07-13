@@ -57,6 +57,8 @@ class LGBStrategy(BaseStrategy):
         random_state: int = 42,
         n_jobs: int = -1,
         verbosity: int = -1,
+        boosting_type: str = "gbdt",
+        drop_rate: float = 0.0,
         name: str | None = None,
     ):
         super().__init__(factor_names=factor_names, name=name)
@@ -64,6 +66,8 @@ class LGBStrategy(BaseStrategy):
         self._config = dict(
             num_leaves=num_leaves,
             max_depth=max_depth,
+            boosting_type=boosting_type,
+            drop_rate=drop_rate,
             learning_rate=learning_rate,
             n_estimators=n_estimators,
             min_child_samples=min_child_samples,
@@ -128,6 +132,7 @@ class LGBStrategy(BaseStrategy):
             callbacks.append(_make_progress_callback(h, period=50))
 
             model_kwargs = dict(
+                boosting_type=cfg["boosting_type"],
                 num_leaves=cfg["num_leaves"],
                 learning_rate=cfg["learning_rate"],
                 n_estimators=cfg["n_estimators"],
@@ -142,6 +147,8 @@ class LGBStrategy(BaseStrategy):
             )
             if cfg.get("max_depth") is not None:
                 model_kwargs["max_depth"] = cfg["max_depth"]
+            if cfg.get("drop_rate", 0) > 0 and cfg["boosting_type"] == "dart":
+                model_kwargs["drop_rate"] = cfg["drop_rate"]
             model = lgb.LGBMRegressor(**model_kwargs)
             model.fit(
                 X_train, y_h_train,
@@ -202,6 +209,8 @@ class LGBStrategy(BaseStrategy):
             horizons=bundle.get("horizons", cfg.get("horizons", (1, 3, 5, 10))),
             num_leaves=cfg["num_leaves"],
             max_depth=cfg.get("max_depth"),
+            boosting_type=cfg.get("boosting_type", "gbdt"),
+            drop_rate=cfg.get("drop_rate", 0.0),
             learning_rate=cfg["learning_rate"],
             n_estimators=cfg["n_estimators"],
             min_child_samples=cfg["min_child_samples"],
