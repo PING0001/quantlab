@@ -92,6 +92,8 @@ class LGBStrategy(BaseStrategy):
         verbosity: int = -1,
         boosting_type: str = "gbdt",
         drop_rate: float = 0.0,
+        objective: str | None = None,
+        categorical_feature: list[str] | None = None,
         name: str | None = None,
         l1_loss_horizon: Any = None,
     ):
@@ -117,8 +119,11 @@ class LGBStrategy(BaseStrategy):
             random_state=random_state,
             n_jobs=n_jobs,
             verbosity=verbosity,
+            objective=objective,
+            categorical_feature=categorical_feature or [],
         )
         self._models: dict[Any, lgb.LGBMRegressor] = {}
+        self._categorical_feature = categorical_feature or []
 
     @property
     def horizon_columns(self) -> list[str]:
@@ -190,6 +195,11 @@ class LGBStrategy(BaseStrategy):
                 model_kwargs["max_depth"] = cfg["max_depth"]
             if cfg.get("drop_rate", 0) > 0 and cfg["boosting_type"] == "dart":
                 model_kwargs["drop_rate"] = cfg["drop_rate"]
+            if cfg.get("objective") is not None:
+                model_kwargs["objective"] = cfg["objective"]
+
+            # LightGBM 4.x: pass column names directly to fit()
+            cat_feature = cfg.get("categorical_feature", [])
 
             is_peak = (
                 self._l1_loss_horizon is not None and h == self._l1_loss_horizon
@@ -198,12 +208,16 @@ class LGBStrategy(BaseStrategy):
                 model_kwargs["objective"] = "regression_l1"
 
             model = lgb.LGBMRegressor(**model_kwargs)
+            fit_kwargs = {}
+            if cat_feature:
+                fit_kwargs["categorical_feature"] = cat_feature
             model.fit(
                 X_train,
                 y_h_train,
                 eval_set=[(X_val, y_h_val)],
                 callbacks=callbacks,
                 eval_metric="mae" if is_peak else None,
+                **fit_kwargs,
             )
             self._models[h] = model
 
@@ -223,7 +237,12 @@ class LGBStrategy(BaseStrategy):
         if not available:
             return result
 
-        X_sel = X[available].replace([np.inf, -np.inf], np.nan)
+        # Include categorical features as-is (they don't need inf/nan replacement)
+        cat_cols = [c for c in self._categorical_feature if c in X.columns]
+        all_cols = available + [c for c in cat_cols if c not in available]
+
+        X_sel = X[all_cols].copy()
+        X_sel[available] = X_sel[available].replace([np.inf, -np.inf], np.nan)
 
         for h in self.horizons:
             pred = self._models[h].predict(X_sel)
@@ -276,6 +295,8 @@ class LGBStrategy(BaseStrategy):
             random_state=cfg["random_state"],
             n_jobs=cfg.get("n_jobs", -1),
             verbosity=cfg.get("verbosity", -1),
+            objective=cfg.get("objective"),
+            categorical_feature=cfg.get("categorical_feature"),
             name=bundle.get("name"),
             l1_loss_horizon=bundle.get("l1_loss_horizon"),
         )

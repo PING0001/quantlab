@@ -23,8 +23,8 @@ from strategies import LGBStrategy
 from config import DB_PATH, POOL_NAME, get_pool_codes, get_lgb_model_path, get_forecast_lgb_dir
 
 MODEL_PATH = get_lgb_model_path()
-WEIGHTS = {3: 0.25, 5: 0.35, 10: 0.25, 20: 0.15}
-HORIZONS = [3, 5, 10, 20]
+WEIGHTS = {5: 0.25, 10: 0.25, 20: 0.25, 30: 0.25}
+HORIZONS = [5, 10, 20, 30]
 
 HTML_DIR = get_forecast_lgb_dir()
 
@@ -51,7 +51,7 @@ def load_name_map(con):
     return dict(zip(info["code"], info["name"]))
 
 
-def load_and_predict():
+def load_and_predict(target_date=None):
     print("=== forecast_display: LightGBM prediction ===\n")
 
     if not MODEL_PATH.exists():
@@ -76,21 +76,32 @@ def load_and_predict():
     print("      loading stock names ...")
     name_map = load_name_map(con)
 
-    # Build exclusion set: ST/退 + stocks with < 90 trading days (warmup)
-    excluded = {c for c, n in name_map.items() if "ST" in n or "退" in n}
-    warmup = con.execute("""
-        SELECT code FROM daily_kline GROUP BY code HAVING COUNT(*) < 90
-    """).fetchall()
-    for (c,) in warmup:
-        excluded.add(c)
-    print(f"      excluded (ST/退: {len(excluded) - len(warmup)} + warmup<90d: {len(warmup)} = {len(excluded)} stocks)")
-    con.close()
-
     available_cols = [c for c in model.factor_names if c in factors.columns]
     factors = factors[available_cols]
 
     all_dates = sorted(factors.index.get_level_values("date").unique())
-    latest_date = all_dates[-1]
+    if target_date is not None:
+        target_ts = pd.Timestamp(target_date)
+        if target_ts not in all_dates:
+            print(f"ERROR: target date {target_date} not found in factor data")
+            print(f"Available dates: {[str(d.date()) for d in all_dates[-10:]]}")
+            sys.exit(1)
+        latest_date = target_ts
+    else:
+        latest_date = all_dates[-1]
+
+    # Build exclusion set: ST/退 + stocks listed < 90 days
+    excluded = {c for c, n in name_map.items() if "ST" in n or "退" in n}
+    cutoff = (latest_date - pd.Timedelta(days=90)).date()
+    warmup = con.execute(
+        "SELECT code FROM stock_info WHERE list_date > ?",
+        [cutoff],
+    ).fetchall()
+    for (c,) in warmup:
+        excluded.add(c)
+    print(f"      excluded (ST/退: {len(excluded) - len(warmup)} + listed<90d: {len(warmup)} = {len(excluded)} stocks)")
+    con.close()
+
     n_latest = (factors.index.get_level_values("date") == latest_date).sum()
     print(f"      date range: {all_dates[0].date()} ~ {latest_date.date()}")
     print(f"      stocks on latest date: {n_latest}")
@@ -115,10 +126,7 @@ def load_and_predict():
         if col in pred_df.columns:
             results[f"score_{h}d"] = results["code"].map(pred_df[col].to_dict()).astype(float)
 
-    results["composite"] = sum(
-        WEIGHTS[h] * results[f"score_{h}d"] for h in HORIZONS
-        if f"score_{h}d" in results.columns
-    )
+    results["composite"] = (results["score_20d"] + results["score_30d"]) / 2
 
     score_cols = [f"score_{h}d" for h in HORIZONS if f"score_{h}d" in results.columns] + ["composite"]
     results = results.dropna(subset=score_cols).reset_index(drop=True)
@@ -322,8 +330,14 @@ def build_html(scored, meta):
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate LightGBM forecast HTML")
+    parser.add_argument("--date", type=str, default=None,
+                        help="Target prediction date (YYYY-MM-DD). Default: latest available.")
+    args = parser.parse_args()
+
     print("Generating LightGBM forecast HTML ...")
-    scored, meta = load_and_predict()
+    scored, meta = load_and_predict(target_date=args.date)
     html = build_html(scored, meta)
     HTML_DIR.mkdir(parents=True, exist_ok=True)
     pred_date = meta["prediction_date"]

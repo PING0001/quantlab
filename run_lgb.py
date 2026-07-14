@@ -47,6 +47,8 @@ LGB_KWARGS = dict(
     subsample=0.8,
     subsample_freq=1,
     colsample_bytree=0.5,
+    objective="regression_l1",
+    categorical_feature=["sw_l3"],
     early_stopping=True,
     validation_fraction=0.10,
     n_iter_no_change=50,
@@ -54,6 +56,17 @@ LGB_KWARGS = dict(
     n_jobs=-1,
     verbosity=-1,
 )
+
+
+def load_industry_sw_l3(con: duckdb.DuckDBPyConnection) -> pd.Series:
+    """Load SW L3 codes for all stocks, factorize into integer categories."""
+    df = con.execute(
+        "SELECT code, sw_l3_code FROM industry WHERE sw_l3_code IS NOT NULL"
+    ).fetchdf()
+    if df.empty:
+        return pd.Series(dtype=int)
+    codes, uniques = pd.factorize(df["sw_l3_code"])
+    return pd.Series(codes, index=df["code"], name="sw_l3")
 
 
 def load_factors(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
@@ -96,6 +109,11 @@ def main():
     print("  loading delist_info ...")
     delist_info = load_delist_info(con)
     print(f"  delisted stocks: {len(delist_info)}")
+
+    print("  loading industry sw_l3 ...")
+    industry_sw_l3 = load_industry_sw_l3(con)
+    print(f"  industry categories: {industry_sw_l3.nunique()}")
+
     con.close()
 
     selected_path = Path(__file__).resolve().parent / "factors" / f"selected_{POOL_NAME}.json"
@@ -112,6 +130,18 @@ def main():
         print(f"  WARNING: {len(missing)} selected factors not in DB: {missing}")
     factor_cols = available
     factors_raw = factors_raw[factor_cols].copy()
+    
+    # ---- add sw_l3 categorical feature ----
+    if not industry_sw_l3.empty:
+        idx_codes = factors_raw.index.get_level_values("code")
+        factors_raw["sw_l3"] = idx_codes.map(industry_sw_l3).fillna(-1).astype(int)
+        if "sw_l3" not in factor_cols:
+            factor_cols = factor_cols + ["sw_l3"]
+        n_cats = industry_sw_l3.nunique()
+        print(f"  sw_l3 categorical: {n_cats} categories")
+    else:
+        print(f"  sw_l3 categorical: not available")
+
     print(f"  factors: {len(factor_cols)} available")
     print(f"  full date range: {factors_raw.index.get_level_values('date').min()} ~ {factors_raw.index.get_level_values('date').max()}")
     print(f"  total stocks: {factors_raw.index.get_level_values('code').nunique()}")
@@ -169,7 +199,6 @@ def main():
     strategy = LGBStrategy(
         factor_names=factor_cols,
         horizons=tuple(HORIZONS),
-        l1_loss_horizon='median_5d',
         **LGB_KWARGS,
     )
     print(f"  strategy: {strategy.name}, horizons={HORIZONS}")

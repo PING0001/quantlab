@@ -153,24 +153,20 @@ def pull_namechange_for_codes(pro, codes, con):
 
 
 def extract_delist_info(namechange_df):
-    """Extract delisting dates from namechange data."""
+    """Extract delisting dates from namechange data.
+
+    Only uses change_reason == '终止上市' as the authoritative signal.
+    """
     if namechange_df.empty:
         return pd.DataFrame(columns=["code", "delist_date"])
 
     term = namechange_df[namechange_df["change_reason"] == "终止上市"].copy()
+    if term.empty:
+        return pd.DataFrame(columns=["code", "delist_date"])
+
     term_dates = term.groupby("code")["start_date"].min().reset_index()
     term_dates.columns = ["code", "delist_date"]
-
-    name_term = namechange_df[namechange_df["name"].str.contains("退", na=False)].copy()
-    name_dates = name_term.groupby("code")["start_date"].min().reset_index()
-    name_dates.columns = ["code", "delist_date"]
-
-    combined = pd.concat([term_dates, name_dates], ignore_index=True)
-    if combined.empty:
-        return combined
-
-    combined = combined.groupby("code")["delist_date"].min().reset_index()
-    return combined
+    return term_dates
 
 
 def main():

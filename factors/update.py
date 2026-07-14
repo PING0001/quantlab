@@ -1,12 +1,17 @@
+# -*- coding: utf-8 -*-
 """
-Incremental factor update.
+Incremental factor update: compute factors for new dates only,
+then INSERT into factor_values table.
 
-Computes factors only for dates not yet in the factor_values table,
-then appends the new rows.
+Rolling windows used in alpha expressions (e.g. ts_sum(returns, 250),
+ts_std(close, 250)) require historical context. We load data from
+(LOOKBACK_DAYS) before the last computed date, then only write
+the NEW date rows to factor_values.
 
 Usage:
     python -m factors.update
 """
+
 from __future__ import annotations
 
 import logging
@@ -15,77 +20,126 @@ from pathlib import Path
 
 import duckdb
 import pandas as pd
+import polars as pl
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from config import DB_PATH, get_pool_codes
-from .compute import compute_panel_incremental
+from .compute import compute_panel
 
 log = logging.getLogger(__name__)
 
-_CURATED_FACTORS = [
-    "Return_1d", "Return_5d", "Return_20d", "Reversal_60d",
-    "ATR", "Volatility", "Volatility_60d", "Bollinger_width", "alpha060",
-    "Price_position_252d", "Stochastic_K", "Return_skew_20d",
-    "Trend_strength", "SMA", "MACD_signal",
-    "Gap_pct", "Body_pct", "Intraday_range_pct",
-    "Volume_ratio", "Amihud_illiquidity",
-    "alpha001", "alpha002", "alpha003", "alpha006", "alpha007",
-    "alpha009", "alpha012", "alpha013", "alpha014", "alpha017",
-    "alpha018", "alpha019", "alpha020", "alpha028", "alpha035",
-    "alpha038", "alpha046", "alpha050", "alpha057",
-    "alpha101", "alpha191",
-        "LnMktCap", "LnFloatCap", "AvgAmount_90d",
-        "Turnover_3d", "Turnover_3d_ratio",
-        "Intraday_return",
-        "CSI_return_1d", "CSI_return_5d", "CSI_return_20d", "CSI_volatility_20d",
-        "HS300_return_1d", "HS300_return_20d",
-        "Return_1d_rank", "Return_20d_rank", "Turnover_3d_rank",
-        "LnAge",
-        "IsST",
-        "WinnerRate", "CostPosition", "ChipDispersion", "ChipSkew",
-]
+LOOKBACK_DAYS = 260  # trading days (~1 year, covers 250d windows + margin)
+
+
+def get_latest_date(con: duckdb.DuckDBPyConnection) -> str | None:
+    """Get the maximum date currently in factor_values."""
+    try:
+        result = con.execute("SELECT max(date) FROM factor_values").fetchone()
+        if result and result[0]:
+            return str(result[0])
+    except Exception:
+        pass
+    return None
+
+
+def get_lookback_start(con: duckdb.DuckDBPyConnection, latest: str) -> str:
+    """Get the date LOOKBACK_DAYS trading days before *latest*."""
+    result = con.execute(
+        "SELECT date FROM daily_kline WHERE date <= ? "
+        "ORDER BY date DESC LIMIT 1 OFFSET ?",
+        [latest, LOOKBACK_DAYS - 1],
+    ).fetchone()
+    if result and result[0]:
+        return str(result[0])
+    return latest
 
 
 def main():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
-        stream=sys.stdout,
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
 
-    con = duckdb.connect(str(DB_PATH))
-    pool_codes = get_pool_codes()
+    codes = get_pool_codes()
+    log.info("Pool: %d stocks", len(codes))
 
-    panel = compute_panel_incremental(con=con, codes=pool_codes)
-    if panel.empty:
-        log.info("factor_values is already up to date. Nothing to do.")
+    con = duckdb.connect(str(DB_PATH))
+    con.execute("SET threads = 4")
+
+    latest = get_latest_date(con)
+    if not latest:
+        log.warning("factor_values table is empty. Run full compute first.")
         con.close()
         return
 
-    available = [f for f in _CURATED_FACTORS if f in panel.columns]
-    missing = [f for f in _CURATED_FACTORS if f not in panel.columns]
-    if missing:
-        log.warning("Factors not in computed panel: %s", missing)
+    log.info("Last factor date: %s", latest)
 
-    selected = panel[available]
-    df_to_store = selected.reset_index()
+    # Check for new dates in daily_kline beyond factor_values
+    max_kline = con.execute("SELECT max(date) FROM daily_kline").fetchone()
+    if not max_kline or not max_kline[0]:
+        log.info("No kline data available.")
+        con.close()
+        return
 
-    # Create table if it doesn't exist
-    exists = con.execute(
-        "SELECT count(*) FROM information_schema.tables WHERE table_name='factor_values'"
-    ).fetchone()[0]
-    if not exists:
-        log.info("Creating factor_values table ...")
-        con.execute("CREATE TABLE factor_values AS SELECT * FROM df_to_store WHERE 1=0")
+    max_kline_date = str(max_kline[0])
+    if max_kline_date <= latest:
+        log.info("Factors are up to date (kline: %s).", max_kline_date)
+        con.close()
+        return
 
-    log.info("Appending %d rows to factor_values ...", len(df_to_store))
-    con.execute("INSERT INTO factor_values SELECT * FROM df_to_store")
-    con.execute("CHECKPOINT")
+    # Compute from lookback start to latest kline date
+    lookback_start = get_lookback_start(con, latest)
 
-    new_count = con.execute("SELECT count(*) FROM factor_values").fetchone()[0]
-    log.info("Done. factor_values now has %d rows.", new_count)
+    log.info("Incremental range: lookback %s → kline max %s", lookback_start, max_kline_date)
+
+    panel = compute_panel(con, codes, start_date=lookback_start)
+
+    if panel.is_empty():
+        log.info("No new data to compute.")
+        con.close()
+        return
+
+    # Filter to only NEW dates (beyond *latest*)
+    panel = panel.filter(pl.col("date") > latest)
+
+    if panel.is_empty():
+        log.info("No new factor rows beyond %s.", latest)
+        con.close()
+        return
+
+    n_new = len(panel)
+    n_dates = panel["date"].n_unique() if "date" in panel.columns else 0
+    log.info("New factor rows: %d rows, %d dates", n_new, n_dates)
+
+    # Convert to pandas and insert
+    pdf = panel.to_pandas()
+    pdf = pdf.sort_values(["date", "code"])
+
+    # Remove any rows already in factor_values (safety check)
+    existing = con.execute(
+        "SELECT date, code FROM factor_values WHERE date > ?", [latest]
+    ).fetchdf()
+    if not existing.empty:
+        existing_set = set(
+            zip(existing["date"].astype(str), existing["code"])
+        )
+        pdf = pdf[
+            ~pdf.apply(
+                lambda r: (str(r["date"]), r["code"]) in existing_set, axis=1
+            )
+        ]
+
+    if pdf.empty:
+        log.info("All new rows already exist in factor_values.")
+    else:
+        con.execute("INSERT INTO factor_values SELECT * FROM pdf")
+        con.execute("CHECKPOINT")
+        log.info("Inserted %d rows into factor_values.", len(pdf))
+
     con.close()
+    log.info("Done.")
 
 
 if __name__ == "__main__":

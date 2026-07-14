@@ -23,17 +23,17 @@ from scipy.stats import rankdata
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from config import DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS
-from strategies.labels import compute_forward_returns, compute_smoothed_forward_returns
+from strategies.labels import compute_forward_returns
 
 
-TRAIN_START = pd.Timestamp("2018-01-01")
+TRAIN_START = pd.Timestamp("2015-01-01")
 TEST_START = pd.Timestamp("2025-06-01")
 HORIZONS = [5, 10, 20, 30]
-SMOOTHED_HORIZONS = {20, 30}
 MAX_FACTORS = 60
 CORR_THRESHOLD = 0.75
 PRIMARY_HORIZON = 20
 MIN_STOCKS_PER_DATE = 30
+MUST_INCLUDE = ["CSI_return_20d"]
 
 
 def load_factors(con):
@@ -64,10 +64,7 @@ def load_delist_info(con):
 def compute_labels(kline, delist_info):
     label_dfs = {}
     for h in HORIZONS:
-        if h in SMOOTHED_HORIZONS:
-            label_dfs[h] = compute_smoothed_forward_returns(kline, horizon=h, delist_info=delist_info)
-        else:
-            label_dfs[h] = compute_forward_returns(kline, horizon=h, delist_info=delist_info)
+        label_dfs[h] = compute_forward_returns(kline, horizon=h, delist_info=delist_info)
     return pd.DataFrame({h: label_dfs[h] for h in HORIZONS})
 
 
@@ -236,10 +233,14 @@ def main():
 
     # ---- greedy selection ----
     print(f"\nGreedy selection: corr < {CORR_THRESHOLD}, max {MAX_FACTORS} factors")
-    selected = []
+    selected = [f for f in MUST_INCLUDE if f in corr_df.index]
+    if selected:
+        print(f"  Must-include: {selected}")
     discarded_corr = []
 
     for factor in ic_20d.index:
+        if factor in selected:
+            continue
         if len(selected) >= MAX_FACTORS:
             break
 

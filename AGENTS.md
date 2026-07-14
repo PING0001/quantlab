@@ -5,7 +5,7 @@
 Quantlab 是一个 **A股量化选股系统**，针对主板微盘股（流通市值 1-20 亿）进行多周期收益预测。核心流程：
 
 ```
-Tushare 数据 → DuckDB 存储 → 因子计算（61个） → LightGBM 多周期训练（4 个独立模型） → 回测 → HTML 预测报告
+Tushare 数据 → DuckDB 存储 → 因子计算（138个，含101个 Alpha101） → LightGBM 多周期训练（4 个独立模型） → 回测 → HTML 预测报告
 ```
 
 ## Technology Stack
@@ -14,9 +14,9 @@ Tushare 数据 → DuckDB 存储 → 因子计算（61个） → LightGBM 多周
 |------|-----------|
 | 数据源 | Tushare（通过 quicksync.cn 中继） |
 | 数据库 | **DuckDB**（嵌入式 OLAP，所有数据单一来源） |
-| 数值计算 | numpy, pandas, scipy |
-| 机器学习 | **LightGBM**（主模型，4 个独立 LGBMRegressor 每 horizon 一个）、**PyTorch**（MLP，备选） |
-| 序列化 | joblib（LightGBM）、torch.save（MLP）、parquet（预测缓存）、JSON（meta） |
+| 数值计算 | numpy, pandas, scipy, polars |
+| 机器学习 | **LightGBM**（主模型，4 个独立 LGBMRegressor 每 horizon 一个） |
+| 序列化 | joblib（LightGBM）、parquet（预测缓存）、JSON（meta） |
 | 配置 | python-dotenv（.env 中的 Tushare token）、config.py（中心配置） |
 
 ## Project Structure
@@ -35,44 +35,43 @@ quantlab/
 │   ├── build_index_db.py    # 全量建库：拉取指数日线（中证全指 000985 等）
 │   ├── build_cyq.py         # 全量/增量拉取筹码分布数据（cyq_perf, 2018-至今）
 │   ├── build_delist_info.py # 全量拉取 namechange → 构建 delist_info + ISST 历史
-│   ├── pull_adj.py          # 增量更新：每日行情 + 每日 namechange 增量
+│   ├── pull_adj.py          # 增量更新：每日行情 + 每日 namechange 增量 + 每日 namechange 增量
 │   └── ashare.duckdb        # DuckDB 数据库，所有数据唯一来源
 │
-├── factors/                 # 因子工程
-│   ├── ops.py               # 底层算子：rank, ts_sum, ts_rank, correlation 等
-│   ├── factors.py           # 60个因子函数 + FACTOR_HUB 注册表（不含 IsST）
-│   ├── compute.py           # 因子计算流水线 + IsST/市场特征 merge
+├── factors/                 # 因子工程（基于 vnpy 表达式 DSL 引擎）
+│   ├── ops.py               # DataProxy：Polars 列的算术/比较运算符重载
+│   ├── ts_ops.py            # 22 个时序算子（ts_delay, ts_rank, ts_corr 等）
+│   ├── cs_ops.py            # 5 个横截面算子（cs_rank, cs_mean, cs_std 等）
+│   ├── math_ops.py          # 9 个数学/控制流函数（sign, pow1, quesval 等）
+│   ├── utility.py           # 表达式求值引擎 calculate_by_expression()
+│   ├── alpha101.py          # 101 个 WorldQuant alpha 表达式定义
+│   ├── extra_factors.py     # 非 alpha 因子 + IndNeutralize 行业中性化（申万 L3）
+│   ├── compute.py           # 主计算流水线：DuckDB → Polars → 并行计算 → factor_values
 │   ├── update.py            # 增量因子更新入口
-│   └── selection.py         # 因子相关性分析 + 贪心多样化选择（可选）
+│   └── __init__.py
 │
 ├── strategies/              # 策略与模型
 │   ├── base.py              # BaseStrategy 抽象基类 + walk_forward() 滚动框架
 │   ├── labels.py            # 前向收益标签 + 退市感知 + 涨跌停 mask
 │   ├── evaluation.py        # rank IC, Pearson IC, IC 汇总统计
-│   ├── lgb.py               # LightGBM 多目标策略（★ 主模型，4 个独立 LGBMRegressor）
-│   ├── mlp.py               # PyTorch 多目标 MLP 实现（备选）
-│   └── test_synthetic.py    # 合成数据冒烟测试
+│   └── lgb.py               # LightGBM 多目标策略（★ 主模型，4 个独立 LGBMRegressor）
 │
 ├── backtest/                # 回测
-│   ├── run.py               # LightGBM 回测：long-only 限价单模拟
+│   ├── run_lgb.py           # LightGBM 回测：5日调仓 long-only（★ 主用）
 │   ├── signals.py           # 组合模拟器，含跳空过滤 + ST 过滤 + 退市处理
 │   └── {pool_name}/         # 输出按股票池分子目录
 │       ├── equity.csv       # 权益曲线
 │       └── benchmark.csv    # 基准权益曲线
 │
 ├── forecast_display/        # 预测展示
-│   ├── generate.py          # MLP 预测 HTML
 │   ├── generate_lgb.py      # LightGBM 预测 HTML（★ 主用），自动过滤 ST/退市股
-│   ├── html/{pool_name}/    # MLP HTML 报告
 │   └── html_lgb/{pool_name}/ # LightGBM HTML 报告
 │
 ├── models/                  # 训练好的模型权重
 │   └── {pool_name}/         # 按股票池分子目录
-│       ├── mlp_multihead.pt     # MLP 模型（备选）
 │       └── lgb_multi.joblib     # LightGBM 模型（★ 主模型）
 │
 ├── run_lgb.py               # ★ 主训练入口：LightGBM 多周期
-├── run_mlp_multi.py         # MLP 训练入口（备选）
 ├── _check_pkgs.py           # 依赖检查工具
 └── .env                     # Tushare API token
 ```
@@ -84,9 +83,8 @@ quantlab/
 
 ### 2. LightGBM 多目标架构（★ 主模型）
 - **4 个独立 LGBMRegressor**：每 horizon 一个，参数完全不共享，各自训练独立的梯度提升树
-- **61 个精选因子**输入（含 IsST、LnAge、筹码分布因子）
+- **138 个因子输入**（101 个 Alpha101 + 37 个非 alpha，含 IsST、LnAge、筹码分布因子）
 - 每个模型独立使用早停、L1+L2 正则、bagging 防过拟合
-- 对比 MLP：MLP 共享主干网络（32→16→8）→ 4 个标量输出头，horizon 间的特征提取相互耦合
 
 ### 3. 固定测试集的 Walk-Forward
 - 在 2025-06-01 之前的所有数据上一次性训练
@@ -94,10 +92,12 @@ quantlab/
 - 计算高效，且避免前视偏差
 - **不是**在扩展窗口上迭代重训练
 
-### 4. 精选因子集（61个，LightGBM）
-涵盖：动量（3）、波动率（5）、价格位置/其他（6）、日内形态（3）、成交量/流动性（2）、WorldQuant alpha 复合（22）、市值/成交额（3）、换手率（2）、日内（1）、市场状态（5）、横截面排名（3）、个股年龄（1）、ST状态（1）、筹码分布（4）。
+### 4. 因子集（138个）
+涵盖：Alpha101（101个 WorldQuant alpha，基于 vnpy 表达式 DSL，字符串表达式 + Polars DataProxy 延迟计算）、动量（3）、波动率（4）、价格位置/技术（6）、日内形态（2）、成交量/流动性（2）、市值/成交额（3）、换手率（2）、日内（1）、市场状态（5）、横截面排名（3）、个股年龄（1）、ST状态（1）、筹码分布（4）。
 
 关键新增：
+- **Alpha101 全量因子**：从 vnpy 端口全部 101 个 WorldQuant alpha 表达式，含 18 个行业中性化（申万 L3 IndNeutralize）+ alpha56 市值因子（total_mv → cap）
+- **表达式 DSL 引擎**：字符串表达式 → eval() → DataProxy 链式延迟计算（Polars），横截面 rank 原生正确（cross-sectional by construction）
 - `LnMktCap`：对数总市值（Size 因子），`total_mv` from daily_basic
 - `Turnover_3d` / `Turnover_3d_ratio`：3日均换手率及其与20日均的比值，换手率由 `volume × close / circ_mv` 实时计算
 - `AvgAmount_90d`：90日均成交额
@@ -112,11 +112,18 @@ quantlab/
 - **namechange 表**：通过 Tushare `namechange` API 拉取全池股票的名称变更历史
   - `change_reason` 识别：`'ST'` / `'*ST'` / `'撤销ST'` / `'终止上市'`
   - `start_date` / `end_date` 定义状态区间
-- **delist_info 表**：从 namechange 中提取 `终止上市` 记录，存储退市日期
+- **delist_info 表**：从 namechange 中提取 `change_reason='终止上市'` 记录，存储退市日期
+  - **不使用名称匹配**（不查 name 含"退"字），避免误匹配正常股票名
 - **IsST 因子**：`_merge_st_flag()` 在因子计算后处理中广播，对每个 `(code, date)` 判断是否处于 ST 期间
   - 修复了 NULL end_date 的覆盖问题：自动截断到下一条 namechange 记录之前
 - **退市感知 Forward Return**：`compute_forward_returns()` 对退市股在 `delist_date` 之后、forward horizon 跨过最后交易日时，填充 `-1.0`（价值归零）
-- **训练排除**：训练集中剔除 IsST=1 和退市后的观测（当前尚未实现，在 Plan Mode 中规划）
+- **训练排除**：训练集中剔除 IsST=1 和退市后的观测（`run_lgb.py` 中实现）
+- **回测过滤**（3 层防御）：
+  1. `excluded_codes`（名称快照）：兜底，当前名称含 "ST"/"退"
+  2. `isst_map`（`factor_values.IsST`）：主力，每日 ST 状态，来自 namechange 表
+  3. `delist_info`（`delist_date`）：排除已退市股票（当前日期 >= delist_date）
+  - 适用于 `run_portfolio`、`run_portfolio_rebalance`、`run_long_short`、`run_holding_test`
+- **增量更新**：`pull_adj.py` 每次运行时调用 `_incremental_namechange()`，通过 Tushare `namechange` API（不指定 ts_code）拉取全市场近期 namechange 记录，合并到 namechange 表并重新提取 delist_info
 
 ### 6. 测试集 IC 过滤
 为保证 IC 反映实盘可复现的预测能力，测试集 IC 计算时排除以下观测：
@@ -125,10 +132,10 @@ quantlab/
 - 过滤后 IC 不降反升（20d: 0.2564 → 0.2600），说明 ST 在稀释信号而非虚增 IC
 
 ### 7. 预测 Horizon
-- **Horizon**：`[3, 5, 10, 20]` 日（从 `[1,3,5,10]` 改为去掉 1d、加 20d）
-- **训练权重**：均分 `{3:0.25, 5:0.25, 10:0.25, 20:0.25}`
-- **展示权重**：偏重 5d `{3:0.25, 5:0.35, 10:0.25, 20:0.15}`
-- 回测建仓用 `pred_5d` 列
+- **Horizon**：`[5, 10, 20, 30]` 日（从 `[3,5,10,20]` 改为去掉 3d、加 30d）
+- **训练权重**：均分 `{5:0.25, 10:0.25, 20:0.25, 30:0.25}`
+- **展示权重**：均分 `{5:0.25, 10:0.25, 20:0.25, 30:0.25}`，按 pred_20d 排名
+- 回测建仓用 `pred_20d` 列（保持不变）
 
 ### 8. 多股票池配置
 - **中心配置**：所有模块通过 `config.py` 获取路径和股票池，不再硬编码
@@ -155,12 +162,10 @@ quantlab/
 - 如需切换指数，修改 `compute.py` 中 `compute_market_features()` 的 WHERE 条件
 
 ### 12. Alpha 因子横截面排名
-- 13 个入选 alpha 因子中的 `rank()` 调用已从**时序排名**（同股票历史上排）修正为**横截面排名**（同日期全市场排），还原 WorldQuant 原始公式语义
-- **实现方式**：因子计算分两阶段：
-  1. 预计算阶段 `_compute_cs_rank_cols()`：在全量 DataFrame 上对 close、volume、low 及派生字段（dc1、dv1、ret1d）做 `groupby('date').transform(cs_rank)`，生成 6 个 `_cs` 后缀列供因子函数引用
-  2. 后处理阶段 `_apply_cs_rank_post()`：对 8 个需要外层横截面 rank 的 alpha 因子在全量 panel 上重算 rank
-- 新增横截面排名因子 `Return_1d_rank`、`Return_20d_rank`、`Turnover_3d_rank` 通过 `_merge_rank_factors()` 同样在后处理阶段生成
-- 极端值保护：先 `clip(-1e10, 1e10)` 夹住溢出值，再 `replace(inf→NaN)` 兜底，确保 cs_rank 不会遇到不可计算的值
+- 101 个 alpha 因子中的 `cs_rank()` 调用**原生为横截面排名**（`groupby('datetime').rank()`），因为表达式求值引擎在 DataProxy 上执行，横截面算子 `cs_rank` 天然按日期分组，无需手动后处理
+- **实现方式**：`calculate_by_expression()` 将各列包装为 DataProxy，表达式中的 `cs_rank()` → 调用 `cs_function.cs_rank()` → `pl.col('data').rank().over('datetime')`
+- 横截面排名因子 `Return_1d_rank`、`Return_20d_rank`、`Turnover_3d_rank` 在 `extra_factors.py` 中通过 `rank().over('datetime')` 生成
+- 极端值保护：表达式引擎内 DataProxy 通过 `fill_nan(null)` + `is_infinite → null` 自动处理溢出值
 
 ### 13. 数据库表清单
 | 表 / VIEW | 来源 | 说明 |
@@ -169,8 +174,9 @@ quantlab/
 | `daily_raw` | `daily` + `adj_factor` | 原始日线 OHLCV + 复权因子（2008-至今） |
 | `daily_basic` | `daily_basic` | 市值/估值指标（total_mv, circ_mv, PE, PB 等） |
 | `daily_kline` | VIEW → daily_raw + latest_adj | 前复权 OHLCV（实时计算） |
-| `factor_values` | `compute.py` | 因子宽表（code, date, 61+ 因子列） |
+| `factor_values` | `compute.py` | 因子宽表（code, date, 138 因子列） |
 | `cyq_perf` | `cyq_perf` | 筹码分布（his_low/high, cost_*, winner_rate, 2018-至今） |
+| `industry` | `build_industry.py` | 行业分类（申万 SW2021 L1/L2/L3，含 Tushare 行业） |
 | `index_daily` | `index_daily` | 指数日线（000985 中证全指, 000300 沪深300） |
 | `namechange` | `namechange` | 股票名称变更历史（ST/*ST/终止上市/改名） |
 | `delist_info` | 从 namechange 提取 | 退市日期（code, delist_date） |
@@ -179,12 +185,12 @@ quantlab/
 
 所有命令默认使用 `QUANTLAB_POOL` 环境变量指定的股票池（默认 `smallcap_on_mainboard`）。切换方式：
 ```bash
-set QUANTLAB_POOL=mainboard_smallcap && python run_mlp_multi.py
+set QUANTLAB_POOL=mainboard_microcap && python run_lgb.py
 ```
 
 ### 更新数据（每日运行）
 ```bash
-python data/pull_adj.py      # 拉取最新日线行情（含指数、cyq_perf）
+python data/pull_adj.py      # 拉取最新日线行情（含指数、cyq_perf、namechange 增量）
 python -m factors.update     # 增量计算因子
 ```
 
@@ -207,18 +213,16 @@ python data/build_delist_info.py   # 拉取全池 namechange → delist_info + I
 ### 训练模型
 ```bash
 python run_lgb.py      # ★ 训练 LightGBM（主模型），打印 IC 统计
-python run_mlp_multi.py      # 训练多周期 MLP（备选）
 ```
 
 ### 运行完整回测
 ```bash
-python -m backtest.run       # 训练 + 多空组合模拟
+python -m backtest.run_lgb   # LightGBM 回测：5日调仓 long-only（★ 主用）
 ```
 
 ### 生成预测报告
 ```bash
 python forecast_display/generate_lgb.py   # 输出 LightGBM HTML 到 forecast_display/html_lgb/
-python forecast_display/generate.py       # 输出 MLP HTML 到 forecast_display/html/
 ```
 
 ### 导出交易信号
@@ -228,7 +232,7 @@ python trade_signals/export.py
 
 ### 运行测试
 ```bash
-python strategies/test_synthetic.py   # 合成数据冒烟测试
+# No tests configured yet
 ```
 
 ### 检查依赖
@@ -250,7 +254,7 @@ python _check_pkgs.py
 
 - 类型标注按需使用（非强制）
 - 遵循各模块已有的代码风格
-- 新因子添加到 `factors/factors.py` 并注册到 `FACTOR_HUB`
+- 新因子添加到 `factors/alpha101.py` 或 `factors/extra_factors.py`
 - 新策略继承 `strategies/base.py` 中的 `BaseStrategy`
 - 路径优先使用绝对路径或基于 `__file__` 的相对路径
 

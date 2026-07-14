@@ -1,0 +1,6147 @@
+{
+  "block_name": "microcap_v0",
+  "trade_date": "2025-01-02",
+  "total": 614,
+  "stocks": [
+    {
+      "code": "001259",
+      "name": "利仁科技",
+      "market": "SZ",
+      "full_code": "001259.SZ",
+      "circ_mv_yi": 4.6643,
+      "total_mv_yi": 15.6524,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001234",
+      "name": "泰慕士",
+      "market": "SZ",
+      "full_code": "001234.SZ",
+      "circ_mv_yi": 4.8396,
+      "total_mv_yi": 18.2207,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001260",
+      "name": "坤泰股份",
+      "market": "SZ",
+      "full_code": "001260.SZ",
+      "circ_mv_yi": 4.9689,
+      "total_mv_yi": 17.9975,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001336",
+      "name": "楚环科技",
+      "market": "SZ",
+      "full_code": "001336.SZ",
+      "circ_mv_yi": 4.9947,
+      "total_mv_yi": 14.0573,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001226",
+      "name": "拓山重工",
+      "market": "SZ",
+      "full_code": "001226.SZ",
+      "circ_mv_yi": 5.0661,
+      "total_mv_yi": 20.2645,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002808",
+      "name": "恒久退",
+      "market": "SZ",
+      "full_code": "002808.SZ",
+      "circ_mv_yi": 5.4424,
+      "total_mv_yi": 7.849,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001331",
+      "name": "胜通能源",
+      "market": "SZ",
+      "full_code": "001331.SZ",
+      "circ_mv_yi": 5.4734,
+      "total_mv_yi": 21.8938,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001255",
+      "name": "博菲电气",
+      "market": "SZ",
+      "full_code": "001255.SZ",
+      "circ_mv_yi": 5.602,
+      "total_mv_yi": 22.408,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603280",
+      "name": "南方路机",
+      "market": "SH",
+      "full_code": "603280.SH",
+      "circ_mv_yi": 5.6945,
+      "total_mv_yi": 22.0933,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001366",
+      "name": "播恩集团",
+      "market": "SZ",
+      "full_code": "001366.SZ",
+      "circ_mv_yi": 5.8798,
+      "total_mv_yi": 16.9678,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603307",
+      "name": "扬州金泉",
+      "market": "SH",
+      "full_code": "603307.SH",
+      "circ_mv_yi": 5.9364,
+      "total_mv_yi": 23.7026,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001387",
+      "name": "雪祺电气",
+      "market": "SZ",
+      "full_code": "001387.SZ",
+      "circ_mv_yi": 6.1115,
+      "total_mv_yi": 24.4459,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001231",
+      "name": "农心科技",
+      "market": "SZ",
+      "full_code": "001231.SZ",
+      "circ_mv_yi": 6.1222,
+      "total_mv_yi": 16.62,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001368",
+      "name": "通达创智",
+      "market": "SZ",
+      "full_code": "001368.SZ",
+      "circ_mv_yi": 6.1584,
+      "total_mv_yi": 22.1841,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001299",
+      "name": "美能能源",
+      "market": "SZ",
+      "full_code": "001299.SZ",
+      "circ_mv_yi": 6.3262,
+      "total_mv_yi": 23.1473,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603216",
+      "name": "梦天家居",
+      "market": "SH",
+      "full_code": "603216.SH",
+      "circ_mv_yi": 6.3323,
+      "total_mv_yi": 24.8745,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001256",
+      "name": "炜冈科技",
+      "market": "SZ",
+      "full_code": "001256.SZ",
+      "circ_mv_yi": 6.3461,
+      "total_mv_yi": 22.1049,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605069",
+      "name": "正和生态",
+      "market": "SH",
+      "full_code": "605069.SH",
+      "circ_mv_yi": 6.3963,
+      "total_mv_yi": 16.089,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603172",
+      "name": "万丰股份",
+      "market": "SH",
+      "full_code": "603172.SH",
+      "circ_mv_yi": 6.4954,
+      "total_mv_yi": 17.2994,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001326",
+      "name": "联域股份",
+      "market": "SZ",
+      "full_code": "001326.SZ",
+      "circ_mv_yi": 6.6961,
+      "total_mv_yi": 23.6509,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001225",
+      "name": "和泰机电",
+      "market": "SZ",
+      "full_code": "001225.SZ",
+      "circ_mv_yi": 6.7892,
+      "total_mv_yi": 20.868,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001223",
+      "name": "欧克科技",
+      "market": "SZ",
+      "full_code": "001223.SZ",
+      "circ_mv_yi": 6.8772,
+      "total_mv_yi": 27.4922,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001209",
+      "name": "洪兴股份",
+      "market": "SZ",
+      "full_code": "001209.SZ",
+      "circ_mv_yi": 6.8892,
+      "total_mv_yi": 22.4904,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603261",
+      "name": "立航科技",
+      "market": "SH",
+      "full_code": "603261.SH",
+      "circ_mv_yi": 6.9688,
+      "total_mv_yi": 20.6455,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001268",
+      "name": "联合精密",
+      "market": "SZ",
+      "full_code": "001268.SZ",
+      "circ_mv_yi": 6.9772,
+      "total_mv_yi": 18.7804,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001367",
+      "name": "海森药业",
+      "market": "SZ",
+      "full_code": "001367.SZ",
+      "circ_mv_yi": 7.1036,
+      "total_mv_yi": 27.8806,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603375",
+      "name": "盛景微",
+      "market": "SH",
+      "full_code": "603375.SH",
+      "circ_mv_yi": 7.2661,
+      "total_mv_yi": 36.3306,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603073",
+      "name": "彩蝶实业",
+      "market": "SH",
+      "full_code": "603073.SH",
+      "circ_mv_yi": 7.3947,
+      "total_mv_yi": 16.8548,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001277",
+      "name": "速达股份",
+      "market": "SZ",
+      "full_code": "001277.SZ",
+      "circ_mv_yi": 7.4024,
+      "total_mv_yi": 29.6096,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603075",
+      "name": "热威股份",
+      "market": "SH",
+      "full_code": "603075.SH",
+      "circ_mv_yi": 7.4099,
+      "total_mv_yi": 74.5525,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001333",
+      "name": "光华股份",
+      "market": "SZ",
+      "full_code": "001333.SZ",
+      "circ_mv_yi": 7.5152,
+      "total_mv_yi": 21.8624,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001300",
+      "name": "三柏硕",
+      "market": "SZ",
+      "full_code": "001300.SZ",
+      "circ_mv_yi": 7.5225,
+      "total_mv_yi": 27.6929,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001316",
+      "name": "润贝航科",
+      "market": "SZ",
+      "full_code": "001316.SZ",
+      "circ_mv_yi": 7.618,
+      "total_mv_yi": 23.0888,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603137",
+      "name": "恒尚节能",
+      "market": "SH",
+      "full_code": "603137.SH",
+      "circ_mv_yi": 7.742,
+      "total_mv_yi": 19.208,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001266",
+      "name": "宏英智能",
+      "market": "SZ",
+      "full_code": "001266.SZ",
+      "circ_mv_yi": 7.862,
+      "total_mv_yi": 22.9965,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001278",
+      "name": "一彬科技",
+      "market": "SZ",
+      "full_code": "001278.SZ",
+      "circ_mv_yi": 7.9541,
+      "total_mv_yi": 19.4756,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002718",
+      "name": "友邦吊顶",
+      "market": "SZ",
+      "full_code": "002718.SZ",
+      "circ_mv_yi": 7.988,
+      "total_mv_yi": 16.1024,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603151",
+      "name": "邦基科技",
+      "market": "SH",
+      "full_code": "603151.SH",
+      "circ_mv_yi": 8.1317,
+      "total_mv_yi": 16.9008,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002830",
+      "name": "名雕股份",
+      "market": "SZ",
+      "full_code": "002830.SZ",
+      "circ_mv_yi": 8.1426,
+      "total_mv_yi": 16.2408,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001306",
+      "name": "夏厦精密",
+      "market": "SZ",
+      "full_code": "001306.SZ",
+      "circ_mv_yi": 8.3917,
+      "total_mv_yi": 33.5668,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603285",
+      "name": "键邦股份",
+      "market": "SH",
+      "full_code": "603285.SH",
+      "circ_mv_yi": 8.5959,
+      "total_mv_yi": 35.088,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001238",
+      "name": "浙江正特",
+      "market": "SZ",
+      "full_code": "001238.SZ",
+      "circ_mv_yi": 8.6466,
+      "total_mv_yi": 29.744,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001318",
+      "name": "阳光乳业",
+      "market": "SZ",
+      "full_code": "001318.SZ",
+      "circ_mv_yi": 8.8465,
+      "total_mv_yi": 32.4494,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603190",
+      "name": "亚通精工",
+      "market": "SH",
+      "full_code": "603190.SH",
+      "circ_mv_yi": 8.8819,
+      "total_mv_yi": 26.304,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001230",
+      "name": "劲旅环境",
+      "market": "SZ",
+      "full_code": "001230.SZ",
+      "circ_mv_yi": 8.9282,
+      "total_mv_yi": 22.0402,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603276",
+      "name": "恒兴新材",
+      "market": "SH",
+      "full_code": "603276.SH",
+      "circ_mv_yi": 8.9974,
+      "total_mv_yi": 27.8666,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603273",
+      "name": "天元智能",
+      "market": "SH",
+      "full_code": "603273.SH",
+      "circ_mv_yi": 9.0815,
+      "total_mv_yi": 34.7188,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603097",
+      "name": "江苏华辰",
+      "market": "SH",
+      "full_code": "603097.SH",
+      "circ_mv_yi": 9.12,
+      "total_mv_yi": 36.48,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603391",
+      "name": "力聚热能",
+      "market": "SH",
+      "full_code": "603391.SH",
+      "circ_mv_yi": 9.1303,
+      "total_mv_yi": 37.2736,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603091",
+      "name": "众鑫股份",
+      "market": "SH",
+      "full_code": "603091.SH",
+      "circ_mv_yi": 9.163,
+      "total_mv_yi": 46.7538,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603282",
+      "name": "亚光股份",
+      "market": "SH",
+      "full_code": "603282.SH",
+      "circ_mv_yi": 9.172,
+      "total_mv_yi": 19.1229,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001332",
+      "name": "锡装股份",
+      "market": "SZ",
+      "full_code": "001332.SZ",
+      "circ_mv_yi": 9.261,
+      "total_mv_yi": 37.73,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603163",
+      "name": "圣晖集成",
+      "market": "SH",
+      "full_code": "603163.SH",
+      "circ_mv_yi": 9.3072,
+      "total_mv_yi": 26.59,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000668",
+      "name": "荣丰控股",
+      "market": "SZ",
+      "full_code": "000668.SZ",
+      "circ_mv_yi": 9.4419,
+      "total_mv_yi": 9.4419,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603350",
+      "name": "安乃达",
+      "market": "SH",
+      "full_code": "603350.SH",
+      "circ_mv_yi": 9.502,
+      "total_mv_yi": 38.7904,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002289",
+      "name": "宇顺电子",
+      "market": "SZ",
+      "full_code": "002289.SZ",
+      "circ_mv_yi": 9.6291,
+      "total_mv_yi": 10.4254,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002898",
+      "name": "赛隆退",
+      "market": "SZ",
+      "full_code": "002898.SZ",
+      "circ_mv_yi": 9.6402,
+      "total_mv_yi": 16.7552,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001373",
+      "name": "翔腾新材",
+      "market": "SZ",
+      "full_code": "001373.SZ",
+      "circ_mv_yi": 9.6513,
+      "total_mv_yi": 20.0085,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603211",
+      "name": "晋拓股份",
+      "market": "SH",
+      "full_code": "603211.SH",
+      "circ_mv_yi": 9.9957,
+      "total_mv_yi": 39.983,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002316",
+      "name": "亚联发展",
+      "market": "SZ",
+      "full_code": "002316.SZ",
+      "circ_mv_yi": 10.0172,
+      "total_mv_yi": 12.5012,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603813",
+      "name": "原尚股份",
+      "market": "SH",
+      "full_code": "603813.SH",
+      "circ_mv_yi": 10.3253,
+      "total_mv_yi": 12.0557,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001358",
+      "name": "兴欣新材",
+      "market": "SZ",
+      "full_code": "001358.SZ",
+      "circ_mv_yi": 10.3642,
+      "total_mv_yi": 27.2272,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001229",
+      "name": "魅视科技",
+      "market": "SZ",
+      "full_code": "001229.SZ",
+      "circ_mv_yi": 10.4273,
+      "total_mv_yi": 35.46,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600671",
+      "name": "天目药业",
+      "market": "SH",
+      "full_code": "600671.SH",
+      "circ_mv_yi": 10.6262,
+      "total_mv_yi": 10.6313,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603182",
+      "name": "嘉华股份",
+      "market": "SH",
+      "full_code": "603182.SH",
+      "circ_mv_yi": 10.6296,
+      "total_mv_yi": 18.7916,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001360",
+      "name": "南矿集团",
+      "market": "SZ",
+      "full_code": "001360.SZ",
+      "circ_mv_yi": 10.6315,
+      "total_mv_yi": 26.52,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603082",
+      "name": "北自科技",
+      "market": "SH",
+      "full_code": "603082.SH",
+      "circ_mv_yi": 10.7005,
+      "total_mv_yi": 53.5026,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001210",
+      "name": "金房能源",
+      "market": "SZ",
+      "full_code": "001210.SZ",
+      "circ_mv_yi": 10.7692,
+      "total_mv_yi": 17.7198,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002188",
+      "name": "中天服务",
+      "market": "SZ",
+      "full_code": "002188.SZ",
+      "circ_mv_yi": 10.7927,
+      "total_mv_yi": 14.6543,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603201",
+      "name": "常润股份",
+      "market": "SH",
+      "full_code": "603201.SH",
+      "circ_mv_yi": 10.8019,
+      "total_mv_yi": 26.4154,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603312",
+      "name": "西典新能",
+      "market": "SH",
+      "full_code": "603312.SH",
+      "circ_mv_yi": 10.8183,
+      "total_mv_yi": 50.1122,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603205",
+      "name": "健尔康",
+      "market": "SH",
+      "full_code": "603205.SH",
+      "circ_mv_yi": 10.8776,
+      "total_mv_yi": 44.4,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002809",
+      "name": "红墙股份",
+      "market": "SZ",
+      "full_code": "002809.SZ",
+      "circ_mv_yi": 10.8807,
+      "total_mv_yi": 16.6081,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001379",
+      "name": "腾达科技",
+      "market": "SZ",
+      "full_code": "001379.SZ",
+      "circ_mv_yi": 10.925,
+      "total_mv_yi": 43.7,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002072",
+      "name": "凯瑞德",
+      "market": "SZ",
+      "full_code": "002072.SZ",
+      "circ_mv_yi": 10.9251,
+      "total_mv_yi": 15.6632,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002591",
+      "name": "恒大高新",
+      "market": "SZ",
+      "full_code": "002591.SZ",
+      "circ_mv_yi": 10.9525,
+      "total_mv_yi": 14.7098,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002200",
+      "name": "交投生态",
+      "market": "SZ",
+      "full_code": "002200.SZ",
+      "circ_mv_yi": 10.9559,
+      "total_mv_yi": 10.9559,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000691",
+      "name": "亚太实业",
+      "market": "SZ",
+      "full_code": "000691.SZ",
+      "circ_mv_yi": 11.0235,
+      "total_mv_yi": 11.0235,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002871",
+      "name": "伟隆股份",
+      "market": "SZ",
+      "full_code": "002871.SZ",
+      "circ_mv_yi": 11.0904,
+      "total_mv_yi": 20.1161,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001228",
+      "name": "永泰运",
+      "market": "SZ",
+      "full_code": "001228.SZ",
+      "circ_mv_yi": 11.1375,
+      "total_mv_yi": 21.0845,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603130",
+      "name": "云中马",
+      "market": "SH",
+      "full_code": "603130.SH",
+      "circ_mv_yi": 11.2237,
+      "total_mv_yi": 30.2256,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603344",
+      "name": "星德胜",
+      "market": "SH",
+      "full_code": "603344.SH",
+      "circ_mv_yi": 11.2585,
+      "total_mv_yi": 45.0339,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605566",
+      "name": "福莱蒽特",
+      "market": "SH",
+      "full_code": "605566.SH",
+      "circ_mv_yi": 11.2679,
+      "total_mv_yi": 24.1212,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603207",
+      "name": "小方制药",
+      "market": "SH",
+      "full_code": "603207.SH",
+      "circ_mv_yi": 11.2811,
+      "total_mv_yi": 46.048,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603173",
+      "name": "福斯达",
+      "market": "SH",
+      "full_code": "603173.SH",
+      "circ_mv_yi": 11.3199,
+      "total_mv_yi": 36.56,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001282",
+      "name": "三联锻造",
+      "market": "SZ",
+      "full_code": "001282.SZ",
+      "circ_mv_yi": 11.3339,
+      "total_mv_yi": 32.2169,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603070",
+      "name": "万控智造",
+      "market": "SH",
+      "full_code": "603070.SH",
+      "circ_mv_yi": 11.3947,
+      "total_mv_yi": 53.2929,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603381",
+      "name": "永臻股份",
+      "market": "SH",
+      "full_code": "603381.SH",
+      "circ_mv_yi": 11.4559,
+      "total_mv_yi": 50.9152,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001317",
+      "name": "三羊马",
+      "market": "SZ",
+      "full_code": "001317.SZ",
+      "circ_mv_yi": 11.4619,
+      "total_mv_yi": 21.8525,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002887",
+      "name": "绿茵生态",
+      "market": "SZ",
+      "full_code": "002887.SZ",
+      "circ_mv_yi": 11.468,
+      "total_mv_yi": 22.0003,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600768",
+      "name": "宁波富邦",
+      "market": "SH",
+      "full_code": "600768.SH",
+      "circ_mv_yi": 11.5959,
+      "total_mv_yi": 11.5959,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003011",
+      "name": "海象新材",
+      "market": "SZ",
+      "full_code": "003011.SZ",
+      "circ_mv_yi": 11.6468,
+      "total_mv_yi": 15.3911,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002513",
+      "name": "蓝丰生化",
+      "market": "SZ",
+      "full_code": "002513.SZ",
+      "circ_mv_yi": 11.7439,
+      "total_mv_yi": 16.7,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003003",
+      "name": "天元股份",
+      "market": "SZ",
+      "full_code": "003003.SZ",
+      "circ_mv_yi": 11.7497,
+      "total_mv_yi": 17.892,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603004",
+      "name": "鼎龙科技",
+      "market": "SH",
+      "full_code": "603004.SH",
+      "circ_mv_yi": 11.882,
+      "total_mv_yi": 47.5279,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603062",
+      "name": "麦加芯彩",
+      "market": "SH",
+      "full_code": "603062.SH",
+      "circ_mv_yi": 11.8997,
+      "total_mv_yi": 38.6856,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001359",
+      "name": "平安电工",
+      "market": "SZ",
+      "full_code": "001359.SZ",
+      "circ_mv_yi": 11.9011,
+      "total_mv_yi": 47.6001,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605287",
+      "name": "德才股份",
+      "market": "SH",
+      "full_code": "605287.SH",
+      "circ_mv_yi": 11.9067,
+      "total_mv_yi": 16.688,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603310",
+      "name": "巍华新材",
+      "market": "SH",
+      "full_code": "603310.SH",
+      "circ_mv_yi": 12.0012,
+      "total_mv_yi": 61.2288,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002921",
+      "name": "联诚精密",
+      "market": "SZ",
+      "full_code": "002921.SZ",
+      "circ_mv_yi": 12.104,
+      "total_mv_yi": 14.3451,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003018",
+      "name": "金富科技",
+      "market": "SZ",
+      "full_code": "003018.SZ",
+      "circ_mv_yi": 12.2396,
+      "total_mv_yi": 23.972,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002571",
+      "name": "德力股份",
+      "market": "SZ",
+      "full_code": "002571.SZ",
+      "circ_mv_yi": 12.2604,
+      "total_mv_yi": 16.1092,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605303",
+      "name": "园林股份",
+      "market": "SH",
+      "full_code": "605303.SH",
+      "circ_mv_yi": 12.3024,
+      "total_mv_yi": 12.3024,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002848",
+      "name": "高斯贝尔",
+      "market": "SZ",
+      "full_code": "002848.SZ",
+      "circ_mv_yi": 12.3179,
+      "total_mv_yi": 12.6031,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603122",
+      "name": "合富中国",
+      "market": "SH",
+      "full_code": "603122.SH",
+      "circ_mv_yi": 12.341,
+      "total_mv_yi": 27.4258,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003017",
+      "name": "大洋生物",
+      "market": "SZ",
+      "full_code": "003017.SZ",
+      "circ_mv_yi": 12.3623,
+      "total_mv_yi": 15.3636,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600847",
+      "name": "万里股份",
+      "market": "SH",
+      "full_code": "600847.SH",
+      "circ_mv_yi": 12.4623,
+      "total_mv_yi": 12.4623,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603316",
+      "name": "诚邦股份",
+      "market": "SH",
+      "full_code": "603316.SH",
+      "circ_mv_yi": 12.4733,
+      "total_mv_yi": 12.4733,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001218",
+      "name": "丽臣实业",
+      "market": "SZ",
+      "full_code": "001218.SZ",
+      "circ_mv_yi": 12.5397,
+      "total_mv_yi": 21.922,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003030",
+      "name": "祖名股份",
+      "market": "SZ",
+      "full_code": "003030.SZ",
+      "circ_mv_yi": 12.5871,
+      "total_mv_yi": 19.3908,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603880",
+      "name": "南卫股份",
+      "market": "SH",
+      "full_code": "603880.SH",
+      "circ_mv_yi": 12.6022,
+      "total_mv_yi": 12.6022,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002910",
+      "name": "庄园牧场",
+      "market": "SZ",
+      "full_code": "002910.SZ",
+      "circ_mv_yi": 12.6244,
+      "total_mv_yi": 14.4308,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001202",
+      "name": "炬申股份",
+      "market": "SZ",
+      "full_code": "001202.SZ",
+      "circ_mv_yi": 12.6436,
+      "total_mv_yi": 18.0062,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002762",
+      "name": "金发拉比",
+      "market": "SZ",
+      "full_code": "002762.SZ",
+      "circ_mv_yi": 12.7038,
+      "total_mv_yi": 21.2769,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603325",
+      "name": "博隆技术",
+      "market": "SH",
+      "full_code": "603325.SH",
+      "circ_mv_yi": 12.7375,
+      "total_mv_yi": 50.9425,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603102",
+      "name": "百合股份",
+      "market": "SH",
+      "full_code": "603102.SH",
+      "circ_mv_yi": 12.8054,
+      "total_mv_yi": 22.8992,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600455",
+      "name": "博通股份",
+      "market": "SH",
+      "full_code": "600455.SH",
+      "circ_mv_yi": 12.8101,
+      "total_mv_yi": 12.8101,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001222",
+      "name": "源飞宠物",
+      "market": "SZ",
+      "full_code": "001222.SZ",
+      "circ_mv_yi": 12.8421,
+      "total_mv_yi": 31.2105,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603903",
+      "name": "中持股份",
+      "market": "SH",
+      "full_code": "603903.SH",
+      "circ_mv_yi": 12.8665,
+      "total_mv_yi": 16.2383,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001380",
+      "name": "华纬科技",
+      "market": "SZ",
+      "full_code": "001380.SZ",
+      "circ_mv_yi": 13.0357,
+      "total_mv_yi": 40.1157,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000929",
+      "name": "兰州黄河",
+      "market": "SZ",
+      "full_code": "000929.SZ",
+      "circ_mv_yi": 13.0399,
+      "total_mv_yi": 13.0408,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603125",
+      "name": "常青科技",
+      "market": "SH",
+      "full_code": "603125.SH",
+      "circ_mv_yi": 13.1509,
+      "total_mv_yi": 52.6008,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001322",
+      "name": "箭牌家居",
+      "market": "SZ",
+      "full_code": "001322.SZ",
+      "circ_mv_yi": 13.1828,
+      "total_mv_yi": 77.1003,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605169",
+      "name": "洪通燃气",
+      "market": "SH",
+      "full_code": "605169.SH",
+      "circ_mv_yi": 13.2248,
+      "total_mv_yi": 28.2597,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000890",
+      "name": "法尔胜",
+      "market": "SZ",
+      "full_code": "000890.SZ",
+      "circ_mv_yi": 13.2559,
+      "total_mv_yi": 13.2563,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001296",
+      "name": "长江材料",
+      "market": "SZ",
+      "full_code": "001296.SZ",
+      "circ_mv_yi": 13.2928,
+      "total_mv_yi": 25.8793,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603215",
+      "name": "比依股份",
+      "market": "SH",
+      "full_code": "603215.SH",
+      "circ_mv_yi": 13.2973,
+      "total_mv_yi": 35.2888,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001211",
+      "name": "双枪科技",
+      "market": "SZ",
+      "full_code": "001211.SZ",
+      "circ_mv_yi": 13.339,
+      "total_mv_yi": 14.3352,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603616",
+      "name": "韩建河山",
+      "market": "SH",
+      "full_code": "603616.SH",
+      "circ_mv_yi": 13.3479,
+      "total_mv_yi": 13.6961,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603373",
+      "name": "安邦护卫",
+      "market": "SH",
+      "full_code": "603373.SH",
+      "circ_mv_yi": 13.4746,
+      "total_mv_yi": 31.8925,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603879",
+      "name": "永悦科技",
+      "market": "SH",
+      "full_code": "603879.SH",
+      "circ_mv_yi": 13.4754,
+      "total_mv_yi": 13.4754,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002798",
+      "name": "帝欧水华",
+      "market": "SZ",
+      "full_code": "002798.SZ",
+      "circ_mv_yi": 13.5248,
+      "total_mv_yi": 16.5159,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000637",
+      "name": "茂化实华",
+      "market": "SZ",
+      "full_code": "000637.SZ",
+      "circ_mv_yi": 13.5797,
+      "total_mv_yi": 19.1834,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603270",
+      "name": "金帝股份",
+      "market": "SH",
+      "full_code": "603270.SH",
+      "circ_mv_yi": 13.5847,
+      "total_mv_yi": 42.0904,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001324",
+      "name": "长青科技",
+      "market": "SZ",
+      "full_code": "001324.SZ",
+      "circ_mv_yi": 13.5872,
+      "total_mv_yi": 22.9632,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003008",
+      "name": "开普检测",
+      "market": "SZ",
+      "full_code": "003008.SZ",
+      "circ_mv_yi": 13.6001,
+      "total_mv_yi": 18.1688,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603716",
+      "name": "塞力医疗",
+      "market": "SH",
+      "full_code": "603716.SH",
+      "circ_mv_yi": 13.6173,
+      "total_mv_yi": 13.6173,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002972",
+      "name": "科安达",
+      "market": "SZ",
+      "full_code": "002972.SZ",
+      "circ_mv_yi": 13.6199,
+      "total_mv_yi": 25.1667,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603709",
+      "name": "中源家居",
+      "market": "SH",
+      "full_code": "603709.SH",
+      "circ_mv_yi": 13.703,
+      "total_mv_yi": 13.8241,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002842",
+      "name": "翔鹭钨业",
+      "market": "SZ",
+      "full_code": "002842.SZ",
+      "circ_mv_yi": 13.7662,
+      "total_mv_yi": 17.4693,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600137",
+      "name": "浪莎股份",
+      "market": "SH",
+      "full_code": "600137.SH",
+      "circ_mv_yi": 13.7855,
+      "total_mv_yi": 13.7855,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002976",
+      "name": "瑞玛精密",
+      "market": "SZ",
+      "full_code": "002976.SZ",
+      "circ_mv_yi": 13.8021,
+      "total_mv_yi": 25.652,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600234",
+      "name": "科新发展",
+      "market": "SH",
+      "full_code": "600234.SH",
+      "circ_mv_yi": 13.8349,
+      "total_mv_yi": 13.8349,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603150",
+      "name": "万朗磁塑",
+      "market": "SH",
+      "full_code": "603150.SH",
+      "circ_mv_yi": 13.8607,
+      "total_mv_yi": 22.1401,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002144",
+      "name": "宏达高科",
+      "market": "SZ",
+      "full_code": "002144.SZ",
+      "circ_mv_yi": 13.8729,
+      "total_mv_yi": 17.9414,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002888",
+      "name": "惠威科技",
+      "market": "SZ",
+      "full_code": "002888.SZ",
+      "circ_mv_yi": 13.8789,
+      "total_mv_yi": 27.0049,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603057",
+      "name": "紫燕食品",
+      "market": "SH",
+      "full_code": "603057.SH",
+      "circ_mv_yi": 13.9255,
+      "total_mv_yi": 84.7577,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603275",
+      "name": "众辰科技",
+      "market": "SH",
+      "full_code": "603275.SH",
+      "circ_mv_yi": 13.9615,
+      "total_mv_yi": 49.2286,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603139",
+      "name": "康惠股份",
+      "market": "SH",
+      "full_code": "603139.SH",
+      "circ_mv_yi": 14.0331,
+      "total_mv_yi": 14.0331,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001328",
+      "name": "登康口腔",
+      "market": "SZ",
+      "full_code": "001328.SZ",
+      "circ_mv_yi": 14.0752,
+      "total_mv_yi": 56.3008,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603065",
+      "name": "宿迁联盛",
+      "market": "SH",
+      "full_code": "603065.SH",
+      "circ_mv_yi": 14.1212,
+      "total_mv_yi": 30.0819,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605178",
+      "name": "时空科技",
+      "market": "SH",
+      "full_code": "605178.SH",
+      "circ_mv_yi": 14.1533,
+      "total_mv_yi": 14.1533,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603052",
+      "name": "可川科技",
+      "market": "SH",
+      "full_code": "603052.SH",
+      "circ_mv_yi": 14.2186,
+      "total_mv_yi": 46.8057,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002209",
+      "name": "达意隆",
+      "market": "SZ",
+      "full_code": "002209.SZ",
+      "circ_mv_yi": 14.2429,
+      "total_mv_yi": 18.251,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600493",
+      "name": "凤竹纺织",
+      "market": "SH",
+      "full_code": "600493.SH",
+      "circ_mv_yi": 14.2528,
+      "total_mv_yi": 14.2528,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002800",
+      "name": "天顺股份",
+      "market": "SZ",
+      "full_code": "002800.SZ",
+      "circ_mv_yi": 14.2787,
+      "total_mv_yi": 15.3471,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002963",
+      "name": "豪尔赛",
+      "market": "SZ",
+      "full_code": "002963.SZ",
+      "circ_mv_yi": 14.2919,
+      "total_mv_yi": 17.4718,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002652",
+      "name": "扬子新材",
+      "market": "SZ",
+      "full_code": "002652.SZ",
+      "circ_mv_yi": 14.4248,
+      "total_mv_yi": 14.4402,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002853",
+      "name": "皮阿诺",
+      "market": "SZ",
+      "full_code": "002853.SZ",
+      "circ_mv_yi": 14.53,
+      "total_mv_yi": 20.4824,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603051",
+      "name": "鹿山新材",
+      "market": "SH",
+      "full_code": "603051.SH",
+      "circ_mv_yi": 14.539,
+      "total_mv_yi": 24.8584,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603022",
+      "name": "新通联",
+      "market": "SH",
+      "full_code": "603022.SH",
+      "circ_mv_yi": 14.58,
+      "total_mv_yi": 14.58,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001279",
+      "name": "强邦新材",
+      "market": "SZ",
+      "full_code": "001279.SZ",
+      "circ_mv_yi": 14.6813,
+      "total_mv_yi": 63.824,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002629",
+      "name": "仁智股份",
+      "market": "SZ",
+      "full_code": "002629.SZ",
+      "circ_mv_yi": 14.7495,
+      "total_mv_yi": 18.6449,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003037",
+      "name": "三和管桩",
+      "market": "SZ",
+      "full_code": "003037.SZ",
+      "circ_mv_yi": 14.7742,
+      "total_mv_yi": 44.032,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002753",
+      "name": "永东股份",
+      "market": "SZ",
+      "full_code": "002753.SZ",
+      "circ_mv_yi": 14.8108,
+      "total_mv_yi": 22.9171,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603206",
+      "name": "嘉环科技",
+      "market": "SH",
+      "full_code": "603206.SH",
+      "circ_mv_yi": 14.824,
+      "total_mv_yi": 51.884,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603810",
+      "name": "丰山集团",
+      "market": "SH",
+      "full_code": "603810.SH",
+      "circ_mv_yi": 14.8555,
+      "total_mv_yi": 14.8555,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001319",
+      "name": "铭科精技",
+      "market": "SZ",
+      "full_code": "001319.SZ",
+      "circ_mv_yi": 14.9613,
+      "total_mv_yi": 34.6996,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600319",
+      "name": "亚星化学",
+      "market": "SH",
+      "full_code": "600319.SH",
+      "circ_mv_yi": 14.9907,
+      "total_mv_yi": 18.4162,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603177",
+      "name": "德创环保",
+      "market": "SH",
+      "full_code": "603177.SH",
+      "circ_mv_yi": 15.0081,
+      "total_mv_yi": 15.1523,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603291",
+      "name": "联合水务",
+      "market": "SH",
+      "full_code": "603291.SH",
+      "circ_mv_yi": 15.0084,
+      "total_mv_yi": 48.882,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001311",
+      "name": "多利科技",
+      "market": "SZ",
+      "full_code": "001311.SZ",
+      "circ_mv_yi": 15.0472,
+      "total_mv_yi": 59.2834,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002490",
+      "name": "山东墨龙",
+      "market": "SZ",
+      "full_code": "002490.SZ",
+      "circ_mv_yi": 15.1111,
+      "total_mv_yi": 22.26,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002058",
+      "name": "威尔泰",
+      "market": "SZ",
+      "full_code": "002058.SZ",
+      "circ_mv_yi": 15.1848,
+      "total_mv_yi": 15.2199,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603023",
+      "name": "威帝股份",
+      "market": "SH",
+      "full_code": "603023.SH",
+      "circ_mv_yi": 15.2324,
+      "total_mv_yi": 15.2324,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603608",
+      "name": "天创时尚",
+      "market": "SH",
+      "full_code": "603608.SH",
+      "circ_mv_yi": 15.2356,
+      "total_mv_yi": 15.2356,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600561",
+      "name": "江西长运",
+      "market": "SH",
+      "full_code": "600561.SH",
+      "circ_mv_yi": 15.2764,
+      "total_mv_yi": 15.2764,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002998",
+      "name": "优彩资源",
+      "market": "SZ",
+      "full_code": "002998.SZ",
+      "circ_mv_yi": 15.3044,
+      "total_mv_yi": 20.4331,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003027",
+      "name": "同兴科技",
+      "market": "SZ",
+      "full_code": "003027.SZ",
+      "circ_mv_yi": 15.3113,
+      "total_mv_yi": 19.6477,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600883",
+      "name": "博闻科技",
+      "market": "SH",
+      "full_code": "600883.SH",
+      "circ_mv_yi": 15.3929,
+      "total_mv_yi": 15.3929,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000856",
+      "name": "冀东装备",
+      "market": "SZ",
+      "full_code": "000856.SZ",
+      "circ_mv_yi": 15.5495,
+      "total_mv_yi": 15.5495,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002566",
+      "name": "益盛药业",
+      "market": "SZ",
+      "full_code": "002566.SZ",
+      "circ_mv_yi": 15.5763,
+      "total_mv_yi": 22.2399,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600149",
+      "name": "廊坊发展",
+      "market": "SH",
+      "full_code": "600149.SH",
+      "circ_mv_yi": 15.5866,
+      "total_mv_yi": 15.5866,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002890",
+      "name": "弘宇股份",
+      "market": "SZ",
+      "full_code": "002890.SZ",
+      "circ_mv_yi": 15.777,
+      "total_mv_yi": 16.5968,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001378",
+      "name": "德冠新材",
+      "market": "SZ",
+      "full_code": "001378.SZ",
+      "circ_mv_yi": 15.8136,
+      "total_mv_yi": 32.4134,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002857",
+      "name": "三晖电气",
+      "market": "SZ",
+      "full_code": "002857.SZ",
+      "circ_mv_yi": 15.8592,
+      "total_mv_yi": 16.0042,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600689",
+      "name": "上海三毛",
+      "market": "SH",
+      "full_code": "600689.SH",
+      "circ_mv_yi": 15.9053,
+      "total_mv_yi": 21.0036,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603506",
+      "name": "南都物业",
+      "market": "SH",
+      "full_code": "603506.SH",
+      "circ_mv_yi": 16.0738,
+      "total_mv_yi": 16.0738,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002205",
+      "name": "国统股份",
+      "market": "SZ",
+      "full_code": "002205.SZ",
+      "circ_mv_yi": 16.0754,
+      "total_mv_yi": 16.0754,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002633",
+      "name": "申科股份",
+      "market": "SZ",
+      "full_code": "002633.SZ",
+      "circ_mv_yi": 16.1085,
+      "total_mv_yi": 16.185,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600539",
+      "name": "狮头股份",
+      "market": "SH",
+      "full_code": "600539.SH",
+      "circ_mv_yi": 16.146,
+      "total_mv_yi": 16.146,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002828",
+      "name": "贝肯能源",
+      "market": "SZ",
+      "full_code": "002828.SZ",
+      "circ_mv_yi": 16.1516,
+      "total_mv_yi": 16.883,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603389",
+      "name": "亚振家居",
+      "market": "SH",
+      "full_code": "603389.SH",
+      "circ_mv_yi": 16.1592,
+      "total_mv_yi": 16.1592,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002295",
+      "name": "精艺股份",
+      "market": "SZ",
+      "full_code": "002295.SZ",
+      "circ_mv_yi": 16.169,
+      "total_mv_yi": 16.1898,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002982",
+      "name": "湘佳股份",
+      "market": "SZ",
+      "full_code": "002982.SZ",
+      "circ_mv_yi": 16.2075,
+      "total_mv_yi": 25.4863,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "601133",
+      "name": "柏诚股份",
+      "market": "SH",
+      "full_code": "601133.SH",
+      "circ_mv_yi": 16.2398,
+      "total_mv_yi": 58.0529,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603226",
+      "name": "菲林格尔",
+      "market": "SH",
+      "full_code": "603226.SH",
+      "circ_mv_yi": 16.3882,
+      "total_mv_yi": 16.3882,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001239",
+      "name": "永达股份",
+      "market": "SZ",
+      "full_code": "001239.SZ",
+      "circ_mv_yi": 16.416,
+      "total_mv_yi": 34.56,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002247",
+      "name": "聚力文化",
+      "market": "SZ",
+      "full_code": "002247.SZ",
+      "circ_mv_yi": 16.4746,
+      "total_mv_yi": 21.7823,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000663",
+      "name": "永安林业",
+      "market": "SZ",
+      "full_code": "000663.SZ",
+      "circ_mv_yi": 16.479,
+      "total_mv_yi": 18.1136,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002903",
+      "name": "宇环数控",
+      "market": "SZ",
+      "full_code": "002903.SZ",
+      "circ_mv_yi": 16.5185,
+      "total_mv_yi": 24.7263,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002696",
+      "name": "百洋股份",
+      "market": "SZ",
+      "full_code": "002696.SZ",
+      "circ_mv_yi": 16.5531,
+      "total_mv_yi": 16.66,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600281",
+      "name": "华阳新材",
+      "market": "SH",
+      "full_code": "600281.SH",
+      "circ_mv_yi": 16.5637,
+      "total_mv_yi": 16.5637,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002775",
+      "name": "文科股份",
+      "market": "SZ",
+      "full_code": "002775.SZ",
+      "circ_mv_yi": 16.6763,
+      "total_mv_yi": 22.9275,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002767",
+      "name": "先锋电子",
+      "market": "SZ",
+      "full_code": "002767.SZ",
+      "circ_mv_yi": 16.7414,
+      "total_mv_yi": 19.29,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002900",
+      "name": "哈三联",
+      "market": "SZ",
+      "full_code": "002900.SZ",
+      "circ_mv_yi": 16.7441,
+      "total_mv_yi": 30.5949,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605255",
+      "name": "天普股份",
+      "market": "SH",
+      "full_code": "605255.SH",
+      "circ_mv_yi": 16.8002,
+      "total_mv_yi": 16.8002,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002858",
+      "name": "力盛体育",
+      "market": "SZ",
+      "full_code": "002858.SZ",
+      "circ_mv_yi": 16.8003,
+      "total_mv_yi": 18.7688,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000590",
+      "name": "古汉医药",
+      "market": "SZ",
+      "full_code": "000590.SZ",
+      "circ_mv_yi": 16.8281,
+      "total_mv_yi": 16.8348,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000633",
+      "name": "合金投资",
+      "market": "SZ",
+      "full_code": "000633.SZ",
+      "circ_mv_yi": 16.829,
+      "total_mv_yi": 16.8291,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000608",
+      "name": "阳光股份",
+      "market": "SZ",
+      "full_code": "000608.SZ",
+      "circ_mv_yi": 16.8316,
+      "total_mv_yi": 16.948,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603356",
+      "name": "华菱精工",
+      "market": "SH",
+      "full_code": "603356.SH",
+      "circ_mv_yi": 16.8542,
+      "total_mv_yi": 16.8542,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002836",
+      "name": "新宏泽",
+      "market": "SZ",
+      "full_code": "002836.SZ",
+      "circ_mv_yi": 16.9344,
+      "total_mv_yi": 16.9344,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600448",
+      "name": "华纺股份",
+      "market": "SH",
+      "full_code": "600448.SH",
+      "circ_mv_yi": 16.9421,
+      "total_mv_yi": 16.9421,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003004",
+      "name": "声迅股份",
+      "market": "SZ",
+      "full_code": "003004.SZ",
+      "circ_mv_yi": 16.9777,
+      "total_mv_yi": 19.9725,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600202",
+      "name": "哈空调",
+      "market": "SH",
+      "full_code": "600202.SH",
+      "circ_mv_yi": 16.982,
+      "total_mv_yi": 16.982,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600802",
+      "name": "福建水泥",
+      "market": "SH",
+      "full_code": "600802.SH",
+      "circ_mv_yi": 17.001,
+      "total_mv_yi": 17.001,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603045",
+      "name": "福达合金",
+      "market": "SH",
+      "full_code": "603045.SH",
+      "circ_mv_yi": 17.039,
+      "total_mv_yi": 17.039,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603231",
+      "name": "索宝蛋白",
+      "market": "SH",
+      "full_code": "603231.SH",
+      "circ_mv_yi": 17.0769,
+      "total_mv_yi": 30.7675,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603028",
+      "name": "赛福天",
+      "market": "SH",
+      "full_code": "603028.SH",
+      "circ_mv_yi": 17.2224,
+      "total_mv_yi": 17.2224,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600796",
+      "name": "钱江生化",
+      "market": "SH",
+      "full_code": "600796.SH",
+      "circ_mv_yi": 17.2402,
+      "total_mv_yi": 49.5687,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603458",
+      "name": "勘设股份",
+      "market": "SH",
+      "full_code": "603458.SH",
+      "circ_mv_yi": 17.296,
+      "total_mv_yi": 17.296,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002780",
+      "name": "三夫户外",
+      "market": "SZ",
+      "full_code": "002780.SZ",
+      "circ_mv_yi": 17.3239,
+      "total_mv_yi": 20.8961,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002259",
+      "name": "升达林业",
+      "market": "SZ",
+      "full_code": "002259.SZ",
+      "circ_mv_yi": 17.454,
+      "total_mv_yi": 17.454,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002278",
+      "name": "神开股份",
+      "market": "SZ",
+      "full_code": "002278.SZ",
+      "circ_mv_yi": 17.479,
+      "total_mv_yi": 19.0325,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603090",
+      "name": "宏盛股份",
+      "market": "SH",
+      "full_code": "603090.SH",
+      "circ_mv_yi": 17.5,
+      "total_mv_yi": 17.5,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002742",
+      "name": "冀衡医药",
+      "market": "SZ",
+      "full_code": "002742.SZ",
+      "circ_mv_yi": 17.5766,
+      "total_mv_yi": 17.5824,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603194",
+      "name": "中力股份",
+      "market": "SH",
+      "full_code": "603194.SH",
+      "circ_mv_yi": 17.5795,
+      "total_mv_yi": 141.4728,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002806",
+      "name": "华锋股份",
+      "market": "SZ",
+      "full_code": "002806.SZ",
+      "circ_mv_yi": 17.6011,
+      "total_mv_yi": 21.8797,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002760",
+      "name": "凤形股份",
+      "market": "SZ",
+      "full_code": "002760.SZ",
+      "circ_mv_yi": 17.6778,
+      "total_mv_yi": 17.6778,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603132",
+      "name": "金徽股份",
+      "market": "SH",
+      "full_code": "603132.SH",
+      "circ_mv_yi": 17.6996,
+      "total_mv_yi": 108.4602,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000702",
+      "name": "正虹科技",
+      "market": "SZ",
+      "full_code": "000702.SZ",
+      "circ_mv_yi": 17.7579,
+      "total_mv_yi": 23.0852,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001206",
+      "name": "依依股份",
+      "market": "SZ",
+      "full_code": "001206.SZ",
+      "circ_mv_yi": 17.8623,
+      "total_mv_yi": 31.0622,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002141",
+      "name": "贤丰控股",
+      "market": "SZ",
+      "full_code": "002141.SZ",
+      "circ_mv_yi": 17.8698,
+      "total_mv_yi": 17.8698,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603331",
+      "name": "百达精工",
+      "market": "SH",
+      "full_code": "603331.SH",
+      "circ_mv_yi": 17.8723,
+      "total_mv_yi": 17.8723,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605033",
+      "name": "美邦股份",
+      "market": "SH",
+      "full_code": "605033.SH",
+      "circ_mv_yi": 17.887,
+      "total_mv_yi": 17.887,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605122",
+      "name": "四方新材",
+      "market": "SH",
+      "full_code": "605122.SH",
+      "circ_mv_yi": 17.8903,
+      "total_mv_yi": 17.8903,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000004",
+      "name": "国华退",
+      "market": "SZ",
+      "full_code": "000004.SZ",
+      "circ_mv_yi": 17.9077,
+      "total_mv_yi": 18.7715,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002388",
+      "name": "新亚制程",
+      "market": "SZ",
+      "full_code": "002388.SZ",
+      "circ_mv_yi": 17.909,
+      "total_mv_yi": 18.3851,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600831",
+      "name": "广电网络",
+      "market": "SH",
+      "full_code": "600831.SH",
+      "circ_mv_yi": 17.9159,
+      "total_mv_yi": 17.9159,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002817",
+      "name": "黄山胶囊",
+      "market": "SZ",
+      "full_code": "002817.SZ",
+      "circ_mv_yi": 17.9244,
+      "total_mv_yi": 18.4843,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002980",
+      "name": "华盛昌",
+      "market": "SZ",
+      "full_code": "002980.SZ",
+      "circ_mv_yi": 17.9512,
+      "total_mv_yi": 33.7958,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002795",
+      "name": "永和智控",
+      "market": "SZ",
+      "full_code": "002795.SZ",
+      "circ_mv_yi": 17.9561,
+      "total_mv_yi": 18.4096,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002973",
+      "name": "侨银股份",
+      "market": "SZ",
+      "full_code": "002973.SZ",
+      "circ_mv_yi": 17.9684,
+      "total_mv_yi": 42.5421,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000586",
+      "name": "汇源通信",
+      "market": "SZ",
+      "full_code": "000586.SZ",
+      "circ_mv_yi": 17.9899,
+      "total_mv_yi": 17.9899,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002105",
+      "name": "信隆健康",
+      "market": "SZ",
+      "full_code": "002105.SZ",
+      "circ_mv_yi": 18.0049,
+      "total_mv_yi": 18.1822,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603725",
+      "name": "天安新材",
+      "market": "SH",
+      "full_code": "603725.SH",
+      "circ_mv_yi": 18.0594,
+      "total_mv_yi": 19.206,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605189",
+      "name": "富春染织",
+      "market": "SH",
+      "full_code": "605189.SH",
+      "circ_mv_yi": 18.0768,
+      "total_mv_yi": 18.0768,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003042",
+      "name": "中农联合",
+      "market": "SZ",
+      "full_code": "003042.SZ",
+      "circ_mv_yi": 18.0987,
+      "total_mv_yi": 20.2464,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002687",
+      "name": "乔治白",
+      "market": "SZ",
+      "full_code": "002687.SZ",
+      "circ_mv_yi": 18.1645,
+      "total_mv_yi": 22.2103,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600287",
+      "name": "苏豪时尚",
+      "market": "SH",
+      "full_code": "600287.SH",
+      "circ_mv_yi": 18.1707,
+      "total_mv_yi": 18.2561,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605567",
+      "name": "春雪食品",
+      "market": "SH",
+      "full_code": "605567.SH",
+      "circ_mv_yi": 18.18,
+      "total_mv_yi": 18.18,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "601083",
+      "name": "锦江航运",
+      "market": "SH",
+      "full_code": "601083.SH",
+      "circ_mv_yi": 18.189,
+      "total_mv_yi": 121.259,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002524",
+      "name": "光正眼科",
+      "market": "SZ",
+      "full_code": "002524.SZ",
+      "circ_mv_yi": 18.2479,
+      "total_mv_yi": 18.613,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603086",
+      "name": "先达股份",
+      "market": "SH",
+      "full_code": "603086.SH",
+      "circ_mv_yi": 18.2622,
+      "total_mv_yi": 18.2622,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603937",
+      "name": "丽岛新材",
+      "market": "SH",
+      "full_code": "603937.SH",
+      "circ_mv_yi": 18.3188,
+      "total_mv_yi": 18.3188,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603332",
+      "name": "苏州龙杰",
+      "market": "SH",
+      "full_code": "603332.SH",
+      "circ_mv_yi": 18.3246,
+      "total_mv_yi": 18.3246,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603320",
+      "name": "迪贝电气",
+      "market": "SH",
+      "full_code": "603320.SH",
+      "circ_mv_yi": 18.3378,
+      "total_mv_yi": 18.3378,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002084",
+      "name": "海鸥住工",
+      "market": "SZ",
+      "full_code": "002084.SZ",
+      "circ_mv_yi": 18.3604,
+      "total_mv_yi": 18.4772,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600358",
+      "name": "国旅联合",
+      "market": "SH",
+      "full_code": "600358.SH",
+      "circ_mv_yi": 18.3797,
+      "total_mv_yi": 18.3797,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002826",
+      "name": "易明医药",
+      "market": "SZ",
+      "full_code": "002826.SZ",
+      "circ_mv_yi": 18.4157,
+      "total_mv_yi": 19.9449,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603968",
+      "name": "醋化股份",
+      "market": "SH",
+      "full_code": "603968.SH",
+      "circ_mv_yi": 18.5872,
+      "total_mv_yi": 18.8509,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603818",
+      "name": "曲美家居",
+      "market": "SH",
+      "full_code": "603818.SH",
+      "circ_mv_yi": 18.6053,
+      "total_mv_yi": 18.6682,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002114",
+      "name": "罗平锌电",
+      "market": "SZ",
+      "full_code": "002114.SZ",
+      "circ_mv_yi": 18.6273,
+      "total_mv_yi": 18.6276,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600791",
+      "name": "京能置业",
+      "market": "SH",
+      "full_code": "600791.SH",
+      "circ_mv_yi": 18.6353,
+      "total_mv_yi": 18.6587,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002909",
+      "name": "集泰股份",
+      "market": "SZ",
+      "full_code": "002909.SZ",
+      "circ_mv_yi": 18.7073,
+      "total_mv_yi": 19.149,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000692",
+      "name": "惠天热电",
+      "market": "SZ",
+      "full_code": "000692.SZ",
+      "circ_mv_yi": 18.7557,
+      "total_mv_yi": 18.7557,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002551",
+      "name": "尚荣医疗",
+      "market": "SZ",
+      "full_code": "002551.SZ",
+      "circ_mv_yi": 18.8,
+      "total_mv_yi": 26.0206,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003028",
+      "name": "振邦智能",
+      "market": "SZ",
+      "full_code": "003028.SZ",
+      "circ_mv_yi": 18.8982,
+      "total_mv_yi": 39.078,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002790",
+      "name": "瑞尔特",
+      "market": "SZ",
+      "full_code": "002790.SZ",
+      "circ_mv_yi": 18.9258,
+      "total_mv_yi": 30.3375,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603183",
+      "name": "建研院",
+      "market": "SH",
+      "full_code": "603183.SH",
+      "circ_mv_yi": 18.9415,
+      "total_mv_yi": 18.9415,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002397",
+      "name": "梦洁股份",
+      "market": "SZ",
+      "full_code": "002397.SZ",
+      "circ_mv_yi": 18.9876,
+      "total_mv_yi": 24.1533,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002679",
+      "name": "福建金森",
+      "market": "SZ",
+      "full_code": "002679.SZ",
+      "circ_mv_yi": 19.0019,
+      "total_mv_yi": 19.0019,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603860",
+      "name": "中公高科",
+      "market": "SH",
+      "full_code": "603860.SH",
+      "circ_mv_yi": 19.0038,
+      "total_mv_yi": 19.0038,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002492",
+      "name": "恒基达鑫",
+      "market": "SZ",
+      "full_code": "002492.SZ",
+      "circ_mv_yi": 19.0165,
+      "total_mv_yi": 19.359,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605155",
+      "name": "西大门",
+      "market": "SH",
+      "full_code": "605155.SH",
+      "circ_mv_yi": 19.0232,
+      "total_mv_yi": 19.2697,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000593",
+      "name": "德龙汇能",
+      "market": "SZ",
+      "full_code": "000593.SZ",
+      "circ_mv_yi": 19.0355,
+      "total_mv_yi": 19.0433,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002861",
+      "name": "瀛通通讯",
+      "market": "SZ",
+      "full_code": "002861.SZ",
+      "circ_mv_yi": 19.0413,
+      "total_mv_yi": 23.6208,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600099",
+      "name": "林海股份",
+      "market": "SH",
+      "full_code": "600099.SH",
+      "circ_mv_yi": 19.0415,
+      "total_mv_yi": 19.0415,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001389",
+      "name": "广合科技",
+      "market": "SZ",
+      "full_code": "001389.SZ",
+      "circ_mv_yi": 19.0731,
+      "total_mv_yi": 213.0578,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002748",
+      "name": "世龙实业",
+      "market": "SZ",
+      "full_code": "002748.SZ",
+      "circ_mv_yi": 19.08,
+      "total_mv_yi": 19.08,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002133",
+      "name": "广宇集团",
+      "market": "SZ",
+      "full_code": "002133.SZ",
+      "circ_mv_yi": 19.0928,
+      "total_mv_yi": 19.1988,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002877",
+      "name": "智能自控",
+      "market": "SZ",
+      "full_code": "002877.SZ",
+      "circ_mv_yi": 19.1692,
+      "total_mv_yi": 28.9505,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003023",
+      "name": "彩虹集团",
+      "market": "SZ",
+      "full_code": "003023.SZ",
+      "circ_mv_yi": 19.1967,
+      "total_mv_yi": 19.2459,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001313",
+      "name": "粤海饲料",
+      "market": "SZ",
+      "full_code": "001313.SZ",
+      "circ_mv_yi": 19.2139,
+      "total_mv_yi": 61.67,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002774",
+      "name": "快意电梯",
+      "market": "SZ",
+      "full_code": "002774.SZ",
+      "circ_mv_yi": 19.2168,
+      "total_mv_yi": 22.9621,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600232",
+      "name": "金鹰股份",
+      "market": "SH",
+      "full_code": "600232.SH",
+      "circ_mv_yi": 19.2207,
+      "total_mv_yi": 19.2207,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002365",
+      "name": "永安药业",
+      "market": "SZ",
+      "full_code": "002365.SZ",
+      "circ_mv_yi": 19.3007,
+      "total_mv_yi": 23.3094,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000017",
+      "name": "深中华A",
+      "market": "SZ",
+      "full_code": "000017.SZ",
+      "circ_mv_yi": 19.3304,
+      "total_mv_yi": 43.97,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603900",
+      "name": "莱绅通灵",
+      "market": "SH",
+      "full_code": "603900.SH",
+      "circ_mv_yi": 19.3389,
+      "total_mv_yi": 19.4838,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603041",
+      "name": "美思德",
+      "market": "SH",
+      "full_code": "603041.SH",
+      "circ_mv_yi": 19.3404,
+      "total_mv_yi": 19.3404,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603778",
+      "name": "国晟科技",
+      "market": "SH",
+      "full_code": "603778.SH",
+      "circ_mv_yi": 19.35,
+      "total_mv_yi": 19.7649,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603326",
+      "name": "我乐家居",
+      "market": "SH",
+      "full_code": "603326.SH",
+      "circ_mv_yi": 19.3658,
+      "total_mv_yi": 19.5963,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002968",
+      "name": "新大正",
+      "market": "SZ",
+      "full_code": "002968.SZ",
+      "circ_mv_yi": 19.3753,
+      "total_mv_yi": 20.546,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002666",
+      "name": "德联集团",
+      "market": "SZ",
+      "full_code": "002666.SZ",
+      "circ_mv_yi": 19.3925,
+      "total_mv_yi": 33.884,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603161",
+      "name": "科华控股",
+      "market": "SH",
+      "full_code": "603161.SH",
+      "circ_mv_yi": 19.3962,
+      "total_mv_yi": 19.8805,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002942",
+      "name": "新农股份",
+      "market": "SZ",
+      "full_code": "002942.SZ",
+      "circ_mv_yi": 19.4038,
+      "total_mv_yi": 21.6216,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "601022",
+      "name": "宁波远洋",
+      "market": "SH",
+      "full_code": "601022.SH",
+      "circ_mv_yi": 19.4431,
+      "total_mv_yi": 102.3351,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600303",
+      "name": "曙光股份",
+      "market": "SH",
+      "full_code": "600303.SH",
+      "circ_mv_yi": 19.4574,
+      "total_mv_yi": 19.6878,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603685",
+      "name": "晨丰科技",
+      "market": "SH",
+      "full_code": "603685.SH",
+      "circ_mv_yi": 19.4697,
+      "total_mv_yi": 19.4697,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600156",
+      "name": "华升股份",
+      "market": "SH",
+      "full_code": "600156.SH",
+      "circ_mv_yi": 19.5828,
+      "total_mv_yi": 19.5828,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603188",
+      "name": "亚邦股份",
+      "market": "SH",
+      "full_code": "603188.SH",
+      "circ_mv_yi": 19.6138,
+      "total_mv_yi": 19.6138,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003005",
+      "name": "竞业达",
+      "market": "SZ",
+      "full_code": "003005.SZ",
+      "circ_mv_yi": 19.6364,
+      "total_mv_yi": 43.9639,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603637",
+      "name": "镇海股份",
+      "market": "SH",
+      "full_code": "603637.SH",
+      "circ_mv_yi": 19.6677,
+      "total_mv_yi": 19.6677,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003043",
+      "name": "华亚智能",
+      "market": "SZ",
+      "full_code": "003043.SZ",
+      "circ_mv_yi": 19.687,
+      "total_mv_yi": 38.4098,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000573",
+      "name": "粤宏远A",
+      "market": "SZ",
+      "full_code": "000573.SZ",
+      "circ_mv_yi": 19.7485,
+      "total_mv_yi": 19.9144,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603696",
+      "name": "安记食品",
+      "market": "SH",
+      "full_code": "603696.SH",
+      "circ_mv_yi": 19.8509,
+      "total_mv_yi": 19.8509,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002495",
+      "name": "佳隆股份",
+      "market": "SZ",
+      "full_code": "002495.SZ",
+      "circ_mv_yi": 19.9188,
+      "total_mv_yi": 26.104,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002893",
+      "name": "京能热力",
+      "market": "SZ",
+      "full_code": "002893.SZ",
+      "circ_mv_yi": 19.9737,
+      "total_mv_yi": 25.9685,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603700",
+      "name": "宁水集团",
+      "market": "SH",
+      "full_code": "603700.SH",
+      "circ_mv_yi": 19.9787,
+      "total_mv_yi": 19.9787,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600159",
+      "name": "大龙地产",
+      "market": "SH",
+      "full_code": "600159.SH",
+      "circ_mv_yi": 20.0031,
+      "total_mv_yi": 20.0031,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603329",
+      "name": "上海雅仕",
+      "market": "SH",
+      "full_code": "603329.SH",
+      "circ_mv_yi": 20.0192,
+      "total_mv_yi": 20.0192,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000757",
+      "name": "浩物股份",
+      "market": "SZ",
+      "full_code": "000757.SZ",
+      "circ_mv_yi": 20.0301,
+      "total_mv_yi": 20.0301,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002787",
+      "name": "华源控股",
+      "market": "SZ",
+      "full_code": "002787.SZ",
+      "circ_mv_yi": 20.0367,
+      "total_mv_yi": 26.6049,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001289",
+      "name": "龙源电力",
+      "market": "SZ",
+      "full_code": "001289.SZ",
+      "circ_mv_yi": 20.0671,
+      "total_mv_yi": 1258.1523,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603926",
+      "name": "铁流股份",
+      "market": "SH",
+      "full_code": "603926.SH",
+      "circ_mv_yi": 20.0841,
+      "total_mv_yi": 20.5715,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603089",
+      "name": "正裕工业",
+      "market": "SH",
+      "full_code": "603089.SH",
+      "circ_mv_yi": 20.09,
+      "total_mv_yi": 20.09,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600235",
+      "name": "民丰特纸",
+      "market": "SH",
+      "full_code": "600235.SH",
+      "circ_mv_yi": 20.0944,
+      "total_mv_yi": 20.0944,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002879",
+      "name": "长缆科技",
+      "market": "SZ",
+      "full_code": "002879.SZ",
+      "circ_mv_yi": 20.1173,
+      "total_mv_yi": 28.1744,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603255",
+      "name": "鼎际得",
+      "market": "SH",
+      "full_code": "603255.SH",
+      "circ_mv_yi": 20.1442,
+      "total_mv_yi": 44.6579,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600128",
+      "name": "苏豪弘业",
+      "market": "SH",
+      "full_code": "600128.SH",
+      "circ_mv_yi": 20.1609,
+      "total_mv_yi": 20.1609,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600051",
+      "name": "宁波联合",
+      "market": "SH",
+      "full_code": "600051.SH",
+      "circ_mv_yi": 20.1761,
+      "total_mv_yi": 20.1761,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000510",
+      "name": "新金路",
+      "market": "SZ",
+      "full_code": "000510.SZ",
+      "circ_mv_yi": 20.196,
+      "total_mv_yi": 23.0882,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002825",
+      "name": "纳尔股份",
+      "market": "SZ",
+      "full_code": "002825.SZ",
+      "circ_mv_yi": 20.2154,
+      "total_mv_yi": 26.5414,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002763",
+      "name": "汇洁股份",
+      "market": "SZ",
+      "full_code": "002763.SZ",
+      "circ_mv_yi": 20.2777,
+      "total_mv_yi": 27.3829,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002715",
+      "name": "登云股份",
+      "market": "SZ",
+      "full_code": "002715.SZ",
+      "circ_mv_yi": 20.286,
+      "total_mv_yi": 20.286,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603192",
+      "name": "汇得科技",
+      "market": "SH",
+      "full_code": "603192.SH",
+      "circ_mv_yi": 20.3285,
+      "total_mv_yi": 20.6931,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600408",
+      "name": "安泰集团",
+      "market": "SH",
+      "full_code": "600408.SH",
+      "circ_mv_yi": 20.3374,
+      "total_mv_yi": 20.3374,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002999",
+      "name": "天禾股份",
+      "market": "SZ",
+      "full_code": "002999.SZ",
+      "circ_mv_yi": 20.3946,
+      "total_mv_yi": 20.7165,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605180",
+      "name": "华生科技",
+      "market": "SH",
+      "full_code": "605180.SH",
+      "circ_mv_yi": 20.3983,
+      "total_mv_yi": 20.3983,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000952",
+      "name": "广济药业",
+      "market": "SZ",
+      "full_code": "000952.SZ",
+      "circ_mv_yi": 20.3985,
+      "total_mv_yi": 20.7464,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600615",
+      "name": "鑫源智造",
+      "market": "SH",
+      "full_code": "600615.SH",
+      "circ_mv_yi": 20.4323,
+      "total_mv_yi": 20.4754,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603395",
+      "name": "红四方",
+      "market": "SH",
+      "full_code": "603395.SH",
+      "circ_mv_yi": 20.5379,
+      "total_mv_yi": 101.8,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002136",
+      "name": "安纳达",
+      "market": "SZ",
+      "full_code": "002136.SZ",
+      "circ_mv_yi": 20.5783,
+      "total_mv_yi": 20.6419,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002486",
+      "name": "嘉麟杰",
+      "market": "SZ",
+      "full_code": "002486.SZ",
+      "circ_mv_yi": 20.6204,
+      "total_mv_yi": 20.6204,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002425",
+      "name": "凯撒文化",
+      "market": "SZ",
+      "full_code": "002425.SZ",
+      "circ_mv_yi": 20.6509,
+      "total_mv_yi": 20.664,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000430",
+      "name": "张家界",
+      "market": "SZ",
+      "full_code": "000430.SZ",
+      "circ_mv_yi": 20.6673,
+      "total_mv_yi": 25.2201,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603908",
+      "name": "牧高笛",
+      "market": "SH",
+      "full_code": "603908.SH",
+      "circ_mv_yi": 20.6806,
+      "total_mv_yi": 20.6806,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605003",
+      "name": "众望布艺",
+      "market": "SH",
+      "full_code": "605003.SH",
+      "circ_mv_yi": 20.691,
+      "total_mv_yi": 20.691,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600241",
+      "name": "时代万恒",
+      "market": "SH",
+      "full_code": "600241.SH",
+      "circ_mv_yi": 20.7189,
+      "total_mv_yi": 20.7189,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603321",
+      "name": "梅轮电梯",
+      "market": "SH",
+      "full_code": "603321.SH",
+      "circ_mv_yi": 20.7525,
+      "total_mv_yi": 21.0602,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600697",
+      "name": "欧亚集团",
+      "market": "SH",
+      "full_code": "600697.SH",
+      "circ_mv_yi": 20.7738,
+      "total_mv_yi": 21.2701,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600892",
+      "name": "大晟文化",
+      "market": "SH",
+      "full_code": "600892.SH",
+      "circ_mv_yi": 20.8067,
+      "total_mv_yi": 20.8121,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002975",
+      "name": "博杰股份",
+      "market": "SZ",
+      "full_code": "002975.SZ",
+      "circ_mv_yi": 20.8319,
+      "total_mv_yi": 41.1618,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603657",
+      "name": "春光科技",
+      "market": "SH",
+      "full_code": "603657.SH",
+      "circ_mv_yi": 20.8463,
+      "total_mv_yi": 21.0405,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605151",
+      "name": "西上海",
+      "market": "SH",
+      "full_code": "605151.SH",
+      "circ_mv_yi": 20.8559,
+      "total_mv_yi": 20.9679,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603176",
+      "name": "汇通集团",
+      "market": "SH",
+      "full_code": "603176.SH",
+      "circ_mv_yi": 20.8602,
+      "total_mv_yi": 20.8602,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603048",
+      "name": "浙江黎明",
+      "market": "SH",
+      "full_code": "603048.SH",
+      "circ_mv_yi": 20.8863,
+      "total_mv_yi": 20.8863,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600844",
+      "name": "金煤科技",
+      "market": "SH",
+      "full_code": "600844.SH",
+      "circ_mv_yi": 20.8974,
+      "total_mv_yi": 25.8197,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002420",
+      "name": "毅昌科技",
+      "market": "SZ",
+      "full_code": "002420.SZ",
+      "circ_mv_yi": 20.9238,
+      "total_mv_yi": 21.6685,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605068",
+      "name": "明新旭腾",
+      "market": "SH",
+      "full_code": "605068.SH",
+      "circ_mv_yi": 20.9485,
+      "total_mv_yi": 20.9485,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603679",
+      "name": "华体科技",
+      "market": "SH",
+      "full_code": "603679.SH",
+      "circ_mv_yi": 20.9708,
+      "total_mv_yi": 20.9708,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603341",
+      "name": "龙旗科技",
+      "market": "SH",
+      "full_code": "603341.SH",
+      "circ_mv_yi": 20.9712,
+      "total_mv_yi": 203.2007,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603790",
+      "name": "雅运股份",
+      "market": "SH",
+      "full_code": "603790.SH",
+      "circ_mv_yi": 21.0305,
+      "total_mv_yi": 21.0305,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000554",
+      "name": "泰山石油",
+      "market": "SZ",
+      "full_code": "000554.SZ",
+      "circ_mv_yi": 21.0702,
+      "total_mv_yi": 27.9341,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003007",
+      "name": "直真科技",
+      "market": "SZ",
+      "full_code": "003007.SZ",
+      "circ_mv_yi": 21.082,
+      "total_mv_yi": 29.6712,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603578",
+      "name": "三星新材",
+      "market": "SH",
+      "full_code": "603578.SH",
+      "circ_mv_yi": 21.1018,
+      "total_mv_yi": 21.1018,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603982",
+      "name": "泉峰汽车",
+      "market": "SH",
+      "full_code": "603982.SH",
+      "circ_mv_yi": 21.1059,
+      "total_mv_yi": 21.1059,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "601033",
+      "name": "永兴股份",
+      "market": "SH",
+      "full_code": "601033.SH",
+      "circ_mv_yi": 21.165,
+      "total_mv_yi": 126.99,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603029",
+      "name": "天鹅股份",
+      "market": "SH",
+      "full_code": "603029.SH",
+      "circ_mv_yi": 21.1984,
+      "total_mv_yi": 21.1984,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002381",
+      "name": "双箭股份",
+      "market": "SZ",
+      "full_code": "002381.SZ",
+      "circ_mv_yi": 21.2215,
+      "total_mv_yi": 27.1229,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002846",
+      "name": "英联股份",
+      "market": "SZ",
+      "full_code": "002846.SZ",
+      "circ_mv_yi": 21.2297,
+      "total_mv_yi": 34.6915,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603829",
+      "name": "洛凯股份",
+      "market": "SH",
+      "full_code": "603829.SH",
+      "circ_mv_yi": 21.232,
+      "total_mv_yi": 21.232,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002197",
+      "name": "证通电子",
+      "market": "SZ",
+      "full_code": "002197.SZ",
+      "circ_mv_yi": 21.2532,
+      "total_mv_yi": 24.4516,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002811",
+      "name": "郑中设计",
+      "market": "SZ",
+      "full_code": "002811.SZ",
+      "circ_mv_yi": 21.2592,
+      "total_mv_yi": 23.3966,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003033",
+      "name": "征和工业",
+      "market": "SZ",
+      "full_code": "003033.SZ",
+      "circ_mv_yi": 21.2618,
+      "total_mv_yi": 21.5657,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000545",
+      "name": "金浦钛业",
+      "market": "SZ",
+      "full_code": "000545.SZ",
+      "circ_mv_yi": 21.2847,
+      "total_mv_yi": 21.3156,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603168",
+      "name": "莎普爱思",
+      "market": "SH",
+      "full_code": "603168.SH",
+      "circ_mv_yi": 21.2911,
+      "total_mv_yi": 24.8111,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002370",
+      "name": "亚太药业",
+      "market": "SZ",
+      "full_code": "002370.SZ",
+      "circ_mv_yi": 21.3852,
+      "total_mv_yi": 21.3852,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000889",
+      "name": "中嘉博创",
+      "market": "SZ",
+      "full_code": "000889.SZ",
+      "circ_mv_yi": 21.3983,
+      "total_mv_yi": 23.0328,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603928",
+      "name": "兴业股份",
+      "market": "SH",
+      "full_code": "603928.SH",
+      "circ_mv_yi": 21.4381,
+      "total_mv_yi": 21.4381,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603585",
+      "name": "苏利股份",
+      "market": "SH",
+      "full_code": "603585.SH",
+      "circ_mv_yi": 21.4383,
+      "total_mv_yi": 21.8968,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002529",
+      "name": "海源复材",
+      "market": "SZ",
+      "full_code": "002529.SZ",
+      "circ_mv_yi": 21.476,
+      "total_mv_yi": 21.476,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603286",
+      "name": "日盈电子",
+      "market": "SH",
+      "full_code": "603286.SH",
+      "circ_mv_yi": 21.4891,
+      "total_mv_yi": 21.9255,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002357",
+      "name": "富临运业",
+      "market": "SZ",
+      "full_code": "002357.SZ",
+      "circ_mv_yi": 21.5046,
+      "total_mv_yi": 21.5053,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002723",
+      "name": "小崧股份",
+      "market": "SZ",
+      "full_code": "002723.SZ",
+      "circ_mv_yi": 21.5048,
+      "total_mv_yi": 21.5609,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002729",
+      "name": "好利科技",
+      "market": "SZ",
+      "full_code": "002729.SZ",
+      "circ_mv_yi": 21.5645,
+      "total_mv_yi": 22.487,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605177",
+      "name": "东亚药业",
+      "market": "SH",
+      "full_code": "605177.SH",
+      "circ_mv_yi": 21.6498,
+      "total_mv_yi": 22.0671,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000972",
+      "name": "中基健康",
+      "market": "SZ",
+      "full_code": "000972.SZ",
+      "circ_mv_yi": 21.6731,
+      "total_mv_yi": 21.6731,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605055",
+      "name": "迎丰股份",
+      "market": "SH",
+      "full_code": "605055.SH",
+      "circ_mv_yi": 21.692,
+      "total_mv_yi": 21.692,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002159",
+      "name": "三特索道",
+      "market": "SZ",
+      "full_code": "002159.SZ",
+      "circ_mv_yi": 21.7,
+      "total_mv_yi": 27.7831,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603221",
+      "name": "爱丽家居",
+      "market": "SH",
+      "full_code": "603221.SH",
+      "circ_mv_yi": 21.768,
+      "total_mv_yi": 22.1834,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002054",
+      "name": "德美化工",
+      "market": "SZ",
+      "full_code": "002054.SZ",
+      "circ_mv_yi": 21.7835,
+      "total_mv_yi": 27.4324,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000953",
+      "name": "中哲精化",
+      "market": "SZ",
+      "full_code": "000953.SZ",
+      "circ_mv_yi": 21.8209,
+      "total_mv_yi": 21.8209,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603017",
+      "name": "中衡设计",
+      "market": "SH",
+      "full_code": "603017.SH",
+      "circ_mv_yi": 21.8241,
+      "total_mv_yi": 21.8241,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603042",
+      "name": "华脉科技",
+      "market": "SH",
+      "full_code": "603042.SH",
+      "circ_mv_yi": 21.8563,
+      "total_mv_yi": 21.8563,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603135",
+      "name": "中重科技",
+      "market": "SH",
+      "full_code": "603135.SH",
+      "circ_mv_yi": 21.8801,
+      "total_mv_yi": 54.518,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600444",
+      "name": "国机通用",
+      "market": "SH",
+      "full_code": "600444.SH",
+      "circ_mv_yi": 21.8901,
+      "total_mv_yi": 21.8901,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002702",
+      "name": "海欣食品",
+      "market": "SZ",
+      "full_code": "002702.SZ",
+      "circ_mv_yi": 21.8941,
+      "total_mv_yi": 26.343,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000705",
+      "name": "浙江震元",
+      "market": "SZ",
+      "full_code": "000705.SZ",
+      "circ_mv_yi": 21.9087,
+      "total_mv_yi": 25.9614,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002802",
+      "name": "洪汇新材",
+      "market": "SZ",
+      "full_code": "002802.SZ",
+      "circ_mv_yi": 21.9423,
+      "total_mv_yi": 21.9856,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002319",
+      "name": "乐通股份",
+      "market": "SZ",
+      "full_code": "002319.SZ",
+      "circ_mv_yi": 21.96,
+      "total_mv_yi": 23.0001,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000978",
+      "name": "桂林旅游",
+      "market": "SZ",
+      "full_code": "000978.SZ",
+      "circ_mv_yi": 22.0014,
+      "total_mv_yi": 28.6027,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002496",
+      "name": "辉丰股份",
+      "market": "SZ",
+      "full_code": "002496.SZ",
+      "circ_mv_yi": 22.0919,
+      "total_mv_yi": 28.1919,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603895",
+      "name": "天永智能",
+      "market": "SH",
+      "full_code": "603895.SH",
+      "circ_mv_yi": 22.1132,
+      "total_mv_yi": 22.1132,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002873",
+      "name": "新天药业",
+      "market": "SZ",
+      "full_code": "002873.SZ",
+      "circ_mv_yi": 22.1348,
+      "total_mv_yi": 22.6284,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603798",
+      "name": "康普顿",
+      "market": "SH",
+      "full_code": "603798.SH",
+      "circ_mv_yi": 22.1829,
+      "total_mv_yi": 22.1829,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603665",
+      "name": "康隆达",
+      "market": "SH",
+      "full_code": "603665.SH",
+      "circ_mv_yi": 22.3114,
+      "total_mv_yi": 22.5751,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603839",
+      "name": "安正时尚",
+      "market": "SH",
+      "full_code": "603839.SH",
+      "circ_mv_yi": 22.316,
+      "total_mv_yi": 22.316,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000955",
+      "name": "欣龙控股",
+      "market": "SZ",
+      "full_code": "000955.SZ",
+      "circ_mv_yi": 22.3289,
+      "total_mv_yi": 22.3434,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603080",
+      "name": "新疆火炬",
+      "market": "SH",
+      "full_code": "603080.SH",
+      "circ_mv_yi": 22.3712,
+      "total_mv_yi": 22.3712,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600774",
+      "name": "汉商集团",
+      "market": "SH",
+      "full_code": "600774.SH",
+      "circ_mv_yi": 22.408,
+      "total_mv_yi": 22.4225,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000020",
+      "name": "深华发A",
+      "market": "SZ",
+      "full_code": "000020.SZ",
+      "circ_mv_yi": 22.4645,
+      "total_mv_yi": 35.112,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002616",
+      "name": "长青集团",
+      "market": "SZ",
+      "full_code": "002616.SZ",
+      "circ_mv_yi": 22.5238,
+      "total_mv_yi": 35.54,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600356",
+      "name": "恒丰纸业",
+      "market": "SH",
+      "full_code": "600356.SH",
+      "circ_mv_yi": 22.614,
+      "total_mv_yi": 22.614,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000695",
+      "name": "滨海能源",
+      "market": "SZ",
+      "full_code": "000695.SZ",
+      "circ_mv_yi": 22.6155,
+      "total_mv_yi": 22.659,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000803",
+      "name": "山高环能",
+      "market": "SZ",
+      "full_code": "000803.SZ",
+      "circ_mv_yi": 22.6171,
+      "total_mv_yi": 23.2197,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002658",
+      "name": "雪迪龙",
+      "market": "SZ",
+      "full_code": "002658.SZ",
+      "circ_mv_yi": 22.6318,
+      "total_mv_yi": 40.1165,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002864",
+      "name": "盘龙药业",
+      "market": "SZ",
+      "full_code": "002864.SZ",
+      "circ_mv_yi": 22.6411,
+      "total_mv_yi": 32.6495,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603580",
+      "name": "艾艾精工",
+      "market": "SH",
+      "full_code": "603580.SH",
+      "circ_mv_yi": 22.6457,
+      "total_mv_yi": 22.6457,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600540",
+      "name": "新赛股份",
+      "market": "SH",
+      "full_code": "600540.SH",
+      "circ_mv_yi": 22.7318,
+      "total_mv_yi": 22.7318,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002725",
+      "name": "跃岭股份",
+      "market": "SZ",
+      "full_code": "002725.SZ",
+      "circ_mv_yi": 22.7397,
+      "total_mv_yi": 27.4688,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603159",
+      "name": "上海亚虹",
+      "market": "SH",
+      "full_code": "603159.SH",
+      "circ_mv_yi": 22.792,
+      "total_mv_yi": 22.792,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001269",
+      "name": "欧晶科技",
+      "market": "SZ",
+      "full_code": "001269.SZ",
+      "circ_mv_yi": 22.8374,
+      "total_mv_yi": 52.373,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603237",
+      "name": "五芳斋",
+      "market": "SH",
+      "full_code": "603237.SH",
+      "circ_mv_yi": 22.8395,
+      "total_mv_yi": 37.1565,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002391",
+      "name": "长青股份",
+      "market": "SZ",
+      "full_code": "002391.SZ",
+      "circ_mv_yi": 22.8812,
+      "total_mv_yi": 32.0249,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603717",
+      "name": "天域生物",
+      "market": "SH",
+      "full_code": "603717.SH",
+      "circ_mv_yi": 22.8925,
+      "total_mv_yi": 22.8925,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603797",
+      "name": "联泰环保",
+      "market": "SH",
+      "full_code": "603797.SH",
+      "circ_mv_yi": 22.899,
+      "total_mv_yi": 22.899,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600257",
+      "name": "大湖股份",
+      "market": "SH",
+      "full_code": "600257.SH",
+      "circ_mv_yi": 22.9069,
+      "total_mv_yi": 22.9069,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002769",
+      "name": "普路通",
+      "market": "SZ",
+      "full_code": "002769.SZ",
+      "circ_mv_yi": 22.9355,
+      "total_mv_yi": 25.7589,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600857",
+      "name": "宁波中百",
+      "market": "SH",
+      "full_code": "600857.SH",
+      "circ_mv_yi": 22.9479,
+      "total_mv_yi": 22.9479,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002622",
+      "name": "皓宸医疗",
+      "market": "SZ",
+      "full_code": "002622.SZ",
+      "circ_mv_yi": 23.0153,
+      "total_mv_yi": 23.016,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000565",
+      "name": "渝三峡A",
+      "market": "SZ",
+      "full_code": "000565.SZ",
+      "circ_mv_yi": 23.0237,
+      "total_mv_yi": 23.0237,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603909",
+      "name": "建发合诚",
+      "market": "SH",
+      "full_code": "603909.SH",
+      "circ_mv_yi": 23.1217,
+      "total_mv_yi": 23.1217,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603059",
+      "name": "倍加洁",
+      "market": "SH",
+      "full_code": "603059.SH",
+      "circ_mv_yi": 23.1233,
+      "total_mv_yi": 23.1233,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000892",
+      "name": "欢瑞世纪",
+      "market": "SZ",
+      "full_code": "000892.SZ",
+      "circ_mv_yi": 23.1733,
+      "total_mv_yi": 31.98,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603238",
+      "name": "诺邦股份",
+      "market": "SH",
+      "full_code": "603238.SH",
+      "circ_mv_yi": 23.1827,
+      "total_mv_yi": 23.1827,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603488",
+      "name": "展鹏科技",
+      "market": "SH",
+      "full_code": "603488.SH",
+      "circ_mv_yi": 23.184,
+      "total_mv_yi": 23.184,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001212",
+      "name": "中旗新材",
+      "market": "SZ",
+      "full_code": "001212.SZ",
+      "circ_mv_yi": 23.1948,
+      "total_mv_yi": 27.6097,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002329",
+      "name": "皇氏集团",
+      "market": "SZ",
+      "full_code": "002329.SZ",
+      "circ_mv_yi": 23.199,
+      "total_mv_yi": 30.5905,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603079",
+      "name": "圣达生物",
+      "market": "SH",
+      "full_code": "603079.SH",
+      "circ_mv_yi": 23.2132,
+      "total_mv_yi": 23.2132,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603683",
+      "name": "晶华新材",
+      "market": "SH",
+      "full_code": "603683.SH",
+      "circ_mv_yi": 23.2136,
+      "total_mv_yi": 23.5462,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000635",
+      "name": "英力特",
+      "market": "SZ",
+      "full_code": "000635.SZ",
+      "circ_mv_yi": 23.3074,
+      "total_mv_yi": 23.3381,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600692",
+      "name": "亚通股份",
+      "market": "SH",
+      "full_code": "600692.SH",
+      "circ_mv_yi": 23.308,
+      "total_mv_yi": 32.1512,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600969",
+      "name": "郴电国际",
+      "market": "SH",
+      "full_code": "600969.SH",
+      "circ_mv_yi": 23.3132,
+      "total_mv_yi": 23.3132,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605288",
+      "name": "凯迪股份",
+      "market": "SH",
+      "full_code": "605288.SH",
+      "circ_mv_yi": 23.3552,
+      "total_mv_yi": 23.3552,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001288",
+      "name": "运机集团",
+      "market": "SZ",
+      "full_code": "001288.SZ",
+      "circ_mv_yi": 23.3697,
+      "total_mv_yi": 50.6498,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603917",
+      "name": "合力科技",
+      "market": "SH",
+      "full_code": "603917.SH",
+      "circ_mv_yi": 23.4416,
+      "total_mv_yi": 23.4416,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000985",
+      "name": "大庆华科",
+      "market": "SZ",
+      "full_code": "000985.SZ",
+      "circ_mv_yi": 23.4777,
+      "total_mv_yi": 23.4777,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603787",
+      "name": "新日股份",
+      "market": "SH",
+      "full_code": "603787.SH",
+      "circ_mv_yi": 23.4977,
+      "total_mv_yi": 23.4977,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002943",
+      "name": "宇晶股份",
+      "market": "SZ",
+      "full_code": "002943.SZ",
+      "circ_mv_yi": 23.5006,
+      "total_mv_yi": 39.7126,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002852",
+      "name": "道道全",
+      "market": "SZ",
+      "full_code": "002852.SZ",
+      "circ_mv_yi": 23.5229,
+      "total_mv_yi": 28.3086,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603191",
+      "name": "望变电气",
+      "market": "SH",
+      "full_code": "603191.SH",
+      "circ_mv_yi": 23.5436,
+      "total_mv_yi": 42.0124,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603311",
+      "name": "金海高科",
+      "market": "SH",
+      "full_code": "603311.SH",
+      "circ_mv_yi": 23.6592,
+      "total_mv_yi": 23.6592,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000782",
+      "name": "恒申新材",
+      "market": "SZ",
+      "full_code": "000782.SZ",
+      "circ_mv_yi": 23.6607,
+      "total_mv_yi": 30.7589,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605298",
+      "name": "必得科技",
+      "market": "SH",
+      "full_code": "605298.SH",
+      "circ_mv_yi": 23.6728,
+      "total_mv_yi": 24.3641,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002835",
+      "name": "同为股份",
+      "market": "SZ",
+      "full_code": "002835.SZ",
+      "circ_mv_yi": 23.7003,
+      "total_mv_yi": 40.8698,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002778",
+      "name": "中晟高科",
+      "market": "SZ",
+      "full_code": "002778.SZ",
+      "circ_mv_yi": 23.7112,
+      "total_mv_yi": 23.9651,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001308",
+      "name": "康冠科技",
+      "market": "SZ",
+      "full_code": "001308.SZ",
+      "circ_mv_yi": 23.7746,
+      "total_mv_yi": 188.7236,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600854",
+      "name": "春兰股份",
+      "market": "SH",
+      "full_code": "600854.SH",
+      "circ_mv_yi": 23.7912,
+      "total_mv_yi": 23.7912,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603289",
+      "name": "泰瑞机器",
+      "market": "SH",
+      "full_code": "603289.SH",
+      "circ_mv_yi": 23.8096,
+      "total_mv_yi": 23.8971,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600097",
+      "name": "开创国际",
+      "market": "SH",
+      "full_code": "600097.SH",
+      "circ_mv_yi": 23.8286,
+      "total_mv_yi": 23.8286,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002248",
+      "name": "华东数控",
+      "market": "SZ",
+      "full_code": "002248.SZ",
+      "circ_mv_yi": 23.8617,
+      "total_mv_yi": 23.8617,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "601996",
+      "name": "丰林集团",
+      "market": "SH",
+      "full_code": "601996.SH",
+      "circ_mv_yi": 23.8755,
+      "total_mv_yi": 23.8755,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002012",
+      "name": "凯恩股份",
+      "market": "SZ",
+      "full_code": "002012.SZ",
+      "circ_mv_yi": 23.8867,
+      "total_mv_yi": 23.9424,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002164",
+      "name": "宁波东力",
+      "market": "SZ",
+      "full_code": "002164.SZ",
+      "circ_mv_yi": 23.8928,
+      "total_mv_yi": 26.5022,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002682",
+      "name": "龙洲股份",
+      "market": "SZ",
+      "full_code": "002682.SZ",
+      "circ_mv_yi": 23.9003,
+      "total_mv_yi": 23.9007,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001208",
+      "name": "华菱线缆",
+      "market": "SZ",
+      "full_code": "001208.SZ",
+      "circ_mv_yi": 23.9284,
+      "total_mv_yi": 47.35,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000790",
+      "name": "华神科技",
+      "market": "SZ",
+      "full_code": "000790.SZ",
+      "circ_mv_yi": 23.9763,
+      "total_mv_yi": 24.0132,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603193",
+      "name": "润本股份",
+      "market": "SH",
+      "full_code": "603193.SH",
+      "circ_mv_yi": 23.9844,
+      "total_mv_yi": 93.9061,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002613",
+      "name": "北玻股份",
+      "market": "SZ",
+      "full_code": "002613.SZ",
+      "circ_mv_yi": 23.9915,
+      "total_mv_yi": 43.3624,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600359",
+      "name": "新农开发",
+      "market": "SH",
+      "full_code": "600359.SH",
+      "circ_mv_yi": 23.9972,
+      "total_mv_yi": 23.9972,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002923",
+      "name": "润都股份",
+      "market": "SZ",
+      "full_code": "002923.SZ",
+      "circ_mv_yi": 24.0019,
+      "total_mv_yi": 31.1451,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002875",
+      "name": "安奈儿",
+      "market": "SZ",
+      "full_code": "002875.SZ",
+      "circ_mv_yi": 24.043,
+      "total_mv_yi": 28.074,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002917",
+      "name": "金奥博",
+      "market": "SZ",
+      "full_code": "002917.SZ",
+      "circ_mv_yi": 24.0483,
+      "total_mv_yi": 32.0848,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603976",
+      "name": "正川股份",
+      "market": "SH",
+      "full_code": "603976.SH",
+      "circ_mv_yi": 24.0714,
+      "total_mv_yi": 24.0714,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002394",
+      "name": "联发股份",
+      "market": "SZ",
+      "full_code": "002394.SZ",
+      "circ_mv_yi": 24.0848,
+      "total_mv_yi": 24.1156,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603385",
+      "name": "惠达卫浴",
+      "market": "SH",
+      "full_code": "603385.SH",
+      "circ_mv_yi": 24.0961,
+      "total_mv_yi": 24.0961,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002172",
+      "name": "澳洋健康",
+      "market": "SZ",
+      "full_code": "002172.SZ",
+      "circ_mv_yi": 24.1061,
+      "total_mv_yi": 24.1206,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603269",
+      "name": "海鸥股份",
+      "market": "SH",
+      "full_code": "603269.SH",
+      "circ_mv_yi": 24.1488,
+      "total_mv_yi": 24.1488,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603681",
+      "name": "永冠新材",
+      "market": "SH",
+      "full_code": "603681.SH",
+      "circ_mv_yi": 24.159,
+      "total_mv_yi": 24.159,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002940",
+      "name": "昂利康",
+      "market": "SZ",
+      "full_code": "002940.SZ",
+      "circ_mv_yi": 24.1784,
+      "total_mv_yi": 26.3255,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603335",
+      "name": "迪生力",
+      "market": "SH",
+      "full_code": "603335.SH",
+      "circ_mv_yi": 24.2758,
+      "total_mv_yi": 24.2758,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000007",
+      "name": "全新好",
+      "market": "SZ",
+      "full_code": "000007.SZ",
+      "circ_mv_yi": 24.3207,
+      "total_mv_yi": 24.3207,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600749",
+      "name": "西藏旅游",
+      "market": "SH",
+      "full_code": "600749.SH",
+      "circ_mv_yi": 24.3307,
+      "total_mv_yi": 24.3307,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002983",
+      "name": "芯瑞达",
+      "market": "SZ",
+      "full_code": "002983.SZ",
+      "circ_mv_yi": 24.3388,
+      "total_mv_yi": 42.426,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003020",
+      "name": "立方制药",
+      "market": "SZ",
+      "full_code": "003020.SZ",
+      "circ_mv_yi": 24.3447,
+      "total_mv_yi": 33.7549,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000619",
+      "name": "海螺新材",
+      "market": "SZ",
+      "full_code": "000619.SZ",
+      "circ_mv_yi": 24.372,
+      "total_mv_yi": 29.8671,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603170",
+      "name": "宝立食品",
+      "market": "SH",
+      "full_code": "603170.SH",
+      "circ_mv_yi": 24.3773,
+      "total_mv_yi": 61.4015,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605208",
+      "name": "永茂泰",
+      "market": "SH",
+      "full_code": "605208.SH",
+      "circ_mv_yi": 24.3826,
+      "total_mv_yi": 24.3826,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600533",
+      "name": "栖霞建设",
+      "market": "SH",
+      "full_code": "600533.SH",
+      "circ_mv_yi": 24.465,
+      "total_mv_yi": 24.465,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002722",
+      "name": "物产金轮",
+      "market": "SZ",
+      "full_code": "002722.SZ",
+      "circ_mv_yi": 24.4816,
+      "total_mv_yi": 28.818,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002799",
+      "name": "环球印务",
+      "market": "SZ",
+      "full_code": "002799.SZ",
+      "circ_mv_yi": 24.4827,
+      "total_mv_yi": 24.4831,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603336",
+      "name": "宏辉果蔬",
+      "market": "SH",
+      "full_code": "603336.SH",
+      "circ_mv_yi": 24.5266,
+      "total_mv_yi": 24.5266,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605100",
+      "name": "华丰股份",
+      "market": "SH",
+      "full_code": "605100.SH",
+      "circ_mv_yi": 24.5382,
+      "total_mv_yi": 24.7115,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002732",
+      "name": "燕塘乳业",
+      "market": "SZ",
+      "full_code": "002732.SZ",
+      "circ_mv_yi": 24.5652,
+      "total_mv_yi": 24.6882,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603162",
+      "name": "海通发展",
+      "market": "SH",
+      "full_code": "603162.SH",
+      "circ_mv_yi": 24.5768,
+      "total_mv_yi": 82.5191,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002615",
+      "name": "哈尔斯",
+      "market": "SZ",
+      "full_code": "002615.SZ",
+      "circ_mv_yi": 24.6512,
+      "total_mv_yi": 37.8166,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002574",
+      "name": "明牌珠宝",
+      "market": "SZ",
+      "full_code": "002574.SZ",
+      "circ_mv_yi": 24.6576,
+      "total_mv_yi": 24.6576,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603949",
+      "name": "雪龙集团",
+      "market": "SH",
+      "full_code": "603949.SH",
+      "circ_mv_yi": 24.6781,
+      "total_mv_yi": 24.7874,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002671",
+      "name": "龙泉股份",
+      "market": "SZ",
+      "full_code": "002671.SZ",
+      "circ_mv_yi": 24.7466,
+      "total_mv_yi": 25.2926,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002066",
+      "name": "瑞泰科技",
+      "market": "SZ",
+      "full_code": "002066.SZ",
+      "circ_mv_yi": 24.7863,
+      "total_mv_yi": 24.7863,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600807",
+      "name": "济高发展",
+      "market": "SH",
+      "full_code": "600807.SH",
+      "circ_mv_yi": 24.7911,
+      "total_mv_yi": 27.866,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002398",
+      "name": "垒知集团",
+      "market": "SZ",
+      "full_code": "002398.SZ",
+      "circ_mv_yi": 24.7966,
+      "total_mv_yi": 29.875,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002796",
+      "name": "世嘉科技",
+      "market": "SZ",
+      "full_code": "002796.SZ",
+      "circ_mv_yi": 24.9201,
+      "total_mv_yi": 27.767,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000679",
+      "name": "大连友谊",
+      "market": "SZ",
+      "full_code": "000679.SZ",
+      "circ_mv_yi": 24.948,
+      "total_mv_yi": 24.948,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600371",
+      "name": "万向德农",
+      "market": "SH",
+      "full_code": "600371.SH",
+      "circ_mv_yi": 24.9569,
+      "total_mv_yi": 24.9569,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600721",
+      "name": "百花医药",
+      "market": "SH",
+      "full_code": "600721.SH",
+      "circ_mv_yi": 24.9614,
+      "total_mv_yi": 24.9614,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600192",
+      "name": "长城电工",
+      "market": "SH",
+      "full_code": "600192.SH",
+      "circ_mv_yi": 25.0029,
+      "total_mv_yi": 25.0029,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603811",
+      "name": "诚意药业",
+      "market": "SH",
+      "full_code": "603811.SH",
+      "circ_mv_yi": 25.0061,
+      "total_mv_yi": 25.0061,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605258",
+      "name": "协和电子",
+      "market": "SH",
+      "full_code": "605258.SH",
+      "circ_mv_yi": 25.0536,
+      "total_mv_yi": 25.0536,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002380",
+      "name": "科远智慧",
+      "market": "SZ",
+      "full_code": "002380.SZ",
+      "circ_mv_yi": 25.0706,
+      "total_mv_yi": 42.3105,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600706",
+      "name": "曲江文旅",
+      "market": "SH",
+      "full_code": "600706.SH",
+      "circ_mv_yi": 25.0728,
+      "total_mv_yi": 25.1744,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003026",
+      "name": "中晶科技",
+      "market": "SZ",
+      "full_code": "003026.SZ",
+      "circ_mv_yi": 25.1069,
+      "total_mv_yi": 40.7104,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603655",
+      "name": "朗博科技",
+      "market": "SH",
+      "full_code": "603655.SH",
+      "circ_mv_yi": 25.1114,
+      "total_mv_yi": 25.1114,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605001",
+      "name": "威奥股份",
+      "market": "SH",
+      "full_code": "605001.SH",
+      "circ_mv_yi": 25.1447,
+      "total_mv_yi": 25.1447,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002735",
+      "name": "王子新材",
+      "market": "SZ",
+      "full_code": "002735.SZ",
+      "circ_mv_yi": 25.1694,
+      "total_mv_yi": 34.266,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603836",
+      "name": "海程邦达",
+      "market": "SH",
+      "full_code": "603836.SH",
+      "circ_mv_yi": 25.2439,
+      "total_mv_yi": 25.2439,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002086",
+      "name": "东方海洋",
+      "market": "SZ",
+      "full_code": "002086.SZ",
+      "circ_mv_yi": 25.3029,
+      "total_mv_yi": 55.6341,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605318",
+      "name": "法狮龙",
+      "market": "SH",
+      "full_code": "605318.SH",
+      "circ_mv_yi": 25.4097,
+      "total_mv_yi": 25.4097,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002076",
+      "name": "星光股份",
+      "market": "SZ",
+      "full_code": "002076.SZ",
+      "circ_mv_yi": 25.418,
+      "total_mv_yi": 27.2845,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002995",
+      "name": "天地在线",
+      "market": "SZ",
+      "full_code": "002995.SZ",
+      "circ_mv_yi": 25.4737,
+      "total_mv_yi": 40.2112,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002578",
+      "name": "闽发铝业",
+      "market": "SZ",
+      "full_code": "002578.SZ",
+      "circ_mv_yi": 25.4904,
+      "total_mv_yi": 27.7835,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002918",
+      "name": "蒙娜丽莎",
+      "market": "SZ",
+      "full_code": "002918.SZ",
+      "circ_mv_yi": 25.5017,
+      "total_mv_yi": 48.2441,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603955",
+      "name": "大千生态",
+      "market": "SH",
+      "full_code": "603955.SH",
+      "circ_mv_yi": 25.5018,
+      "total_mv_yi": 25.5018,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002476",
+      "name": "新叶股份",
+      "market": "SZ",
+      "full_code": "002476.SZ",
+      "circ_mv_yi": 25.5795,
+      "total_mv_yi": 25.5816,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001201",
+      "name": "东瑞股份",
+      "market": "SZ",
+      "full_code": "001201.SZ",
+      "circ_mv_yi": 25.5938,
+      "total_mv_yi": 39.8276,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603037",
+      "name": "凯众股份",
+      "market": "SH",
+      "full_code": "603037.SH",
+      "circ_mv_yi": 25.595,
+      "total_mv_yi": 25.8217,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000548",
+      "name": "湖南投资",
+      "market": "SZ",
+      "full_code": "000548.SZ",
+      "circ_mv_yi": 25.6084,
+      "total_mv_yi": 25.6098,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600148",
+      "name": "长春一东",
+      "market": "SH",
+      "full_code": "600148.SH",
+      "circ_mv_yi": 25.6145,
+      "total_mv_yi": 25.6145,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002820",
+      "name": "桂发祥",
+      "market": "SZ",
+      "full_code": "002820.SZ",
+      "circ_mv_yi": 25.6202,
+      "total_mv_yi": 25.7111,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000504",
+      "name": "南华生物",
+      "market": "SZ",
+      "full_code": "000504.SZ",
+      "circ_mv_yi": 25.6302,
+      "total_mv_yi": 27.2269,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002734",
+      "name": "利民股份",
+      "market": "SZ",
+      "full_code": "002734.SZ",
+      "circ_mv_yi": 25.6609,
+      "total_mv_yi": 28.9821,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603579",
+      "name": "荣泰健康",
+      "market": "SH",
+      "full_code": "603579.SH",
+      "circ_mv_yi": 25.6671,
+      "total_mv_yi": 25.6671,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002949",
+      "name": "华阳国际",
+      "market": "SZ",
+      "full_code": "002949.SZ",
+      "circ_mv_yi": 25.6758,
+      "total_mv_yi": 33.6602,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603677",
+      "name": "奇精机械",
+      "market": "SH",
+      "full_code": "603677.SH",
+      "circ_mv_yi": 25.693,
+      "total_mv_yi": 25.693,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605259",
+      "name": "绿田机械",
+      "market": "SH",
+      "full_code": "605259.SH",
+      "circ_mv_yi": 25.6995,
+      "total_mv_yi": 25.6995,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000518",
+      "name": "四环生物",
+      "market": "SZ",
+      "full_code": "000518.SZ",
+      "circ_mv_yi": 25.7384,
+      "total_mv_yi": 25.7389,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "601798",
+      "name": "蓝科高新",
+      "market": "SH",
+      "full_code": "601798.SH",
+      "circ_mv_yi": 25.7387,
+      "total_mv_yi": 25.7387,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001338",
+      "name": "永顺泰",
+      "market": "SZ",
+      "full_code": "001338.SZ",
+      "circ_mv_yi": 25.7662,
+      "total_mv_yi": 54.789,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603779",
+      "name": "威龙股份",
+      "market": "SH",
+      "full_code": "603779.SH",
+      "circ_mv_yi": 25.7696,
+      "total_mv_yi": 25.7696,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000605",
+      "name": "渤海股份",
+      "market": "SZ",
+      "full_code": "000605.SZ",
+      "circ_mv_yi": 25.7795,
+      "total_mv_yi": 27.331,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600228",
+      "name": "返利科技",
+      "market": "SH",
+      "full_code": "600228.SH",
+      "circ_mv_yi": 25.7918,
+      "total_mv_yi": 25.953,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002813",
+      "name": "路畅科技",
+      "market": "SZ",
+      "full_code": "002813.SZ",
+      "circ_mv_yi": 25.8012,
+      "total_mv_yi": 26.136,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002107",
+      "name": "沃华医药",
+      "market": "SZ",
+      "full_code": "002107.SZ",
+      "circ_mv_yi": 25.8036,
+      "total_mv_yi": 26.1476,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002196",
+      "name": "方正电机",
+      "market": "SZ",
+      "full_code": "002196.SZ",
+      "circ_mv_yi": 25.8064,
+      "total_mv_yi": 26.2272,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003032",
+      "name": "传智教育",
+      "market": "SZ",
+      "full_code": "003032.SZ",
+      "circ_mv_yi": 25.8154,
+      "total_mv_yi": 37.991,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003036",
+      "name": "泰坦股份",
+      "market": "SZ",
+      "full_code": "003036.SZ",
+      "circ_mv_yi": 25.8344,
+      "total_mv_yi": 25.8344,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001339",
+      "name": "智微智能",
+      "market": "SZ",
+      "full_code": "001339.SZ",
+      "circ_mv_yi": 25.9535,
+      "total_mv_yi": 89.2286,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002069",
+      "name": "獐子岛",
+      "market": "SZ",
+      "full_code": "002069.SZ",
+      "circ_mv_yi": 26.136,
+      "total_mv_yi": 26.1689,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603006",
+      "name": "联明股份",
+      "market": "SH",
+      "full_code": "603006.SH",
+      "circ_mv_yi": 26.1373,
+      "total_mv_yi": 26.1373,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000809",
+      "name": "和展能源",
+      "market": "SZ",
+      "full_code": "000809.SZ",
+      "circ_mv_yi": 26.1459,
+      "total_mv_yi": 26.1459,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603956",
+      "name": "威派格",
+      "market": "SH",
+      "full_code": "603956.SH",
+      "circ_mv_yi": 26.1507,
+      "total_mv_yi": 26.1507,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605186",
+      "name": "健麾信息",
+      "market": "SH",
+      "full_code": "605186.SH",
+      "circ_mv_yi": 26.1528,
+      "total_mv_yi": 26.1528,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002908",
+      "name": "德生科技",
+      "market": "SZ",
+      "full_code": "002908.SZ",
+      "circ_mv_yi": 26.1628,
+      "total_mv_yi": 36.5854,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "601121",
+      "name": "宝地矿业",
+      "market": "SH",
+      "full_code": "601121.SH",
+      "circ_mv_yi": 26.22,
+      "total_mv_yi": 55.2,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002234",
+      "name": "民和股份",
+      "market": "SZ",
+      "full_code": "002234.SZ",
+      "circ_mv_yi": 26.2226,
+      "total_mv_yi": 30.3595,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000055",
+      "name": "方大集团",
+      "market": "SZ",
+      "full_code": "000055.SZ",
+      "circ_mv_yi": 26.2232,
+      "total_mv_yi": 41.6663,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001298",
+      "name": "好上好",
+      "market": "SZ",
+      "full_code": "001298.SZ",
+      "circ_mv_yi": 26.2265,
+      "total_mv_yi": 50.5235,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002660",
+      "name": "茂硕电源",
+      "market": "SZ",
+      "full_code": "002660.SZ",
+      "circ_mv_yi": 26.3255,
+      "total_mv_yi": 36.5185,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001219",
+      "name": "青岛食品",
+      "market": "SZ",
+      "full_code": "001219.SZ",
+      "circ_mv_yi": 26.3272,
+      "total_mv_yi": 27.0442,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600980",
+      "name": "北矿科技",
+      "market": "SH",
+      "full_code": "600980.SH",
+      "circ_mv_yi": 26.3691,
+      "total_mv_yi": 28.4085,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603538",
+      "name": "美诺华",
+      "market": "SH",
+      "full_code": "603538.SH",
+      "circ_mv_yi": 26.4496,
+      "total_mv_yi": 27.235,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000014",
+      "name": "沙河股份",
+      "market": "SZ",
+      "full_code": "000014.SZ",
+      "circ_mv_yi": 26.4557,
+      "total_mv_yi": 26.4557,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000037",
+      "name": "深南电A",
+      "market": "SZ",
+      "full_code": "000037.SZ",
+      "circ_mv_yi": 26.4677,
+      "total_mv_yi": 47.0758,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600272",
+      "name": "开开实业",
+      "market": "SH",
+      "full_code": "600272.SH",
+      "circ_mv_yi": 26.496,
+      "total_mv_yi": 40.2408,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603819",
+      "name": "神力股份",
+      "market": "SH",
+      "full_code": "603819.SH",
+      "circ_mv_yi": 26.4978,
+      "total_mv_yi": 26.4978,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000710",
+      "name": "贝瑞基因",
+      "market": "SZ",
+      "full_code": "000710.SZ",
+      "circ_mv_yi": 26.5109,
+      "total_mv_yi": 29.4483,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605162",
+      "name": "新中港",
+      "market": "SH",
+      "full_code": "605162.SH",
+      "circ_mv_yi": 26.5135,
+      "total_mv_yi": 26.5135,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002363",
+      "name": "隆基机械",
+      "market": "SZ",
+      "full_code": "002363.SZ",
+      "circ_mv_yi": 26.5669,
+      "total_mv_yi": 26.6992,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002951",
+      "name": "金时科技",
+      "market": "SZ",
+      "full_code": "002951.SZ",
+      "circ_mv_yi": 26.5679,
+      "total_mv_yi": 26.568,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002829",
+      "name": "星网宇达",
+      "market": "SZ",
+      "full_code": "002829.SZ",
+      "circ_mv_yi": 26.5695,
+      "total_mv_yi": 38.5694,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603278",
+      "name": "大业股份",
+      "market": "SH",
+      "full_code": "603278.SH",
+      "circ_mv_yi": 26.5889,
+      "total_mv_yi": 26.5889,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605028",
+      "name": "世茂能源",
+      "market": "SH",
+      "full_code": "605028.SH",
+      "circ_mv_yi": 26.592,
+      "total_mv_yi": 26.592,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603755",
+      "name": "日辰股份",
+      "market": "SH",
+      "full_code": "603755.SH",
+      "circ_mv_yi": 26.6158,
+      "total_mv_yi": 26.6158,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600714",
+      "name": "金瑞矿业",
+      "market": "SH",
+      "full_code": "600714.SH",
+      "circ_mv_yi": 26.6275,
+      "total_mv_yi": 26.6275,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603318",
+      "name": "水发燃气",
+      "market": "SH",
+      "full_code": "603318.SH",
+      "circ_mv_yi": 26.6563,
+      "total_mv_yi": 31.9054,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002213",
+      "name": "大为股份",
+      "market": "SZ",
+      "full_code": "002213.SZ",
+      "circ_mv_yi": 26.6763,
+      "total_mv_yi": 30.7116,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002862",
+      "name": "实丰文化",
+      "market": "SZ",
+      "full_code": "002862.SZ",
+      "circ_mv_yi": 26.7826,
+      "total_mv_yi": 35.64,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603577",
+      "name": "汇金通",
+      "market": "SH",
+      "full_code": "603577.SH",
+      "circ_mv_yi": 26.792,
+      "total_mv_yi": 26.792,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600538",
+      "name": "国发股份",
+      "market": "SH",
+      "full_code": "600538.SH",
+      "circ_mv_yi": 26.839,
+      "total_mv_yi": 26.839,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002348",
+      "name": "高乐股份",
+      "market": "SZ",
+      "full_code": "002348.SZ",
+      "circ_mv_yi": 26.8471,
+      "total_mv_yi": 28.6054,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600665",
+      "name": "天地源",
+      "market": "SH",
+      "full_code": "600665.SH",
+      "circ_mv_yi": 26.8742,
+      "total_mv_yi": 26.8742,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002863",
+      "name": "今飞凯达",
+      "market": "SZ",
+      "full_code": "002863.SZ",
+      "circ_mv_yi": 26.8799,
+      "total_mv_yi": 26.8799,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002674",
+      "name": "兴业科技",
+      "market": "SZ",
+      "full_code": "002674.SZ",
+      "circ_mv_yi": 27.0099,
+      "total_mv_yi": 27.2892,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002451",
+      "name": "摩恩电气",
+      "market": "SZ",
+      "full_code": "002451.SZ",
+      "circ_mv_yi": 27.0516,
+      "total_mv_yi": 27.0547,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002743",
+      "name": "富煌钢构",
+      "market": "SZ",
+      "full_code": "002743.SZ",
+      "circ_mv_yi": 27.0738,
+      "total_mv_yi": 27.1172,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002659",
+      "name": "凯文教育",
+      "market": "SZ",
+      "full_code": "002659.SZ",
+      "circ_mv_yi": 27.1021,
+      "total_mv_yi": 27.1021,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603966",
+      "name": "法兰泰克",
+      "market": "SH",
+      "full_code": "603966.SH",
+      "circ_mv_yi": 27.1173,
+      "total_mv_yi": 27.2239,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000019",
+      "name": "深粮控股",
+      "market": "SZ",
+      "full_code": "000019.SZ",
+      "circ_mv_yi": 27.1789,
+      "total_mv_yi": 75.2606,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000798",
+      "name": "中水渔业",
+      "market": "SZ",
+      "full_code": "000798.SZ",
+      "circ_mv_yi": 27.1811,
+      "total_mv_yi": 27.1833,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "003025",
+      "name": "思进智能",
+      "market": "SZ",
+      "full_code": "003025.SZ",
+      "circ_mv_yi": 27.1889,
+      "total_mv_yi": 32.3707,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002981",
+      "name": "朝阳科技",
+      "market": "SZ",
+      "full_code": "002981.SZ",
+      "circ_mv_yi": 27.1905,
+      "total_mv_yi": 30.7846,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002286",
+      "name": "保龄宝",
+      "market": "SZ",
+      "full_code": "002286.SZ",
+      "circ_mv_yi": 27.2389,
+      "total_mv_yi": 27.2519,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000571",
+      "name": "新大洲A",
+      "market": "SZ",
+      "full_code": "000571.SZ",
+      "circ_mv_yi": 27.2699,
+      "total_mv_yi": 28.1108,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002996",
+      "name": "顺博合金",
+      "market": "SZ",
+      "full_code": "002996.SZ",
+      "circ_mv_yi": 27.3106,
+      "total_mv_yi": 43.3125,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603808",
+      "name": "歌力思",
+      "market": "SH",
+      "full_code": "603808.SH",
+      "circ_mv_yi": 27.3129,
+      "total_mv_yi": 27.3129,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603330",
+      "name": "天洋新材",
+      "market": "SH",
+      "full_code": "603330.SH",
+      "circ_mv_yi": 27.345,
+      "total_mv_yi": 27.345,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000153",
+      "name": "丰原药业",
+      "market": "SZ",
+      "full_code": "000153.SZ",
+      "circ_mv_yi": 27.3578,
+      "total_mv_yi": 28.0723,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002953",
+      "name": "日丰股份",
+      "market": "SZ",
+      "full_code": "002953.SZ",
+      "circ_mv_yi": 27.3811,
+      "total_mv_yi": 46.0544,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600173",
+      "name": "卧龙新能",
+      "market": "SH",
+      "full_code": "600173.SH",
+      "circ_mv_yi": 27.3863,
+      "total_mv_yi": 27.3898,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603586",
+      "name": "金麒麟",
+      "market": "SH",
+      "full_code": "603586.SH",
+      "circ_mv_yi": 27.4474,
+      "total_mv_yi": 27.4474,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600719",
+      "name": "大连热电",
+      "market": "SH",
+      "full_code": "600719.SH",
+      "circ_mv_yi": 27.5128,
+      "total_mv_yi": 27.5128,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "605058",
+      "name": "澳弘电子",
+      "market": "SH",
+      "full_code": "605058.SH",
+      "circ_mv_yi": 27.5272,
+      "total_mv_yi": 27.5272,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "000570",
+      "name": "苏常柴A",
+      "market": "SZ",
+      "full_code": "000570.SZ",
+      "circ_mv_yi": 27.5623,
+      "total_mv_yi": 35.0023,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "001205",
+      "name": "盛航股份",
+      "market": "SZ",
+      "full_code": "001205.SZ",
+      "circ_mv_yi": 27.5717,
+      "total_mv_yi": 34.4794,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "601007",
+      "name": "金陵饭店",
+      "market": "SH",
+      "full_code": "601007.SH",
+      "circ_mv_yi": 27.573,
+      "total_mv_yi": 27.573,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002868",
+      "name": "绿康生化",
+      "market": "SZ",
+      "full_code": "002868.SZ",
+      "circ_mv_yi": 27.6077,
+      "total_mv_yi": 28.0681,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002801",
+      "name": "微光股份",
+      "market": "SZ",
+      "full_code": "002801.SZ",
+      "circ_mv_yi": 27.6189,
+      "total_mv_yi": 54.7672,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002692",
+      "name": "远程股份",
+      "market": "SZ",
+      "full_code": "002692.SZ",
+      "circ_mv_yi": 27.6378,
+      "total_mv_yi": 27.6486,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002712",
+      "name": "思美传媒",
+      "market": "SZ",
+      "full_code": "002712.SZ",
+      "circ_mv_yi": 27.6403,
+      "total_mv_yi": 27.8125,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002686",
+      "name": "亿利达",
+      "market": "SZ",
+      "full_code": "002686.SZ",
+      "circ_mv_yi": 27.7048,
+      "total_mv_yi": 30.0107,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002576",
+      "name": "通达动力",
+      "market": "SZ",
+      "full_code": "002576.SZ",
+      "circ_mv_yi": 27.7067,
+      "total_mv_yi": 28.2321,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603353",
+      "name": "和顺石油",
+      "market": "SH",
+      "full_code": "603353.SH",
+      "circ_mv_yi": 27.71,
+      "total_mv_yi": 28.1939,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600594",
+      "name": "益佰制药",
+      "market": "SH",
+      "full_code": "600594.SH",
+      "circ_mv_yi": 27.7175,
+      "total_mv_yi": 27.7175,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600684",
+      "name": "珠江股份",
+      "market": "SH",
+      "full_code": "600684.SH",
+      "circ_mv_yi": 27.7375,
+      "total_mv_yi": 27.7375,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603153",
+      "name": "上海建科",
+      "market": "SH",
+      "full_code": "603153.SH",
+      "circ_mv_yi": 27.7425,
+      "total_mv_yi": 84.2265,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600573",
+      "name": "惠泉啤酒",
+      "market": "SH",
+      "full_code": "600573.SH",
+      "circ_mv_yi": 27.775,
+      "total_mv_yi": 27.775,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002663",
+      "name": "普邦股份",
+      "market": "SZ",
+      "full_code": "002663.SZ",
+      "circ_mv_yi": 27.7893,
+      "total_mv_yi": 34.2946,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "002860",
+      "name": "星帅尔",
+      "market": "SZ",
+      "full_code": "002860.SZ",
+      "circ_mv_yi": 27.8201,
+      "total_mv_yi": 29.0706,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600182",
+      "name": "S佳通",
+      "market": "SH",
+      "full_code": "600182.SH",
+      "circ_mv_yi": 27.829,
+      "total_mv_yi": 55.658,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "603768",
+      "name": "常青股份",
+      "market": "SH",
+      "full_code": "603768.SH",
+      "circ_mv_yi": 27.8408,
+      "total_mv_yi": 27.8408,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600076",
+      "name": "康欣新材",
+      "market": "SH",
+      "full_code": "600076.SH",
+      "circ_mv_yi": 27.9665,
+      "total_mv_yi": 27.9665,
+      "pe": 0,
+      "industry": ""
+    },
+    {
+      "code": "600249",
+      "name": "两面针",
+      "market": "SH",
+      "full_code": "600249.SH",
+      "circ_mv_yi": 27.995,
+      "total_mv_yi": 27.995,
+      "pe": 0,
+      "industry": ""
+    }
+  ]
+}

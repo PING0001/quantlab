@@ -1,103 +1,175 @@
 # -*- coding: utf-8 -*-
-from __future__ import annotations
+"""
+Feature DataProxy: wraps Polars columns with overloaded arithmetic/comparison.
+Ported from vnpy alpha dataset.
+"""
 
-import numpy as np
-import pandas as pd
+from collections.abc import Callable
+from numbers import Real
+from typing import Union, cast
 
-def rank(x):
-    if isinstance(x, pd.Series):
-        return x.rank(pct=True) - 0.5
-    r = pd.Series(x).rank(pct=True)
-    return (r - 0.5).values
+import polars as pl
 
-def scale(x, a=1.0):
-    s = np.abs(x).sum()
-    if s < 1e-12:
-        return x * 0
-    return x * a / s
+EXPRESSION_FUNCTIONS: dict[str, Callable] = {}
 
-def signed_power(x, a):
-    return np.sign(x) * (np.abs(x) ** a)
 
-def ts_sum(x, d):
-    mp = (d + 1) // 2
-    return x.rolling(d, min_periods=mp).sum()
+def register_functions(functions: list[Callable]) -> None:
+    for func in functions:
+        EXPRESSION_FUNCTIONS[func.__name__] = func
 
-def ts_mean(x, d):
-    mp = (d + 1) // 2
-    return x.rolling(d, min_periods=mp).mean()
 
-def ts_std(x, d):
-    mp = (d + 1) // 2
-    return x.rolling(d, min_periods=mp).std(ddof=1)
+class DataProxy:
+    """Feature data proxy – chains Polars operations via operator overloading."""
 
-def ts_min(x, d):
-    mp = (d + 1) // 2
-    return x.rolling(d, min_periods=mp).min()
+    def __init__(self, df: pl.DataFrame) -> None:
+        self.name: str = df.columns[-1]
+        self.df: pl.DataFrame = df.rename({self.name: "data"})
 
-def ts_max(x, d):
-    mp = (d + 1) // 2
-    return x.rolling(d, min_periods=mp).max()
+    @staticmethod
+    def _as_series(value: object) -> pl.Series:
+        if isinstance(value, pl.Series):
+            return value
+        return cast(pl.Series, value)
 
-def delay(x, d):
-    return x.shift(d)
+    def _comparison_series(self, value: object) -> pl.Series:
+        if isinstance(value, pl.Series):
+            return value.cast(pl.Int32)
+        if isinstance(value, bool):
+            return pl.Series(name="data", values=[int(value)] * len(self.df))
+        if isinstance(value, Real):
+            return pl.Series(name="data", values=[int(bool(value))] * len(self.df))
+        raise TypeError(f"Unsupported comparison result type: {type(value)!r}")
 
-def delta(x, d):
-    return x - x.shift(d)
+    def result(self, s: pl.Series) -> "DataProxy":
+        result: pl.DataFrame = self.df[["datetime", "vt_symbol"]]
+        result = result.with_columns(other=s)
+        return DataProxy(result)
 
-def correlation(x, y, d):
-    mp = (d + 1) // 2
-    return x.rolling(d, min_periods=mp).corr(y)
+    # -- arithmetic --
+    def __add__(self, other: Union["DataProxy", Real]) -> "DataProxy":
+        if isinstance(other, DataProxy):
+            s = self._as_series(self.df["data"] + other.df["data"])
+        else:
+            s = self._as_series(self.df["data"] + other)
+        return self.result(s)
 
-def covariance(x, y, d):
-    mp = (d + 1) // 2
-    return x.rolling(d, min_periods=mp).cov(y)
+    def __radd__(self, other: Union["DataProxy", Real]) -> "DataProxy":
+        if isinstance(other, DataProxy):
+            s = self._as_series(other.df["data"] + self.df["data"])
+        else:
+            s = self._as_series(other + self.df["data"])
+        return self.result(s)
 
-def decay_linear(x, d):
-    weights = np.arange(1, d + 1, dtype=float)
-    wsum = weights.sum()
-    def _decay(arr):
-        n = len(arr)
-        w = weights[-n:] / weights[-n:].sum() if n < d else weights / wsum
-        return float(np.nansum(arr * w))
-    mp = (d + 1) // 2
-    return x.rolling(d, min_periods=mp).apply(_decay, raw=True)
+    def __sub__(self, other: Union["DataProxy", Real]) -> "DataProxy":
+        if isinstance(other, DataProxy):
+            s = self._as_series(self.df["data"] - other.df["data"])
+        else:
+            s = self._as_series(self.df["data"] - other)
+        return self.result(s)
 
-def ts_rank(x, d):
-    def helper(arr):
-        valid = arr[~np.isnan(arr)]
-        if len(valid) == 0:
-            return np.nan
-        return float(np.searchsorted(np.sort(valid), valid[-1], side="right")) / len(valid)
-    mp = (d + 1) // 2
-    return x.rolling(d, min_periods=mp).apply(helper, raw=True)
+    def __rsub__(self, other: Union["DataProxy", Real]) -> "DataProxy":
+        if isinstance(other, DataProxy):
+            s = self._as_series(other.df["data"] - self.df["data"])
+        else:
+            s = self._as_series(other - self.df["data"])
+        return self.result(s)
 
-def ts_argmax(x, d):
-    def helper(arr):
-        valid = ~np.isnan(arr)
-        if not valid.any():
-            return np.nan
-        return float(len(arr) - 1 - np.nanargmax(arr))
-    mp = (d + 1) // 2
-    return x.rolling(d, min_periods=mp).apply(helper, raw=True)
+    def __mul__(self, other: Union["DataProxy", Real]) -> "DataProxy":
+        if isinstance(other, DataProxy):
+            s = self._as_series(self.df["data"] * other.df["data"])
+        else:
+            s = self._as_series(self.df["data"] * other)
+        return self.result(s)
 
-def ts_argmin(x, d):
-    def helper(arr):
-        valid = ~np.isnan(arr)
-        if not valid.any():
-            return np.nan
-        return float(len(arr) - 1 - np.nanargmin(arr))
-    mp = (d + 1) // 2
-    return x.rolling(d, min_periods=mp).apply(helper, raw=True)
+    def __rmul__(self, other: Union["DataProxy", Real]) -> "DataProxy":
+        if isinstance(other, DataProxy):
+            s = self._as_series(self.df["data"] * other.df["data"])
+        else:
+            s = self._as_series(self.df["data"] * other)
+        return self.result(s)
 
-def reg_beta(y, x, d):
-    cov = y.rolling(d, min_periods=1).cov(x)
-    var = x.rolling(d, min_periods=1).var(ddof=0)
-    return (cov / var.replace(0, np.nan)).fillna(0)
+    def __truediv__(self, other: Union["DataProxy", Real]) -> "DataProxy":
+        if isinstance(other, DataProxy):
+            s = self._as_series(self.df["data"] / other.df["data"])
+        else:
+            s = self._as_series(self.df["data"] / other)
+        return self.result(s)
 
-def winsorize(x, limits=(0.01, 0.01)):
-    return x.clip(lower=x.quantile(limits[0]), upper=x.quantile(1 - limits[1]))
+    def __rtruediv__(self, other: Union["DataProxy", Real]) -> "DataProxy":
+        if isinstance(other, DataProxy):
+            s = self._as_series(other.df["data"] / self.df["data"])
+        else:
+            s = self._as_series(other / self.df["data"])
+        return self.result(s)
 
-def standardize(x):
-    return (x - x.mean()) / x.std(ddof=0)
+    def __floordiv__(self, other: Union["DataProxy", Real]) -> "DataProxy":
+        if isinstance(other, DataProxy):
+            s = self._as_series(self.df["data"] // other.df["data"])
+        else:
+            s = self._as_series(self.df["data"] // other)
+        return self.result(s)
 
+    def __mod__(self, other: Union["DataProxy", Real]) -> "DataProxy":
+        if isinstance(other, DataProxy):
+            s = self._as_series(self.df["data"] % other.df["data"])
+        else:
+            s = self._as_series(self.df["data"] % other)
+        return self.result(s)
+
+    def __pow__(self, other: Union["DataProxy", Real]) -> "DataProxy":
+        if isinstance(other, DataProxy):
+            s = self._as_series(self.df["data"].pow(other.df["data"]))
+        else:
+            s = self._as_series(self.df["data"].pow(cast(int | float, other)))
+        return self.result(s)
+
+    def __abs__(self) -> "DataProxy":
+        s: pl.Series = self.df["data"].abs()
+        return self.result(s)
+
+    def __neg__(self) -> "DataProxy":
+        s: pl.Series = -self.df["data"]
+        return self.result(s)
+
+    # -- comparison --
+    def __gt__(self, other: Union["DataProxy", Real]) -> "DataProxy":
+        if isinstance(other, DataProxy):
+            s: object = self.df["data"] > other.df["data"]
+        else:
+            s = self.df["data"] > other
+        return self.result(self._comparison_series(s))
+
+    def __ge__(self, other: Union["DataProxy", Real]) -> "DataProxy":
+        if isinstance(other, DataProxy):
+            s: object = self.df["data"] >= other.df["data"]
+        else:
+            s = self.df["data"] >= other
+        return self.result(self._comparison_series(s))
+
+    def __lt__(self, other: Union["DataProxy", Real]) -> "DataProxy":
+        if isinstance(other, DataProxy):
+            s: object = self.df["data"] < other.df["data"]
+        else:
+            s = self.df["data"] < other
+        return self.result(self._comparison_series(s))
+
+    def __le__(self, other: Union["DataProxy", Real]) -> "DataProxy":
+        if isinstance(other, DataProxy):
+            s: object = self.df["data"] <= other.df["data"]
+        else:
+            s = self.df["data"] <= other
+        return self.result(self._comparison_series(s))
+
+    def __eq__(self, other: Union["DataProxy", Real]) -> "DataProxy":  # type: ignore[override]
+        if isinstance(other, DataProxy):
+            s: object = self.df["data"] == other.df["data"]
+        else:
+            s = self.df["data"] == other
+        return self.result(self._comparison_series(s))
+
+    def __ne__(self, other: Union["DataProxy", Real]) -> "DataProxy":  # type: ignore[override]
+        if isinstance(other, DataProxy):
+            s: object = self.df["data"] != other.df["data"]
+        else:
+            s = self.df["data"] != other
+        return self.result(self._comparison_series(s))

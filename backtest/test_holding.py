@@ -46,6 +46,7 @@ def run_holding_test(
     holding_days=5,
     initial_cash_per_stock=10000,
     commission=0.0006,
+    delist_info=None,
 ):
     """Run fixed-holding test and return per-trade DataFrame + stats."""
     if excluded_codes is None:
@@ -175,6 +176,11 @@ def run_holding_test(
             candidates = today_pred[~today_pred.index.isin(held)]
             candidates = candidates[~candidates.index.isin(excluded_codes)]
             candidates = candidates[~candidates.index.isin(st_set)]
+            # Exclude stocks past their delist_date
+            if delist_info:
+                delisted = {c for c in candidates.index
+                            if c in delist_info and date >= delist_info[c]}
+                candidates = candidates[~candidates.index.isin(delisted)]
             candidates = candidates.sort_values(ascending=False)
 
             buy_orders = {}
@@ -298,8 +304,18 @@ def main():
                 excluded.add(r["code"])
     except Exception:
         pass
+
+    # Delist info
+    delist_info = {}
+    try:
+        dl_df = con.execute("SELECT code, delist_date FROM delist_info").fetchdf()
+        if not dl_df.empty:
+            delist_info = {r["code"]: pd.Timestamp(r["delist_date"]) for _, r in dl_df.iterrows()}
+    except Exception:
+        pass
+
     con.close()
-    print(f"  OHLCV: {len(ohlcv_map)} stocks, Excluded: {len(excluded)}")
+    print(f"  OHLCV: {len(ohlcv_map)} stocks, Excluded: {len(excluded)}, Delist: {len(delist_info)}")
 
     print("\n[3/3] Running holding test ...")
     trade_df, bucket_df, stats = run_holding_test(
@@ -310,6 +326,7 @@ def main():
         holding_days=5,
         initial_cash_per_stock=10000,
         commission=0.0006,
+        delist_info=delist_info,
     )
 
     print("\n" + "=" * 60)

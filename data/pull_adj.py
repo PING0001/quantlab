@@ -310,54 +310,102 @@ def _update_delist_info(con, pro):
     """Incrementally check for new delisting events and update delist_info."""
     _ensure_namechange_tables(con)
 
-    # Check if delist_info needs update: look for stocks whose latest
-    # daily_raw trading date is stale (no new data) and are in delist_info.
     from datetime import date
     today = date.today()
-    known_delisted = set(r[0] for r in con.execute(
-        "SELECT code FROM delist_info").fetchall())
 
-    # Check for newly delisted stocks not in delist_info
+    # Check for newly delisted stocks not in delist_info (by change_reason only)
     new_delist = con.execute("""
-        SELECT DISTINCT s.code, s.full_code
-        FROM stock_info s
-        WHERE s.name LIKE '%退%'
-          AND s.code NOT IN (SELECT code FROM delist_info)
+        SELECT DISTINCT code FROM namechange
+        WHERE change_reason = '终止上市'
+          AND code NOT IN (SELECT code FROM delist_info)
     """).fetchall()
 
     if new_delist:
         log.info("New delisting candidates: %d", len(new_delist))
-        for code, full_code in new_delist:
-            try:
-                df = _retry_api(pro.namechange, ts_code=full_code,
-                                start_date="20080101",
-                                end_date=today.strftime("%Y%m%d"))
-            except Exception as e:
-                log.warning("  namechange failed %s: %s", code, e)
-                continue
-
-            if df is None or df.empty:
-                continue
-
-            df["code"] = code
-            df["start_date"] = pd.to_datetime(df["start_date"], errors="coerce").dt.date
-            df["end_date"] = pd.to_datetime(df["end_date"], errors="coerce")
-            df["ann_date"] = pd.to_datetime(df["ann_date"], errors="coerce").dt.date
-            cols = ["code", "ts_code", "name", "start_date", "end_date",
-                    "ann_date", "change_reason"]
-            df = df[cols]
-
-            con.execute("INSERT OR REPLACE INTO namechange SELECT * FROM df")
-
-            term_row = df[df["change_reason"] == "终止上市"]
-            if not term_row.empty:
-                min_date = term_row["start_date"].min()
+        for (code,) in new_delist:
+            min_date = con.execute(
+                "SELECT MIN(start_date) FROM namechange WHERE code=? AND change_reason='终止上市'",
+                (code,)
+            ).fetchone()[0]
+            if min_date:
                 con.execute(
                     "INSERT OR REPLACE INTO delist_info VALUES (?, ?)",
                     (code, min_date)
                 )
                 log.info("  added to delist_info: %s (delist: %s)", code, min_date)
-            con.execute("CHECKPOINT")
+        con.execute("CHECKPOINT")
+
+
+def _incremental_namechange(con, pro):
+    """Pull recent namechange records for all stocks (ST/*ST/摘帽/退市 etc.).
+
+    Uses the Tushare namechange API without ts_code to fetch all recent
+    changes, then merges into the namechange table and re-derives delist_info.
+    This ensures IsST factor is correct for incremental updates.
+    """
+    _ensure_namechange_tables(con)
+
+    # Determine start_date: latest start_date in namechange, or 2008-01-01
+    raw = con.execute("SELECT MAX(start_date) FROM namechange").fetchone()[0]
+    if raw is not None:
+        start_date = (pd.Timestamp(raw) - pd.Timedelta(days=7)).strftime("%Y%m%d")
+    else:
+        start_date = "20080101"
+    end_date = datetime.now().strftime("%Y%m%d")
+
+    if start_date > end_date:
+        log.info("namechange up to date (latest: %s)", raw)
+        return
+
+    log.info("Pulling namechange: %s ~ %s ...", start_date, end_date)
+    try:
+        df = _retry_api(pro.namechange, start_date=start_date, end_date=end_date)
+    except Exception as e:
+        log.warning("namechange API failed (no ts_code): %s", e)
+        df = None
+
+    if df is None or df.empty:
+        log.info("No new namechange records.")
+        return
+
+    df["code"] = df["ts_code"].str[:6]
+    df["start_date"] = pd.to_datetime(df["start_date"], errors="coerce").dt.date
+    df["end_date"] = pd.to_datetime(df["end_date"], errors="coerce")
+    df["ann_date"] = pd.to_datetime(df["ann_date"], errors="coerce").dt.date
+    cols = ["code", "ts_code", "name", "start_date", "end_date",
+            "ann_date", "change_reason"]
+    df = df[cols]
+    df = df.drop_duplicates(subset=["code", "start_date"], keep="first")
+
+    n_before = con.execute("SELECT count(*) FROM namechange").fetchone()[0]
+    con.execute("INSERT OR REPLACE INTO namechange SELECT * FROM df")
+    con.execute("CHECKPOINT")
+    n_after = con.execute("SELECT count(*) FROM namechange").fetchone()[0]
+    log.info("namechange: %d → %d rows (+%d)", n_before, n_after, n_after - n_before)
+
+    # Re-derive delist_info from the full namechange table
+    nc_df = con.execute("SELECT * FROM namechange").fetchdf()
+    if nc_df.empty:
+        return
+
+    nc_df["start_date"] = pd.to_datetime(nc_df["start_date"], errors="coerce").dt.date
+
+    # Extract delist dates: only use authoritative change_reason
+    term = nc_df[nc_df["change_reason"] == "终止上市"]
+    if term.empty:
+        con.execute("DELETE FROM delist_info")
+        con.execute("CHECKPOINT")
+        log.info("delist_info: 0 stocks (no 终止上市 records)")
+        return
+
+    combined = term.groupby("code")["start_date"].min().reset_index()
+    combined.columns = ["code", "delist_date"]
+
+    con.execute("DELETE FROM delist_info")
+    combined["delist_date"] = pd.to_datetime(combined["delist_date"]).dt.date
+    con.execute("INSERT INTO delist_info SELECT * FROM combined")
+    con.execute("CHECKPOINT")
+    log.info("delist_info: %d stocks", len(combined))
 
 
 def main():
@@ -452,7 +500,7 @@ def main():
         log.info("  index_daily: %d rows", n)
 
     # --- 5. Incremental namechange / delist check ---
-    _update_delist_info(con, pro)
+    _incremental_namechange(con, pro)
 
     con.close()
     log.info("Pull complete.")

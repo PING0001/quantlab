@@ -3,7 +3,7 @@ Central configuration for quantlab.
 All pool-specific paths are derived from POOL_NAME.
 
 Set QUANTLAB_POOL env var to switch between stock pools:
-    set QUANTLAB_POOL=mainboard_smallcap && python run_mlp_multi.py
+    set QUANTLAB_POOL=smallcap_on_mainboard && python run_lgb.py
 """
 from __future__ import annotations
 
@@ -61,13 +61,60 @@ def get_pool_codes(name: str = None) -> list[str]:
     return sorted(s["code"] for s in stocks)
 
 
+# ---- Selected factor set (single source of truth) ----
+SELECTED_FACTORS = (
+    # Alpha101 (101 factors, from vnpy / WorldQuant formulaic alphas)
+    [f"alpha{i}" for i in range(1, 102)]
+    +
+    # Momentum (3)
+    ["Return_5d", "Return_20d", "Reversal_60d"]
+    +
+    # Volatility (4)
+    ["ATR", "Volatility", "Volatility_60d", "Bollinger_width"]
+    +
+    # Price position / technical (6)
+    ["Price_position_252d", "Stochastic_K", "Return_skew_20d",
+     "Trend_strength", "SMA", "MACD_signal"]
+    +
+    # Intraday pattern (3) -> (2) after removing Body_pct (dup of Intraday_return)
+    ["Gap_pct", "Intraday_range_pct"]
+    +
+    # Volume / liquidity (2)
+    ["Volume_ratio", "Amihud_illiquidity"]
+    +
+    # Market cap / amount (3)
+    ["AvgAmount_90d", "LnMktCap", "LnFloatCap"]
+    +
+    # Turnover (2)
+    ["Turnover_3d", "Turnover_3d_ratio"]
+    +
+    # Intraday (1)
+    ["Intraday_return"]
+    +
+    # Market state (5)
+    ["CSI_return_1d", "CSI_return_20d", "CSI_volatility_20d",
+     "HS300_return_1d", "HS300_return_20d"]
+    +
+    # Cross-sectional ranks (3)
+    ["Return_1d_rank", "Return_20d_rank", "Turnover_3d_rank"]
+    +
+    # Firm age (1)
+    ["LnAge"]
+    +
+    # ST status (1)
+    ["IsST"]
+    +
+    # Chip distribution (4)
+    ["WinnerRate", "CostPosition", "ChipDispersion", "ChipSkew"]
+    +
+    # Alternative versions (old raw formulas)
+    ["alpha1_v0", "alpha18_v0", "alpha50_v0", "alpha60_v0"]
+)
+
+
 # ---- Model ----
 def get_model_dir(name: str = None) -> Path:
     return ROOT / "models" / (name or POOL_NAME)
-
-
-def get_model_path(name: str = None) -> Path:
-    return get_model_dir(name) / "mlp_multihead.pt"
 
 
 def get_lgb_model_path(name: str = None) -> Path:
@@ -75,19 +122,14 @@ def get_lgb_model_path(name: str = None) -> Path:
 
 
 # ---- Predictions cache ----
-def get_predictions_path(name: str = None) -> Path:
-    p = name or POOL_NAME
-    return ROOT / "data" / f"predictions__{p}.parquet"
-
-
-def get_predictions_meta_path(name: str = None) -> Path:
-    p = name or POOL_NAME
-    return ROOT / "data" / f"predictions__{p}_meta.json"
-
-
 def get_lgb_predictions_path(name: str = None) -> Path:
     p = name or POOL_NAME
     return ROOT / "data" / f"predictions__{p}_lgb.parquet"
+
+
+def get_lgb_predictions_meta_path(name: str = None) -> Path:
+    p = name or POOL_NAME
+    return ROOT / "data" / f"predictions__{p}_lgb_meta.json"
 
 
 # ---- Backtest output ----
@@ -95,10 +137,5 @@ def get_backtest_dir(name: str = None) -> Path:
     return ROOT / "backtest" / (name or POOL_NAME)
 
 
-# ---- Forecast HTML ----
-def get_forecast_dir(name: str = None) -> Path:
-    return ROOT / "forecast_display" / "html" / (name or POOL_NAME)
-
-
-def get_forecast_lgb_dir(name: str = None) -> Path:
+# ---- Forecast HTML ----def get_forecast_lgb_dir(name: str = None) -> Path:
     return ROOT / "forecast_display" / "html_lgb" / (name or POOL_NAME)
