@@ -22,29 +22,30 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from config import DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS, get_lgb_model_path, get_lgb_predictions_path, get_lgb_predictions_meta_path
 
 from strategies import LGBStrategy, walk_forward, rank_ic, pearson_ic, ic_summary
-from strategies.labels import compute_forward_returns, compute_smoothed_forward_returns, compute_nextopen_limit_mask
+from strategies.labels import compute_forward_returns, compute_median_close, compute_nextopen_limit_mask
 
 
 # --- config ---
-TRAIN_START = pd.Timestamp("2018-01-01")
+TRAIN_START = pd.Timestamp("2020-01-01")
 TEST_START = pd.Timestamp("2025-06-01")
 TEST_END   = pd.Timestamp("2026-06-01")
 WARMUP_DAYS = 90
 TRAIN_WINDOW = 252
 MIN_TRAIN = 252
 
-HORIZONS = [5, 10, 20, 30]
-WEIGHTS = {5: 0.25, 10: 0.25, 20: 0.25, 30: 0.25}
+HORIZONS = ['median_5d', 20]
+WEIGHTS = {'median_5d': 0.50, 20: 0.50}
 
 LGB_KWARGS = dict(
-    num_leaves=24,
-    max_depth=8,
+    num_leaves=16,
+    max_depth=6,
     learning_rate=0.02,
     n_estimators=3000,
-    min_child_samples=600,
-    reg_alpha=1.0,
-    reg_lambda=1.0,
+    min_child_samples=1200,
+    reg_alpha=3.0,
+    reg_lambda=3.0,
     subsample=0.8,
+    subsample_freq=1,
     colsample_bytree=0.5,
     early_stopping=True,
     validation_fraction=0.10,
@@ -118,17 +119,10 @@ def main():
     t0 = time.time()
 
     # ---- labels ----
-    # Short horizons (5d, 10d): standard close-to-close return
-    # Long horizons (20d, 30d): smoothed return using 6 price points
-    #   avg(close[T+h-1], open[T+h-1], close[T+h], open[T+h], close[T+h+1], open[T+h+1])
-    SMOOTHED_HORIZONS = {20, 30}
     print(f"  computing labels for horizons {HORIZONS} ...")
     label_dfs = {}
-    for h in HORIZONS:
-        if h in SMOOTHED_HORIZONS:
-            label_dfs[h] = compute_smoothed_forward_returns(kline, horizon=h, delist_info=delist_info)
-        else:
-            label_dfs[h] = compute_forward_returns(kline, horizon=h, delist_info=delist_info)
+    label_dfs['median_5d'] = compute_median_close(kline, start_day=16, end_day=20, delist_info=delist_info)
+    label_dfs[20] = compute_forward_returns(kline, horizon=20, delist_info=delist_info)
     labels_raw = pd.DataFrame({h: label_dfs[h] for h in HORIZONS})
 
     # ---- align ----
@@ -158,21 +152,24 @@ def main():
     delist_dates = idx_code.map(delist_series)
     delist_mask = (idx_date >= delist_dates.values)
     delist_mask = pd.Series(delist_mask, index=X.index).fillna(False)
-    exclude = st_mask | delist_mask
+    
+    # ---- limit mask (for training and test filtering) ----
+    limit_mask = compute_nextopen_limit_mask(kline, st_series=st_series)
+    limit_mask = limit_mask.reindex(X.index, fill_value=False)
+    print(f"  limit-hit predictions (next-open): {limit_mask.sum()}")
+
+    exclude = st_mask | delist_mask | limit_mask
     if exclude.any():
         X, y = X.loc[~exclude], y.loc[~exclude]
-        print(f"  excluded from training: {exclude.sum()} ST/delist observations")
+        print(f"  excluded from training: {exclude.sum()} ST/delist/limit observations")
     else:
-        print(f"  excluded from training: 0 ST/delist observations")
-
-    # ---- limit mask (for test IC filtering) ----
-    limit_mask = compute_nextopen_limit_mask(kline, st_series=st_series)
-    print(f"  limit-hit predictions (next-open): {limit_mask.sum()}")
+        print(f"  excluded from training: 0 ST/delist/limit observations")
 
     # ---- strategy ----
     strategy = LGBStrategy(
         factor_names=factor_cols,
         horizons=tuple(HORIZONS),
+        l1_loss_horizon='median_5d',
         **LGB_KWARGS,
     )
     print(f"  strategy: {strategy.name}, horizons={HORIZONS}")
@@ -203,10 +200,21 @@ def main():
     train_mask = X.index.get_level_values("date") < TEST_START
     preds_train = strategy.predict(X.loc[train_mask])
 
+    def _pred_col(h):
+        if isinstance(h, str):
+            return f"pred_{h}"
+        return f"pred_{h}d"
+
+    def _h_label(h):
+        if isinstance(h, str):
+            return h
+        return f"{h}d"
+
     all_results = {}
     for h in HORIZONS:
-        col = f"pred_{h}d"
-        print(f"\n--- Horizon {h}d ---")
+        col = _pred_col(h)
+        h_label = _h_label(h)
+        print(f"\n--- Horizon {h_label} ---")
         ric_train = rank_ic(preds_train[col], y[h])
         s_train = ic_summary(ric_train)
         if s_train.get("n_periods", 0) > 0:
@@ -283,7 +291,8 @@ def main():
     for h in HORIZONS:
         r = all_results[h]
         st = r["test_ic"]
-        print(f"  Horizon {h}d: train_ic={r['train_ic']['mean_ic']:.4f}, "
+        h_label = _h_label(h)
+        print(f"  Horizon {h_label}: train_ic={r['train_ic']['mean_ic']:.4f}, "
               f"test_rank_ic={st.get('mean_ic', float('nan')):.4f}")
     print("\nDone.")
 

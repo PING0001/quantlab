@@ -53,6 +53,223 @@ def compute_forward_returns(kline_df: pd.DataFrame, horizon: int = 5,
     return fwd
 
 
+def compute_peak_high(
+    kline_df: pd.DataFrame,
+    start_day: int = 11,
+    end_day: int = 20,
+    delist_info: dict[str, pd.Timestamp] | None = None,
+) -> pd.Series:
+    """Max of daily highs over a forward window [T+start_day, T+end_day].
+
+    Relative return: max_high / close[T] - 1.
+
+    Parameters
+    ----------
+    kline_df : DataFrame
+        Must contain columns: date, code, high, close.
+    start_day, end_day : int
+        Forward window (inclusive).
+    delist_info : dict or None
+        Mapping from code to delist_date.
+
+    Returns
+    -------
+    Series with (date, code) MultiIndex.
+    """
+    df = kline_df[["date", "code", "close", "high"]].copy()
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values(["code", "date"])
+    df = df.set_index(["date", "code"])
+
+    def _peak(group):
+        c = group["close"]
+        h = group["high"]
+        peaks = pd.concat(
+            [h.shift(-d) for d in range(start_day, end_day + 1)],
+            axis=1,
+        )
+        return peaks.max(axis=1) / c - 1.0
+
+    fwd = df.groupby("code", group_keys=False).apply(_peak)
+    fwd.name = "forward_ret"
+
+    if delist_info:
+        for code, delist_date in delist_info.items():
+            if code not in fwd.index.get_level_values("code"):
+                continue
+            delist_date = pd.Timestamp(delist_date)
+            code_mask = fwd.index.get_level_values("code") == code
+            date_mask = fwd.index.get_level_values("date") >= delist_date
+            mask = code_mask & date_mask
+            fwd.loc[mask] = fwd.loc[mask].fillna(-1.0)
+
+    return fwd
+
+
+def compute_peak_close(
+    kline_df: pd.DataFrame,
+    start_day: int = 11,
+    end_day: int = 20,
+    delist_info: dict[str, pd.Timestamp] | None = None,
+) -> pd.Series:
+    """Max of daily closes over a forward window [T+start_day, T+end_day].
+
+    Relative return: max_close / close[T] - 1.
+
+    Parameters
+    ----------
+    kline_df : DataFrame
+        Must contain columns: date, code, close.
+    start_day, end_day : int
+        Forward window (inclusive).
+    delist_info : dict or None
+        Mapping from code to delist_date.
+
+    Returns
+    -------
+    Series with (date, code) MultiIndex.
+    """
+    df = kline_df[["date", "code", "close"]].copy()
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values(["code", "date"])
+    df = df.set_index(["date", "code"])
+
+    def _peak(group):
+        c = group["close"]
+        peaks = pd.concat(
+            [c.shift(-d) for d in range(start_day, end_day + 1)],
+            axis=1,
+        )
+        return peaks.max(axis=1) / c - 1.0
+
+    fwd = df.groupby("code", group_keys=False).apply(_peak)
+    fwd.name = "forward_ret"
+
+    if delist_info:
+        for code, delist_date in delist_info.items():
+            if code not in fwd.index.get_level_values("code"):
+                continue
+            delist_date = pd.Timestamp(delist_date)
+            code_mask = fwd.index.get_level_values("code") == code
+            date_mask = fwd.index.get_level_values("date") >= delist_date
+            mask = code_mask & date_mask
+            fwd.loc[mask] = fwd.loc[mask].fillna(-1.0)
+
+    return fwd
+
+
+def compute_median_close(
+    kline_df: pd.DataFrame,
+    start_day: int = 16,
+    end_day: int = 20,
+    delist_info: dict[str, pd.Timestamp] | None = None,
+) -> pd.Series:
+    """Median of daily closes over a forward window [T+start_day, T+end_day].
+
+    Relative return: median_close / close[T] - 1.
+
+    Parameters
+    ----------
+    kline_df : DataFrame
+        Must contain columns: date, code, close.
+    start_day, end_day : int
+        Forward window (inclusive).
+    delist_info : dict or None
+        Mapping from code to delist_date.
+
+    Returns
+    -------
+    Series with (date, code) MultiIndex.
+    """
+    df = kline_df[["date", "code", "close"]].copy()
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values(["code", "date"])
+    df = df.set_index(["date", "code"])
+
+    def _median(group):
+        c = group["close"]
+        vals = pd.concat(
+            [c.shift(-d) for d in range(start_day, end_day + 1)],
+            axis=1,
+        )
+        return vals.median(axis=1) / c - 1.0
+
+    fwd = df.groupby("code", group_keys=False).apply(_median)
+    fwd.name = "forward_ret"
+
+    if delist_info:
+        for code, delist_date in delist_info.items():
+            if code not in fwd.index.get_level_values("code"):
+                continue
+            delist_date = pd.Timestamp(delist_date)
+            code_mask = fwd.index.get_level_values("code") == code
+            date_mask = fwd.index.get_level_values("date") >= delist_date
+            mask = code_mask & date_mask
+            fwd.loc[mask] = fwd.loc[mask].fillna(-1.0)
+
+    return fwd
+
+
+def compute_smoothed_forward_returns(kline_df: pd.DataFrame, horizon: int = 20,
+                                     delist_info: dict[str, pd.Timestamp] | None = None) -> pd.Series:
+    """Compute smoothed forward returns using 6 price points around T+horizon.
+
+    For horizon h, uses:
+        avg(close[T+h-1], open[T+h-1], close[T+h], open[T+h], close[T+h+1], open[T+h+1])
+        / close[T] - 1
+
+    This reduces label noise by averaging over a 3-day window with both
+    open and close prices.
+
+    Parameters
+    ----------
+    kline_df : DataFrame
+        Must contain columns: date, code, open, close.
+        Sorted by (code, date).
+    horizon : int
+        Center day of the averaging window.
+    delist_info : dict or None
+        Mapping from code to delist_date (Timestamp).
+
+    Returns
+    -------
+    Series with (date, code) MultiIndex.
+    """
+    df = kline_df[["date", "code", "open", "close"]].copy()
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values(["code", "date"])
+    df = df.set_index(["date", "code"])
+
+    def _smoothed_return(group):
+        c = group["close"]
+        o = group["open"]
+        # 6 price points: close[T+h-1], open[T+h-1], close[T+h], open[T+h], close[T+h+1], open[T+h+1]
+        avg_future = (
+            c.shift(-(horizon - 1)) +
+            o.shift(-(horizon - 1)) +
+            c.shift(-horizon) +
+            o.shift(-horizon) +
+            c.shift(-(horizon + 1)) +
+            o.shift(-(horizon + 1))
+        ) / 6.0
+        return avg_future / c - 1.0
+
+    fwd = df.groupby("code", group_keys=False).apply(_smoothed_return)
+    fwd.name = "forward_ret"
+
+    if delist_info:
+        for code, delist_date in delist_info.items():
+            if code not in fwd.index.get_level_values("code"):
+                continue
+            delist_date = pd.Timestamp(delist_date)
+            code_mask = fwd.index.get_level_values("code") == code
+            date_mask = fwd.index.get_level_values("date") >= delist_date
+            mask = code_mask & date_mask
+            fwd.loc[mask] = fwd.loc[mask].fillna(-1.0)
+
+    return fwd
+
+
 def compute_nextopen_limit_mask(kline_df: pd.DataFrame,
                                 st_series: pd.Series | None = None) -> pd.Series:
     """Detect (date, code) pairs where the NEXT day's open is at a price limit.

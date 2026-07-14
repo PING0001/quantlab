@@ -2,9 +2,8 @@
 """
 LightGBM multi-horizon strategy.
 
-Trains one LGBMRegressor per prediction horizon (5d / 10d / 20d / 30d).
-All models share the same factor inputs; each learns its own horizon's
-forward return independently.
+Trains one LGBMRegressor per prediction horizon.  Supports both standard
+MSE regression and asymmetric peak-loss objective.
 
 Anti-overfitting:
   - early stopping on validation set
@@ -16,6 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import joblib
 import numpy as np
@@ -25,12 +25,44 @@ import lightgbm as lgb
 from .base import BaseStrategy
 
 
-def _make_progress_callback(horizon: int, period: int = 50):
-    """Return a callback that prints training progress every *period* rounds."""
+def _peak_loss(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Asymmetric MSE: over-prediction penalised 9x more than under-prediction."""
+    residual = y_pred - y_true
+    is_over = residual > 0
+    grad = np.where(is_over, 18.0 * residual, 2.0 * residual)
+    hess = np.where(is_over, 18.0, 2.0)
+    return grad, hess
+
+
+def _peak_metric(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[str, float, bool]:
+    residual = y_pred - y_true
+    is_over = residual > 0
+    loss = np.where(is_over, 9.0 * residual ** 2, residual ** 2)
+    return "peak_loss", float(np.mean(loss)), False
+
+
+def _horizon_label(h) -> str:
+    if isinstance(h, str):
+        return h
+    return f"{h}d"
+
+
+def _horizon_pcol(h) -> str:
+    if isinstance(h, str):
+        return f"pred_{h}"
+    return f"pred_{h}d"
+
+
+def _make_progress_callback(horizon: Any, period: int = 50):
+    h_label = _horizon_label(horizon)
+
     def _cb(env):
         if env.iteration % period == 0 and env.evaluation_result_list:
-            metrics = " ".join(f"{name}={val:.6f}" for name, _, val, _ in env.evaluation_result_list)
-            print(f"    [{horizon}d] iter {env.iteration:4d}  {metrics}")
+            metrics = " ".join(
+                f"{name}={val:.6f}" for name, _, val, _ in env.evaluation_result_list
+            )
+            print(f"    [{h_label}] iter {env.iteration:4d}  {metrics}")
+
     _cb.order = 10
     return _cb
 
@@ -41,7 +73,7 @@ class LGBStrategy(BaseStrategy):
     def __init__(
         self,
         factor_names: Sequence[str],
-        horizons: tuple[int, ...] = (5, 10, 20, 30),
+        horizons: tuple[Any, ...] = (5, 10, 20, 30),
         num_leaves: int = 63,
         max_depth: int | None = None,
         learning_rate: float = 0.02,
@@ -50,6 +82,7 @@ class LGBStrategy(BaseStrategy):
         reg_alpha: float = 0.1,
         reg_lambda: float = 0.1,
         subsample: float = 0.8,
+        subsample_freq: int = 0,
         colsample_bytree: float = 0.8,
         early_stopping: bool = True,
         validation_fraction: float = 0.05,
@@ -60,9 +93,11 @@ class LGBStrategy(BaseStrategy):
         boosting_type: str = "gbdt",
         drop_rate: float = 0.0,
         name: str | None = None,
+        l1_loss_horizon: Any = None,
     ):
         super().__init__(factor_names=factor_names, name=name)
         self.horizons = horizons
+        self._l1_loss_horizon = l1_loss_horizon
         self._config = dict(
             num_leaves=num_leaves,
             max_depth=max_depth,
@@ -74,6 +109,7 @@ class LGBStrategy(BaseStrategy):
             reg_alpha=reg_alpha,
             reg_lambda=reg_lambda,
             subsample=subsample,
+            subsample_freq=subsample_freq,
             colsample_bytree=colsample_bytree,
             early_stopping=early_stopping,
             validation_fraction=validation_fraction,
@@ -82,11 +118,11 @@ class LGBStrategy(BaseStrategy):
             n_jobs=n_jobs,
             verbosity=verbosity,
         )
-        self._models: dict[int, lgb.LGBMRegressor] = {}
+        self._models: dict[Any, lgb.LGBMRegressor] = {}
 
     @property
     def horizon_columns(self) -> list[str]:
-        return [f"pred_{h}d" for h in self.horizons]
+        return [_horizon_pcol(h) for h in self.horizons]
 
     # ------------------------------------------------------------------
     # fit
@@ -122,13 +158,16 @@ class LGBStrategy(BaseStrategy):
 
         self._models = {}
         for h in self.horizons:
-            print(f"  training horizon {h}d ...")
+            h_label = _horizon_label(h)
+            print(f"  training horizon {h_label} ...")
             y_h_train = y_sel.loc[train_mask, h].values.astype(np.float64)
             y_h_val = y_sel.loc[val_mask, h].values.astype(np.float64)
 
             callbacks = []
             if cfg["early_stopping"]:
-                callbacks.append(lgb.early_stopping(cfg["n_iter_no_change"], verbose=False))
+                callbacks.append(
+                    lgb.early_stopping(cfg["n_iter_no_change"], verbose=False)
+                )
             callbacks.append(_make_progress_callback(h, period=50))
 
             model_kwargs = dict(
@@ -145,15 +184,26 @@ class LGBStrategy(BaseStrategy):
                 n_jobs=cfg["n_jobs"],
                 verbosity=cfg["verbosity"],
             )
+            if cfg.get("subsample_freq", 0) > 0:
+                model_kwargs["subsample_freq"] = cfg["subsample_freq"]
             if cfg.get("max_depth") is not None:
                 model_kwargs["max_depth"] = cfg["max_depth"]
             if cfg.get("drop_rate", 0) > 0 and cfg["boosting_type"] == "dart":
                 model_kwargs["drop_rate"] = cfg["drop_rate"]
+
+            is_peak = (
+                self._l1_loss_horizon is not None and h == self._l1_loss_horizon
+            )
+            if is_peak:
+                model_kwargs["objective"] = "regression_l1"
+
             model = lgb.LGBMRegressor(**model_kwargs)
             model.fit(
-                X_train, y_h_train,
+                X_train,
+                y_h_train,
                 eval_set=[(X_val, y_h_val)],
                 callbacks=callbacks,
+                eval_metric="mae" if is_peak else None,
             )
             self._models[h] = model
 
@@ -177,7 +227,7 @@ class LGBStrategy(BaseStrategy):
 
         for h in self.horizons:
             pred = self._models[h].predict(X_sel)
-            result.loc[X_sel.index, f"pred_{h}d"] = pred
+            result.loc[X_sel.index, _horizon_pcol(h)] = pred
 
         return result
 
@@ -194,6 +244,7 @@ class LGBStrategy(BaseStrategy):
             "horizons": self.horizons,
             "name": self.name,
             "config": self._config,
+            "l1_loss_horizon": self._l1_loss_horizon,
         }
         joblib.dump(bundle, path)
         return path
@@ -217,6 +268,7 @@ class LGBStrategy(BaseStrategy):
             reg_alpha=cfg["reg_alpha"],
             reg_lambda=cfg["reg_lambda"],
             subsample=cfg["subsample"],
+            subsample_freq=cfg.get("subsample_freq", 0),
             colsample_bytree=cfg["colsample_bytree"],
             early_stopping=cfg["early_stopping"],
             validation_fraction=cfg["validation_fraction"],
@@ -225,6 +277,7 @@ class LGBStrategy(BaseStrategy):
             n_jobs=cfg.get("n_jobs", -1),
             verbosity=cfg.get("verbosity", -1),
             name=bundle.get("name"),
+            l1_loss_horizon=bundle.get("l1_loss_horizon"),
         )
         strategy._models = bundle["models"]
         strategy._fitted = True

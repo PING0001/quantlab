@@ -1,474 +1,444 @@
 # -*- coding: utf-8 -*-
 """
-Factor computation pipeline: read kline data from DuckDB, compute all factors, store.
+Factor computation pipeline.
+
+Loads OHLCV + supplementary data from DuckDB, computes all 101 Alpha101 factors
+and ~34 non-alpha factors, stores results to the `factor_values` table.
+
+Usage:
+    python -m factors.compute                  # full rebuild
+    python -m factors.compute --from 2024-01-01  # from specific date
 """
+
 from __future__ import annotations
 
 import logging
-import re
+import sys
 import time
+from pathlib import Path
 
 import duckdb
-import pandas as pd
 import numpy as np
+import polars as pl
 
-from config import DB_PATH
-from .factors import FACTOR_HUB
-from .ops import decay_linear
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from config import DB_PATH, get_pool_codes
+
+from .alpha101 import ALPHA_EXPRESSIONS
+from .utility import calculate_by_expression
+from .extra_factors import compute_non_alpha_factors, apply_ind_neutralize
 
 log = logging.getLogger(__name__)
 
 
-def _cs_rank(series):
-    return series.rank(pct=True) - 0.5
+# ---- Data Loading ----
 
+def _load_ohlcv(con: duckdb.DuckDBPyConnection, codes: list[str]) -> pl.DataFrame:
+    """Load daily kline data for given codes, compute VWAP."""
+    placeholders = ",".join(["?"] * len(codes))
+    df = con.execute(
+        f"SELECT code, date, open, high, low, close, volume "
+        f"FROM daily_kline WHERE code IN ({placeholders}) "
+        f"ORDER BY code, date",
+        codes,
+    ).fetchdf()
+    if df.empty:
+        return pl.DataFrame()
+    df["date"] = df["date"].astype(str)
 
-_CS_RANK_BASES = {
-    "close": "close_cs",
-    "volume": "volume_cs",
-    "low": "low_cs",
-    "dc1": "dc1_cs",
-    "dv1": "dv1_cs",
-    "ret1d": "ret1d_cs",
-}
+    result = pl.from_pandas(df)
+    result = result.rename({"code": "vt_symbol", "date": "datetime"})
 
-_CS_RANK_POST_FACTORS = [
-    "alpha001", "alpha013", "alpha014", "alpha018", "alpha019", "alpha020",
-    "alpha050", "alpha101", "alpha191",
-]
+    # VWAP approximation
+    result = result.with_columns(
+        ((pl.col("high") + pl.col("low") + pl.col("close")) / 3.0).alias("vwap")
+    )
 
-# deferred alphas: factor function stores raw intermediates (prefixed _d{N}_)
-# _compose_deferred_alphas applies cs_rank and composes final values
-_DEFERRED_ALPHAS = {
-    "alpha017": {"cols": ["_d17_a", "_d17_b", "_d17_c"]},
-    "alpha038": {"cols": ["_d38_a", "_d38_b"]},
-    "alpha057": {"cols": ["_d57_a", "_d57_b"]},
-}
-
-
-def _compute_cs_rank_cols(df_all):
-    """Compute derived base columns and their cross-sectional ranks.
-
-    Adds dc1, dv1, ret1d and their _cs-ranked siblings to the full panel.
-    Modifies df_all in place.
-    """
-    grp = df_all.groupby("code")
-    df_all["dc1"] = grp["close"].transform(lambda x: x - x.shift(1))
-    df_all["dv1"] = grp["volume"].transform(lambda x: x - x.shift(1))
-    df_all["ret1d"] = grp["close"].pct_change()
-
-    for src, dst in _CS_RANK_BASES.items():
-        df_all[dst] = df_all.groupby("date")[src].transform(_cs_rank)
-
-    return df_all
-
-
-def _apply_cs_rank_post(result):
-    """Apply cross-sectional rank to outer-rank alpha factors."""
-    for col in _CS_RANK_POST_FACTORS:
-        if col in result.columns:
-            result[col] = result.groupby("date")[col].transform(_cs_rank)
     return result
 
 
-def _compose_deferred_alphas(result):
-    """Compose deferred alphas from raw intermediate columns.
+def _load_market_cap(con: duckdb.DuckDBPyConnection, codes: list[str]) -> pl.DataFrame:
+    """Load total_mv, circ_mv from daily_basic (code without suffix)."""
+    pure_codes = [c.replace(".SH", "").replace(".SZ", "") for c in codes]
+    code_map = dict(zip(pure_codes, codes))
 
-    Alpha factor functions store raw sub-expressions in _d{N}_* columns.
-    This function applies cross-sectional rank to each intermediate and
-    composes the final alpha value per the formulas in _DEFERRED_ALPHAS.
-    """
-    ptn = re.compile(r"_d\d+_\w+")
-    raw_cols = [c for c in result.columns if ptn.match(c)]
-    if not raw_cols:
-        return result
+    placeholders = ",".join(["?"] * len(pure_codes))
+    df = con.execute(
+        f"SELECT code, date, total_mv, circ_mv "
+        f"FROM daily_basic WHERE code IN ({placeholders}) "
+        f"ORDER BY code, date",
+        pure_codes,
+    ).fetchdf()
+    if df.empty:
+        return pl.DataFrame()
 
-    # step 1: cs_rank all raw intermediates
-    cs_map = {}
-    for col in raw_cols:
-        cs_name = "_cs" + col
-        result[cs_name] = result.groupby("date")[col].transform(_cs_rank)
-        cs_map[col] = cs_name
+    df["date"] = df["date"].astype(str)
+    df["code"] = df["code"].map(code_map)
 
-    # step 2: compose each deferred alpha
-    for alpha, cfg in _DEFERRED_ALPHAS.items():
-        raw = cfg["cols"]
-        if not all(c in cs_map for c in raw):
+    result = pl.from_pandas(df)
+    result = result.rename({"code": "vt_symbol", "date": "datetime"})
+
+    result = result.with_columns([
+        pl.col("total_mv").cast(pl.Float64),
+        pl.col("circ_mv").cast(pl.Float64),
+    ])
+
+    return result
+
+
+def _load_industry(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
+    """Load 申万 L3 industry classification."""
+    df = con.execute(
+        "SELECT code, sw_l3_code FROM industry WHERE sw_l3_code IS NOT NULL"
+    ).fetchdf()
+    if df.empty:
+        return pl.DataFrame(schema={"vt_symbol": pl.Utf8, "sw_l3_code": pl.Utf8})
+
+    # Filter to pool stocks later; for now load all
+    result = pl.from_pandas(df)
+    result = result.rename({"code": "vt_symbol"})
+    return result
+
+
+def _load_cyq(con: duckdb.DuckDBPyConnection, codes: list[str]) -> pl.DataFrame:
+    """Load chip distribution raw data."""
+    placeholders = ",".join(["?"] * len(codes))
+    df = con.execute(
+        f"SELECT code, date, winner_rate, cost_5pct, cost_15pct, cost_50pct, "
+        f"cost_85pct, cost_95pct, weight_avg "
+        f"FROM cyq_perf WHERE code IN ({placeholders}) "
+        f"ORDER BY code, date",
+        codes,
+    ).fetchdf()
+    if df.empty:
+        return pl.DataFrame()
+
+    df["date"] = df["date"].astype(str)
+    result = pl.from_pandas(df)
+    result = result.rename({"code": "vt_symbol", "date": "datetime"})
+    return result
+
+
+def _load_index_data(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
+    """Load CSI (000985) and HS300 (000300) market state features."""
+    df = con.execute(
+        "SELECT code, date, close FROM index_daily "
+        "WHERE code IN ('000985', '000300') ORDER BY code, date"
+    ).fetchdf()
+    if df.empty:
+        return pl.DataFrame()
+    df["date"] = df["date"].astype(str)
+
+    r = {}
+    for code, prefix in [("000985", "CSI"), ("000300", "HS300")]:
+        part = df[df["code"] == code][["date", "close"]].copy()
+        if part.empty:
             continue
+        pl_df = pl.from_pandas(part).rename({"date": "datetime"})
+        feats = pl_df.select([
+            pl.col("datetime"),
+            (pl.col("close") / pl.col("close").shift(1) - 1).alias(f"{prefix}_return_1d"),
+            (pl.col("close") / pl.col("close").shift(20) - 1).alias(f"{prefix}_return_20d"),
+        ])
+        if prefix == "CSI":
+            vol = pl_df.select([
+                pl.col("datetime"),
+                (pl.col("close") / pl.col("close").shift(20) - 1)
+            ]).select([
+                pl.col("datetime"),
+                pl.col("close").rolling_std(20, min_samples=1).alias("CSI_volatility_20d")
+            ])
+            feats = feats.join(vol, on="datetime", how="left")
+        r[prefix] = feats
 
-        if alpha == "alpha057":
-            # alpha057: -1 * (_d57_b) / decay_linear( cs_rank(_d57_a) , 2 )
-            cs_a = result[cs_map["_d57_a"]]
-            decayed = cs_a.groupby(result.index.get_level_values("code")).transform(
-                lambda s: pd.Series(decay_linear(s, 2).values, index=s.index)
-            )
-            result[alpha] = (-result["_d57_b"] / decayed.replace(0, np.nan)).clip(-1e10, 1e10)
-        else:
-            # generic product with negation: -1 * cs_rank(a) * cs_rank(b) * cs_rank(c)
-            parts = [result[cs_map[c]] for c in raw]
-            prod = parts[0]
-            for p in parts[1:]:
-                prod = prod * p
-            result[alpha] = -prod
+    market = r.get("CSI", pl.DataFrame())
+    if "HS300" in r:
+        market = market.join(r["HS300"], on="datetime", how="left") if not market.is_empty() else r["HS300"]
+    return market
 
-    # step 3: clean up intermediate columns
-    drop_cols = [c for c in raw_cols if c in result.columns]
-    drop_cols += [cs_map[c] for c in raw_cols if cs_map[c] in result.columns]
-    result.drop(columns=drop_cols, inplace=True, errors="ignore")
+
+def _load_stock_info(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
+    """Load list_date for LnAge computation."""
+    df = con.execute(
+        "SELECT code, strftime(list_date, '%Y-%m-%d') AS list_date FROM stock_info"
+    ).fetchdf()
+    if df.empty:
+        return pl.DataFrame()
+    result = pl.from_pandas(df)
+    result = result.rename({"code": "vt_symbol"})
     return result
 
 
-def _merge_rank_factors(result):
-    """Generate cross-sectional rank versions of selected factors."""
-    rank_map = {
-        "Return_1d": "Return_1d_rank",
-        "Return_20d": "Return_20d_rank",
-        "Turnover_3d": "Turnover_3d_rank",
-    }
-    for base, rank_name in rank_map.items():
-        if base in result.columns:
-            result[rank_name] = result.groupby("date")[base].transform(_cs_rank)
-    return result
-
-
-def compute_factors_for_stock(df_stock, factor_hub=None):
-    """Compute all registered factors for one stock's kline DataFrame."""
-    if factor_hub is None:
-        factor_hub = FACTOR_HUB
-    code = df_stock.get("code", pd.Series([None])).iloc[0]
-
-    results = {}
-    for name, func in factor_hub.items():
-        try:
-            raw = func(df_stock)
-            if isinstance(raw, dict):
-                for k, v in raw.items():
-                    results[k] = v
-            else:
-                results[name] = raw
-        except Exception as e:
-            log.warning("Factor %s failed for %s: %s", name, code, e)
-            results[name] = np.nan
-
-    out = pd.DataFrame(results, index=df_stock.index)
-    out["date"] = df_stock["date"].values if "date" in df_stock.columns else df_stock.index
-    if code is not None:
-        out["code"] = code
-    return out
-
-
-def load_all_stocks(con):
-    """Load all kline data joined with market cap sorted by (code, date)."""
-    return con.execute("""
-        SELECT k.code, k.date, k.open, k.high, k.low, k.close,
-               k.volume, k.amount, k.pct_chg,
-               k.volume * k.close / NULLIF(b.circ_mv, 0) AS turn,
-               b.total_mv, b.circ_mv,
-               c.his_low, c.his_high, c.cost_5pct, c.cost_15pct, c.cost_50pct,
-               c.cost_85pct, c.cost_95pct, c.weight_avg, c.winner_rate,
-               s.list_date
-        FROM daily_kline k
-        LEFT JOIN daily_basic b ON k.code = b.code AND k.date = b.date
-        LEFT JOIN cyq_perf c ON k.code = c.code AND k.date = c.date
-        LEFT JOIN stock_info s ON k.code = s.code
-        ORDER BY k.code, k.date
+def _compute_isst(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
+    """Compute IsST factor from namechange table."""
+    df = con.execute("""
+        SELECT code, start_date, end_date, change_reason
+        FROM namechange
+        WHERE change_reason IN ('ST', '*ST')
+        ORDER BY code, start_date
     """).fetchdf()
 
+    if df.empty:
+        return pl.DataFrame()
 
-def compute_panel(con=None, db_path=None, codes=None, max_stocks=None):
-    """Load kline data and compute all factors for every stock.
+    # For each (code, date) in daily_kline date range, check if in ST period
+    date_range = con.execute("SELECT DISTINCT date FROM daily_kline ORDER BY date").fetchdf()
+    if date_range.empty:
+        return pl.DataFrame()
 
-    Returns DataFrame with MultiIndex (date, code) and one column per factor.
+    all_dates = sorted(date_range["date"].astype(str).tolist())
+
+    records = []
+    for _, row in df.iterrows():
+        code = row["code"]
+        start = str(row["start_date"])
+        end = str(row["end_date"]) if row["end_date"] else "9999-12-31"
+        for d in all_dates:
+            if start <= d <= end:
+                records.append({"vt_symbol": code, "datetime": d, "IsST": 1})
+
+    if not records:
+        return pl.DataFrame(schema={"vt_symbol": pl.Utf8, "datetime": pl.Utf8, "IsST": pl.Int32})
+
+    return pl.DataFrame(records)
+
+
+# ---- Main Pipeline ----
+
+def compute_panel(
+    con: duckdb.DuckDBPyConnection,
+    codes: list[str],
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> pl.DataFrame:
     """
-    if con is None:
-        con = duckdb.connect(str(db_path or DB_PATH))
-        should_close = True
+    Compute all factors for the given stock codes and date range.
+
+    Returns a wide-format Polars DataFrame with columns:
+    [code, date, alpha1...alpha101, non_alpha_factors..., IsST, ...]
+    """
+    t0 = time.time()
+
+    # 1. Load data
+    log.info("Loading OHLCV data ...")
+    df = _load_ohlcv(con, codes)
+    if df.is_empty():
+        log.warning("No OHLCV data loaded.")
+        return pl.DataFrame()
+
+    log.info("Loading market cap data ...")
+    mktcap = _load_market_cap(con, codes)
+    if not mktcap.is_empty():
+        df = df.join(mktcap, on=["datetime", "vt_symbol"], how="left")
+
+    log.info("Loading stock info ...")
+    info = _load_stock_info(con)
+    if not info.is_empty():
+        df = df.join(info, on="vt_symbol", how="left")
+
+    # Filter date range
+    if start_date:
+        df = df.filter(pl.col("datetime") >= start_date)
+    if end_date:
+        df = df.filter(pl.col("datetime") <= end_date)
+
+    # Sort for expression engine
+    df = df.sort(["vt_symbol", "datetime"])
+
+    n_stocks = df["vt_symbol"].n_unique()
+    n_dates = df["datetime"].n_unique()
+    log.info("Data loaded: %d stocks × %d dates = %d rows", n_stocks, n_dates, len(df))
+
+    # 2. Prepare for expression engine: add cap + pre-computed returns
+    if "total_mv" in df.columns:
+        df = df.with_columns(pl.col("total_mv").alias("cap"))
+
+    # Pre-compute daily returns (used by 50+ alpha expressions via RETURNS_EXPR)
+    df = df.with_columns(
+        (pl.col("close") / pl.col("close").shift(1).over("vt_symbol") - 1).alias("ret")
+    )
+
+    # 3. Compute Alpha101 factors (sequential – IPC overhead dominates with multiprocessing)
+    log.info("Computing %d Alpha101 factors ...", len(ALPHA_EXPRESSIONS))
+    from tqdm import tqdm
+
+    alpha_results: dict[str, pl.Series] = {}
+    expressions = list(ALPHA_EXPRESSIONS.items())
+
+    for name, expr in tqdm(expressions, desc="Alpha101"):
+        _, series = _compute_one_alpha((df, name, expr))
+        alpha_results[name] = series
+
+    # 4. Build alpha factor DataFrame
+    id_cols = df[["datetime", "vt_symbol"]]
+    alpha_df = id_cols.clone()
+    for name in sorted(alpha_results.keys()):
+        alpha_df = alpha_df.with_columns(alpha_results[name].alias(name))
+    log.info("Alpha factors computed: %d columns", len(alpha_results))
+
+    # 5. Apply IndNeutralize
+    log.info("Applying IndNeutralize (申万 L3) ...")
+    industry_map = _load_industry(con)
+    if not industry_map.is_empty():
+        alpha_df = apply_ind_neutralize(alpha_df, industry_map)
+
+    # 6. Compute non-alpha factors
+    log.info("Computing non-alpha factors ...")
+    extra_df = compute_non_alpha_factors(df)
+    extra_df = alpha_df[["datetime", "vt_symbol"]].join(
+        extra_df, on=["datetime", "vt_symbol"], how="left"
+    )
+
+    # 7. Merge supplementary factors (chip, market state, IsST)
+    log.info("Loading supplementary factors ...")
+
+    cyq_df = _load_cyq(con, codes)
+    if not cyq_df.is_empty():
+        # Derive chip factors from raw cyq columns
+        # WinnerRate: directly from cyq_perf
+        cyq_df = cyq_df.with_columns(
+            pl.col("winner_rate").alias("WinnerRate")
+        )
+        # CostPosition: (close - cost_50pct) / (cost_95pct - cost_5pct)
+        cyq_df = cyq_df.with_columns(
+            ((pl.col("cost_50pct") - pl.col("weight_avg")) / 
+             (pl.col("cost_95pct") - pl.col("cost_5pct") + 1e-10)).alias("CostPosition")
+        )
+        # ChipDispersion: (cost_85pct - cost_15pct) / cost_50pct
+        cyq_df = cyq_df.with_columns(
+            ((pl.col("cost_85pct") - pl.col("cost_15pct")) / 
+             (pl.col("cost_50pct") + 1e-10)).alias("ChipDispersion")
+        )
+        # ChipSkew: (cost_50pct - weight_avg) / (cost_85pct - cost_15pct)
+        cyq_df = cyq_df.with_columns(
+            ((pl.col("cost_50pct") - pl.col("weight_avg")) / 
+             (pl.col("cost_85pct") - pl.col("cost_15pct") + 1e-10)).alias("ChipSkew")
+        )
+        chip_cols = ["datetime", "vt_symbol", "WinnerRate", "CostPosition",
+                     "ChipDispersion", "ChipSkew"]
+        cyq_df = cyq_df.select(chip_cols)
+        extra_df = extra_df.join(cyq_df, on=["datetime", "vt_symbol"], how="left")
+
+    market_df = _load_index_data(con)
+    if not market_df.is_empty():
+        # Broadcast: add vt_symbol to market, then join
+        symbols = extra_df.select("vt_symbol").unique()
+        market_df = symbols.join(market_df, how="cross")
+        extra_df = extra_df.join(market_df, on=["datetime", "vt_symbol"], how="left")
+
+    isst_df = _compute_isst(con)
+    if not isst_df.is_empty():
+        extra_df = extra_df.join(isst_df, on=["datetime", "vt_symbol"], how="left")
+        extra_df = extra_df.with_columns(pl.col("IsST").fill_null(0).cast(pl.Int32))
     else:
-        should_close = False
+        extra_df = extra_df.with_columns(pl.lit(0).cast(pl.Int32).alias("IsST"))
 
-    df_all = load_all_stocks(con)
-    if codes is not None:
-        df_all = df_all[df_all["code"].isin(codes)]
-    if max_stocks is not None:
-        keep_codes = df_all["code"].unique()[:max_stocks]
-        df_all = df_all[df_all["code"].isin(keep_codes)]
+    # 8. Merge alpha + extra (single join, not loop)
+    log.info("Merging alpha + non-alpha factors ...")
+    extra_fact_cols = [c for c in extra_df.columns if c not in ("datetime", "vt_symbol")]
+    merged = alpha_df.join(extra_df, on=["datetime", "vt_symbol"], how="left")
 
-    log.info("Loaded %d rows, %d stocks", len(df_all), df_all["code"].nunique())
+    # 9. Final cleanup: clip extreme values, fill remaining NaN
+    # Exclude intermediate columns (ret, cap, and any with _ prefix)
+    excluded = {"ret", "cap"}
+    factor_columns = [c for c in sorted(alpha_results.keys()) + extra_fact_cols
+                      if c not in excluded and not c.startswith("_")]
+    for col in factor_columns:
+        if col in merged.columns:
+            merged = merged.with_columns(
+                pl.when(
+                    pl.col(col).is_infinite() | pl.col(col).is_nan()
+                ).then(None).otherwise(pl.col(col)).alias(col)
+            )
 
-    t0 = time.time()
-    df_all = _compute_cs_rank_cols(df_all)
-    log.info("cs_rank columns computed in %.1fs", time.time() - t0)
+    # Drop intermediate columns
+    id_cols = ["datetime", "vt_symbol"]
+    merged = merged.select(id_cols + factor_columns)
 
-    panels = []
-    codes_list = df_all["code"].unique()
-    n_stocks = len(codes_list)
-    t_f = time.time()
-    for i, (code, grp) in enumerate(df_all.groupby("code", sort=False), 1):
-        grp = grp.sort_values("date")
-        factor_df = compute_factors_for_stock(grp)
-        panels.append(factor_df)
-        if i % 500 == 0:
-            elapsed = time.time() - t_f
-            rate = i / elapsed
-            eta = (n_stocks - i) / rate
-            log.info("  factors: %d/%d stocks (%.1f/s, ETA %.0fs)", i, n_stocks, rate, eta)
+    # Convert to wide format: (code, date, factors...)
+    merged = merged.rename({"vt_symbol": "code", "datetime": "date"})
 
-    log.info("Per-stock factors complete: %d stocks in %.1fs", n_stocks, time.time() - t_f)
+    elapsed = time.time() - t0
+    n_factors = len(factor_columns)
+    log.info("Total: %d factors, %d rows, %.1f seconds", n_factors, len(merged), elapsed)
 
-    if not panels:
-        if should_close:
-            con.close()
-        return pd.DataFrame()
-
-    result = pd.concat(panels, ignore_index=True)
-    result = result.set_index(["date", "code"]).sort_index()
-
-    t0 = time.time()
-    result = result.clip(-1e10, 1e10).replace([np.inf, -np.inf], np.nan)
-    result = _apply_cs_rank_post(result)
-    result = _compose_deferred_alphas(result)
-    result = _merge_rank_factors(result)
-    log.info("Post-processing (cs_rank + deferred alphas) in %.1fs", time.time() - t0)
-
-    t0 = time.time()
-    result = _merge_market_features(result, con)
-    log.info("Market features merged in %.1fs", time.time() - t0)
-
-    t0 = time.time()
-    result = _merge_st_flag(result, con)
-    log.info("ST flag merged in %.1fs", time.time() - t0)
-
-    if should_close:
-        con.close()
-    return result
+    return merged
 
 
-def store_factors(factor_panel, table_name="factor_values", con=None,
-                  db_path=None, if_exists="replace"):
-    """Store factor panel into DuckDB as a wide table.
+def _compute_one_alpha(args: tuple) -> tuple[str, pl.Series]:
+    """Compute a single alpha factor expression (for multiprocessing)."""
+    df, name, expr = args
 
-    Schema: (code, date, <factor1>, <factor2>, ...) with PK (code, date).
-    """
-    own_con = False
-    if con is None:
-        con = duckdb.connect(str(db_path or DB_PATH))
-        own_con = True
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
 
-    df_to_store = factor_panel.reset_index()
-
-    if if_exists == "replace":
-        con.execute("DROP TABLE IF EXISTS " + table_name)
-
-    con.execute("CREATE TABLE IF NOT EXISTS " + table_name + " AS SELECT * FROM df_to_store WHERE 1=0")
-    con.execute("INSERT INTO " + table_name + " SELECT * FROM df_to_store")
-
-    n = len(df_to_store)
-    log.info("Stored %d rows in table '%s'", n, table_name)
-
-    if own_con:
-        con.close()
-    return n
-def load_all_stocks_since(con, min_date):
-    """Load kline data joined with market cap from min_date onwards."""
-    return con.execute("""
-        SELECT k.code, k.date, k.open, k.high, k.low, k.close,
-               k.volume, k.amount, k.pct_chg,
-               k.volume * k.close / NULLIF(b.circ_mv, 0) AS turn,
-               b.total_mv, b.circ_mv,
-               c.his_low, c.his_high, c.cost_5pct, c.cost_15pct, c.cost_50pct,
-               c.cost_85pct, c.cost_95pct, c.weight_avg, c.winner_rate,
-               s.list_date
-        FROM daily_kline k
-        LEFT JOIN daily_basic b ON k.code = b.code AND k.date = b.date
-        LEFT JOIN cyq_perf c ON k.code = c.code AND k.date = c.date
-        LEFT JOIN stock_info s ON k.code = s.code
-        WHERE k.date >= ?
-        ORDER BY k.code, k.date
-    """, (min_date,)).fetchdf()
+        try:
+            result_df = calculate_by_expression(df, expr)
+            return name, result_df["data"]
+        except Exception:
+            return name, pl.Series(name, [None] * len(df))
 
 
-def compute_market_features(con):
-    """Compute market state features from 中证全指 (000985) and 沪深300 (000300)."""
-    idx = con.execute("""
-        SELECT date, pct_chg, close FROM index_daily
-        WHERE code = '000985' ORDER BY date
-    """).fetchdf()
-    if idx.empty:
-        return pd.DataFrame()
-    idx["date"] = pd.to_datetime(idx["date"])
-    idx = idx.sort_values("date")
+# ---- Storage ----
 
-    idx["CSI_return_1d"] = idx["pct_chg"] / 100.0
-    idx["CSI_return_5d"] = idx["close"].pct_change(5)
-    idx["CSI_return_20d"] = idx["close"].pct_change(20)
-    idx["CSI_volatility_20d"] = idx["pct_chg"].rolling(20, min_periods=5).std() / 100.0
+def store_factor_values(con: duckdb.DuckDBPyConnection, panel: pl.DataFrame):
+    """Store factor panel into DuckDB factor_values table."""
+    if panel.is_empty():
+        log.warning("Empty panel, nothing to store.")
+        return
 
-    hs300 = con.execute("""
-        SELECT date, pct_chg, close FROM index_daily
-        WHERE code = '000300' ORDER BY date
-    """).fetchdf()
-    if not hs300.empty:
-        hs300["date"] = pd.to_datetime(hs300["date"])
-        hs300 = hs300.sort_values("date")
-        hs300["HS300_return_1d"] = hs300["pct_chg"] / 100.0
-        hs300["HS300_return_20d"] = hs300["close"].pct_change(20)
-        idx = idx.merge(hs300[["date", "HS300_return_1d", "HS300_return_20d"]], on="date", how="left")
+    # Deduplicate on (code, date)
+    panel = panel.unique(subset=["code", "date"], keep="last")
 
-    return idx[["date", "CSI_return_1d", "CSI_return_5d", "CSI_return_20d",
-                "CSI_volatility_20d", "HS300_return_1d", "HS300_return_20d"]]
+    con.execute("DROP TABLE IF EXISTS factor_values")
+
+    # Build schema from panel columns
+    pandas_df = panel.to_pandas()
+    pandas_df = pandas_df.sort_values(["date", "code"])
+
+    # Create table automatically from pandas
+    con.execute("CREATE TABLE factor_values AS SELECT * FROM pandas_df")
+
+    con.execute("CHECKPOINT")
+    log.info("factor_values table created with %d rows, %d columns",
+             len(pandas_df), len(pandas_df.columns))
 
 
-def _merge_market_features(result, con):
-    """Broadcast market features to every (date, code) row in result."""
-    market = compute_market_features(con)
-    if market.empty:
-        return result
-    result = result.reset_index()
-    result["date"] = pd.to_datetime(result["date"])
-    result = result.merge(market, on="date", how="left")
-    return result.set_index(["date", "code"]).sort_index()
+# ---- Main Entry ----
+
+def main():
+    import argparse
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+
+    parser = argparse.ArgumentParser(description="Compute factor panel")
+    parser.add_argument("--from", dest="start_date", default=None,
+                        help="Start date (YYYY-MM-DD)")
+    parser.add_argument("--to", dest="end_date", default=None,
+                        help="End date (YYYY-MM-DD)")
+    args = parser.parse_args()
+
+    codes = get_pool_codes()
+    log.info("Pool: %d stocks", len(codes))
+
+    con = duckdb.connect(str(DB_PATH))
+    con.execute("SET threads = 4")
+
+    panel = compute_panel(con, codes, start_date=args.start_date,
+                          end_date=args.end_date)
+
+    if not panel.is_empty():
+        store_factor_values(con, panel)
+
+    con.close()
+    log.info("Done.")
 
 
-def _merge_st_flag(result, con):
-    """Add IsST column: 1 if stock was in ST/*ST status on that date."""
-    try:
-        st_df = con.execute("""
-            SELECT code, start_date, end_date
-            FROM namechange
-            WHERE change_reason IN ('ST', '*ST')
-        """).fetchdf()
-        all_nc = con.execute("""
-            SELECT code, start_date FROM namechange ORDER BY code, start_date
-        """).fetchdf()
-    except Exception:
-        return result
-
-    if st_df.empty:
-        result["IsST"] = 0
-        return result
-
-    st_df["start_date"] = pd.to_datetime(st_df["start_date"]).dt.date
-    st_df["end_date"] = pd.to_datetime(st_df["end_date"]).dt.date
-
-    # Fix NULL end_date: use next namechange start_date - 1 day per code
-    all_nc["start_date"] = pd.to_datetime(all_nc["start_date"]).dt.date
-    for code in st_df["code"].unique():
-        code_mask = st_df["code"] == code
-        code_rows = st_df[code_mask].sort_values("start_date")
-        null_end = code_rows["end_date"].isna()
-        if null_end.any():
-            # Find next start_date from ALL namechange records for this code
-            code_nc = all_nc[all_nc["code"] == code].sort_values("start_date")
-            for idx in code_rows[null_end].index:
-                st_start = st_df.at[idx, "start_date"]
-                next_rows = code_nc[code_nc["start_date"] > st_start]
-                if not next_rows.empty:
-                    st_df.at[idx, "end_date"] = next_rows["start_date"].iloc[0] - pd.Timedelta(days=1)
-
-    result = result.reset_index()
-    result["date"] = pd.to_datetime(result["date"])
-    result["IsST"] = 0
-
-    date_series = result["date"].dt.date
-
-    for _, st in st_df.iterrows():
-        code = st["code"]
-        s = st["start_date"]
-        e = st["end_date"] if pd.notna(st["end_date"]) else date_series.max()
-        mask = (result["code"] == code) & (date_series >= s) & (date_series <= e)
-        if mask.any():
-            result.loc[mask, "IsST"] = 1
-
-    log.info("ST flag merged: %d ST rows", result["IsST"].sum())
-    return result.set_index(["date", "code"]).sort_index()
-
-
-def compute_panel_incremental(con=None, lookback_trading_days=252, codes=None):
-    """Compute factors only for dates not yet in factor_values.
-
-    Uses a lookback window so lookback-dependent factors
-    (e.g. Volatility_60d, Price_position_252d) have enough history.
-
-    Returns
-    -------
-    DataFrame with MultiIndex (date, code), only rows NOT yet in factor_values.
-    Empty DataFrame if nothing new to compute.
-    """
-    own_con = False
-    if con is None:
-        con = duckdb.connect(str(DB_PATH))
-        own_con = True
-
-    try:
-        raw = con.execute("SELECT MAX(date) FROM factor_values").fetchone()[0]
-        last_date = pd.Timestamp(raw) if raw is not None else None
-    except Exception:
-        last_date = None
-
-    if last_date is None:
-        log.info("factor_values empty or missing, doing full compute ...")
-        result = compute_panel(con=con, codes=codes)
-        if own_con:
-            con.close()
-        return result
-
-    # Check if there is new kline data after last_date
-    kline_max = con.execute("SELECT MAX(date) FROM daily_kline").fetchone()[0]
-    # Normalise both to date for safe comparison
-    kline_max_date = pd.Timestamp(kline_max).date() if kline_max is not None else None
-    last_date_ts = pd.Timestamp(last_date).date()
-    if kline_max_date is None or kline_max_date <= last_date_ts:
-        if own_con:
-            con.close()
-        return pd.DataFrame()
-
-    lookback_start = last_date - pd.Timedelta(days=int(lookback_trading_days * 1.6))
-    df_all = load_all_stocks_since(con, lookback_start)
-
-    if codes is not None:
-        df_all = df_all[df_all["code"].isin(codes)]
-
-    log.info("Loaded %d rows, %d stocks (since %s)",
-             len(df_all), df_all["code"].nunique(), lookback_start.date())
-
-    t0 = time.time()
-    df_all = _compute_cs_rank_cols(df_all)
-    log.info("cs_rank columns: %.1fs", time.time() - t0)
-
-    panels = []
-    t_f = time.time()
-    for code, grp in df_all.groupby("code", sort=False):
-        grp = grp.sort_values("date")
-        factor_df = compute_factors_for_stock(grp)
-        panels.append(factor_df)
-
-    if not panels:
-        if own_con:
-            con.close()
-        return pd.DataFrame()
-
-    result = pd.concat(panels, ignore_index=True)
-    result["date"] = pd.to_datetime(result["date"])
-    result = result.set_index(["date", "code"]).sort_index()
-
-    result = result.clip(-1e10, 1e10).replace([np.inf, -np.inf], np.nan)
-    result = _apply_cs_rank_post(result)
-    result = _compose_deferred_alphas(result)
-    result = _merge_rank_factors(result)
-
-    # Broadcast market features
-    result = _merge_market_features(result, con)
-
-    # Broadcast ST flag
-    result = _merge_st_flag(result, con)
-
-    # Keep only rows after the last date in factor_values
-    new_data = result[result.index.get_level_values("date") > pd.Timestamp(last_date_ts)]
-
-    n_new = len(new_data)
-    n_dates = new_data.index.get_level_values("date").nunique()
-    log.info("Computed %d new factor rows (%d new date(s))", n_new, n_dates)
-
-    if own_con:
-        con.close()
-    return new_data
+if __name__ == "__main__":
+    main()
