@@ -512,6 +512,7 @@ def run_portfolio_rebalance(
         # ================================================================
         # Phase 2: Execute buy orders
         # ================================================================
+        filled_buys = set()
         buy_slots_remaining = max_positions - len(positions)
 
         for code, limit_price in list(buy_orders.items()):
@@ -556,8 +557,10 @@ def run_portfolio_rebalance(
             trades.append({"date": date, "code": code, "action": "BUY",
                            "price": fill_px, "shares": shares})
             buy_slots_remaining -= 1
+            filled_buys.add(code)
 
-        buy_orders.clear()
+        # Keep unfilled buy orders for next trading days (remove only filled ones)
+        buy_orders = {c: p for c, p in buy_orders.items() if c not in filled_buys}
 
         buy_lock = {code for code, pos in positions.items() if pos["entry_date"] == date}
 
