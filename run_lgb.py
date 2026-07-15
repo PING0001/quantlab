@@ -58,15 +58,18 @@ LGB_KWARGS = dict(
 )
 
 
-def load_industry_sw_l3(con: duckdb.DuckDBPyConnection) -> pd.Series:
-    """Load SW L3 codes for all stocks, factorize into integer categories."""
+def load_industry_sw_l3(con: duckdb.DuckDBPyConnection) -> tuple[pd.Series, dict[str, int]]:
+    """Load SW L3 codes for all stocks, factorize into integer categories.
+    Returns (series, mapping) where mapping is {sw_l3_code: integer}.
+    """
     df = con.execute(
         "SELECT code, sw_l3_code FROM industry WHERE sw_l3_code IS NOT NULL"
     ).fetchdf()
     if df.empty:
-        return pd.Series(dtype=int)
+        return pd.Series(dtype=int), {}
     codes, uniques = pd.factorize(df["sw_l3_code"])
-    return pd.Series(codes, index=df["code"], name="sw_l3")
+    mapping = {k: int(v) for k, v in zip(uniques, range(len(uniques)))}
+    return pd.Series(codes, index=df["code"], name="sw_l3"), mapping
 
 
 def load_factors(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
@@ -111,7 +114,7 @@ def main():
     print(f"  delisted stocks: {len(delist_info)}")
 
     print("  loading industry sw_l3 ...")
-    industry_sw_l3 = load_industry_sw_l3(con)
+    industry_sw_l3, sw_l3_mapping = load_industry_sw_l3(con)
     print(f"  industry categories: {industry_sw_l3.nunique()}")
 
     con.close()
@@ -201,6 +204,8 @@ def main():
         horizons=tuple(HORIZONS),
         **LGB_KWARGS,
     )
+    if sw_l3_mapping:
+        strategy._category_mappings["sw_l3"] = sw_l3_mapping
     print(f"  strategy: {strategy.name}, horizons={HORIZONS}")
 
     # ---- walk-forward ----

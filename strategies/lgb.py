@@ -124,6 +124,7 @@ class LGBStrategy(BaseStrategy):
         )
         self._models: dict[Any, lgb.LGBMRegressor] = {}
         self._categorical_feature = categorical_feature or []
+        self._category_mappings: dict[str, dict[str, int]] = {}
 
     @property
     def horizon_columns(self) -> list[str]:
@@ -267,6 +268,7 @@ class LGBStrategy(BaseStrategy):
             "name": self.name,
             "config": self._config,
             "l1_loss_horizon": self._l1_loss_horizon,
+            "category_mappings": self._category_mappings,
         }
         joblib.dump(bundle, path)
         return path
@@ -304,5 +306,6 @@ class LGBStrategy(BaseStrategy):
             l1_loss_horizon=bundle.get("l1_loss_horizon"),
         )
         strategy._models = bundle["models"]
+        strategy._category_mappings = bundle.get("category_mappings", {})
         strategy._fitted = True
         return strategy
