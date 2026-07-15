@@ -42,11 +42,11 @@ def _limit_pct(is_st) -> float:
 
 
 def _limit_up(prev_close, is_st) -> float:
-    return prev_close * (1.0 + _limit_pct(is_st))
+    return round(prev_close * (1.0 + _limit_pct(is_st)), 2)
 
 
 def _limit_down(prev_close, is_st) -> float:
-    return prev_close * (1.0 - _limit_pct(is_st))
+    return round(prev_close * (1.0 - _limit_pct(is_st)), 2)
 
 
 def _is_frozen_up(low, limit_up_price) -> bool:
