@@ -143,6 +143,7 @@ def run_portfolio(
     excluded_codes=None,
     initial_cash_per_stock=10000,
     commission=0.0003,
+    stamp_duty=0.0005,
     risk_free_rate=0.025,
     delist_info=None,
 ):
@@ -238,7 +239,7 @@ def run_portfolio(
                 continue
 
             shares = pos["shares"]
-            cash += shares * fill_px * (1.0 - commission)
+            cash += shares * fill_px * (1.0 - commission - stamp_duty)
             trades.append({"date": date, "code": code, "action": "SELL",
                            "price": fill_px, "shares": shares})
             del positions[code]
@@ -407,6 +408,7 @@ def run_portfolio_rebalance(
     excluded_codes=None,
     initial_cash_per_stock=10000,
     commission=0.0006,
+    stamp_duty=0.0005,
     risk_free_rate=0.025,
     delist_info=None,
 ):
@@ -498,7 +500,7 @@ def run_portfolio_rebalance(
                 continue
 
             shares = pos["shares"]
-            cash += shares * fill_px * (1.0 - commission)
+            cash += shares * fill_px * (1.0 - commission - stamp_duty)
             trades.append({"date": date, "code": code, "action": "SELL",
                            "price": fill_px, "shares": shares})
             del positions[code]
@@ -631,7 +633,17 @@ def run_portfolio_rebalance(
         for code, pos in positions.items():
             cl = close_map.get(code)
             if cl is None:
-                continue
+                # Suspended: use last known close price
+                ohlcv = ohlcv_map.get(code)
+                if ohlcv is not None and date in ohlcv.index:
+                    pass  # should have been in close_map
+                elif ohlcv is not None:
+                    # Find last trading day with a close
+                    prev_dates = ohlcv.index[ohlcv.index < date]
+                    if len(prev_dates) > 0:
+                        cl = float(ohlcv.loc[prev_dates[-1], "Close"])
+                if cl is None:
+                    continue
             nav += pos["shares"] * cl
 
         nav_records.append((date, nav))

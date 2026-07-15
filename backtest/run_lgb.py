@@ -218,6 +218,7 @@ def main():
         excluded_codes=excluded_codes,
         initial_cash_per_stock=CASH_PER_STOCK,
         commission=COMMISSION,
+        stamp_duty=STAMP_DUTY,
         risk_free_rate=RISK_FREE_RATE,
         delist_info=delist_info,
     )
@@ -261,7 +262,8 @@ def main():
 
     # Benchmark
     if not bench_df.empty and len(bench_df) > 0:
-        bench_total = float(bench_df['equity'].iloc[-1] / bench_df['equity'].iloc[0] - 1)
+        bench_daily = bench_df['daily_ret'].dropna()
+        bench_total = float((1.0 + bench_daily).prod() - 1.0)  # cumprod of returns, not equity[-1]/equity[0]
         bench_ret = bench_df['daily_ret'].dropna()
         b_mean = float(bench_ret.mean())
         b_std = float(bench_ret.std())
