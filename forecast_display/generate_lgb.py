@@ -50,9 +50,8 @@ def load_name_map(con):
     return dict(zip(info["code"], info["name"]))
 
 
-def load_sw_l3(con, codes, mapping: dict[str, int] | None = None):
-    """Load SW L3 integer categories for prediction.
-    If mapping is provided (from trained model), use it for consistent encoding.
+def load_sw_l3(con, mapping: dict[str, int]):
+    """Load SW L3 integer categories using the model's saved mapping.
     Unknown categories → -1.
     """
     df = con.execute(
@@ -60,14 +59,7 @@ def load_sw_l3(con, codes, mapping: dict[str, int] | None = None):
     ).fetchdf()
     if df.empty:
         return pd.Series(dtype=int)
-
-    if mapping:
-        # Use saved mapping: sw_l3_code → integer
-        df["sw_l3"] = df["sw_l3_code"].map(mapping).fillna(-1).astype(int)
-    else:
-        codes_arr, _ = pd.factorize(df["sw_l3_code"])
-        df["sw_l3"] = codes_arr
-
+    df["sw_l3"] = df["sw_l3_code"].map(mapping).fillna(-1).astype(int)
     return pd.Series(df["sw_l3"].values, index=df["code"], name="sw_l3")
 
 
@@ -101,8 +93,12 @@ def load_and_predict(target_date=None):
 
     # ---- add sw_l3 categorical feature if model expects it ----
     if hasattr(model, '_categorical_feature') and model._categorical_feature:
-        saved_mapping = model._category_mappings.get("sw_l3", None)
-        sw_l3 = load_sw_l3(con, get_pool_codes(), mapping=saved_mapping)
+        saved_mapping = model._category_mappings.get("sw_l3")
+        if not saved_mapping:
+            raise RuntimeError(
+                "模型缺少 sw_l3 类别映射，请使用当前代码重新训练模型"
+            )
+        sw_l3 = load_sw_l3(con, mapping=saved_mapping)
         if not sw_l3.empty:
             idx_codes = factors.index.get_level_values("code")
             factors["sw_l3"] = idx_codes.map(sw_l3).fillna(-1).astype(int)

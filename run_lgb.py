@@ -59,17 +59,21 @@ LGB_KWARGS = dict(
 
 
 def load_industry_sw_l3(con: duckdb.DuckDBPyConnection) -> tuple[pd.Series, dict[str, int]]:
-    """Load SW L3 codes for all stocks, factorize into integer categories.
-    Returns (series, mapping) where mapping is {sw_l3_code: integer}.
+    """Load SW L3 codes for all stocks, encode into deterministic integers.
+
+    Returns (series, mapping) where series maps stock_code → integer,
+    and mapping is {sw_l3_code: integer} with sorted codes for reproducibility.
     """
     df = con.execute(
         "SELECT code, sw_l3_code FROM industry WHERE sw_l3_code IS NOT NULL"
     ).fetchdf()
     if df.empty:
         return pd.Series(dtype=int), {}
-    codes, uniques = pd.factorize(df["sw_l3_code"])
-    mapping = {k: int(v) for k, v in zip(uniques, range(len(uniques)))}
-    return pd.Series(codes, index=df["code"], name="sw_l3"), mapping
+
+    categories = sorted(df["sw_l3_code"].astype(str).unique())
+    mapping = {code: i for i, code in enumerate(categories)}
+    codes = df["sw_l3_code"].map(mapping).fillna(-1).astype(int)
+    return pd.Series(codes.values, index=df["code"], name="sw_l3"), mapping
 
 
 def load_factors(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
