@@ -36,6 +36,7 @@ BASIC_NUMERIC = ["total_mv", "circ_mv", "pe", "pe_ttm", "pb", "ps", "ps_ttm", "d
 TRACKED_INDICES = [
     ("000985.CSI", "000985"),   # 中证全指
     ("000300.SH",  "000300"),   # 沪深300
+    ("399303.SZ",  "399303"),   # 国证2000（微盘基准）
 ]
 
 
@@ -336,6 +337,45 @@ def _update_delist_info(con, pro):
         con.execute("CHECKPOINT")
 
 
+# ---- SHIBOR (macro daily rates) ----
+
+def _ensure_shibor_table(con):
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS macro_daily (
+            date    DATE PRIMARY KEY,
+            shibor_on DOUBLE,
+            shibor_1m DOUBLE
+        )
+    """)
+
+
+def _incremental_shibor(con, pro, today_str):
+    max_d = con.execute("SELECT MAX(date) FROM macro_daily").fetchone()[0]
+    if max_d is not None:
+        start = (pd.Timestamp(max_d) + timedelta(days=1)).strftime("%Y%m%d")
+    else:
+        start = "20080101"
+
+    if start > today_str:
+        return
+
+    log.info("Pulling SHIBOR: %s ~ %s", start, today_str)
+    df = _retry_api(pro.shibor, start_date=start, end_date=today_str)
+    if df is None or df.empty:
+        log.info("  no new SHIBOR data")
+        return
+
+    df["date"] = pd.to_datetime(df["date"])
+    df_out = df[["date", "on", "1m"]].copy()
+    df_out.columns = ["date", "shibor_on", "shibor_1m"]
+    df_out = df_out.dropna()
+
+    con.execute("INSERT OR REPLACE INTO macro_daily SELECT * FROM df_out")
+    con.execute("CHECKPOINT")
+    log.info("  macro_daily: %d rows (latest: %s)", len(df_out),
+             df_out["date"].max().date())
+
+
 def _incremental_namechange(con, pro):
     """Pull recent namechange records for all stocks (ST/*ST/摘帽/退市 etc.).
 
@@ -499,7 +539,11 @@ def main():
         n = con.execute("SELECT count(*) FROM index_daily WHERE code=?", (store_code,)).fetchone()[0]
         log.info("  index_daily: %d rows", n)
 
-    # --- 5. Incremental namechange / delist check ---
+    # --- 5. SHIBOR daily rates ---
+    _ensure_shibor_table(con)
+    _incremental_shibor(con, pro, today_str)
+
+    # --- 6. Incremental namechange / delist check ---
     _incremental_namechange(con, pro)
 
     con.close()

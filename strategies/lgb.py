@@ -242,11 +242,14 @@ class LGBStrategy(BaseStrategy):
         all_cols = available + [c for c in cat_cols if c not in available]
 
         X_sel = X[all_cols].copy()
-        X_sel[available] = X_sel[available].replace([np.inf, -np.inf], np.nan)
+        for col in available:
+            if col in X_sel.columns:
+                col_vals = X_sel[col].replace([np.inf, -np.inf], np.nan)
+                X_sel[col] = col_vals.values if isinstance(col_vals, pd.Series) else col_vals
 
         for h in self.horizons:
             pred = self._models[h].predict(X_sel)
-            result.loc[X_sel.index, _horizon_pcol(h)] = pred
+            result[_horizon_pcol(h)] = pred
 
         return result
 

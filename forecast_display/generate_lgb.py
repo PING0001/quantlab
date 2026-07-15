@@ -24,7 +24,6 @@ from config import DB_PATH, POOL_NAME, get_pool_codes, get_lgb_model_path, get_f
 
 MODEL_PATH = get_lgb_model_path()
 WEIGHTS = {5: 0.25, 10: 0.25, 20: 0.25, 30: 0.25}
-HORIZONS = [5, 10, 20, 30]
 
 HTML_DIR = get_forecast_lgb_dir()
 
@@ -49,6 +48,17 @@ def load_name_map(con):
         pool_codes,
     ).fetchdf()
     return dict(zip(info["code"], info["name"]))
+
+
+def load_sw_l3(con, codes):
+    """Load SW L3 integer categories for prediction (same encoding as training)."""
+    df = con.execute(
+        "SELECT code, sw_l3_code FROM industry WHERE sw_l3_code IS NOT NULL"
+    ).fetchdf()
+    if df.empty:
+        return pd.Series(dtype=int)
+    c, _ = pd.factorize(df["sw_l3_code"])
+    return pd.Series(c, index=df["code"], name="sw_l3")
 
 
 def load_and_predict(target_date=None):
@@ -78,6 +88,13 @@ def load_and_predict(target_date=None):
 
     available_cols = [c for c in model.factor_names if c in factors.columns]
     factors = factors[available_cols]
+
+    # ---- add sw_l3 categorical feature if model expects it ----
+    if hasattr(model, '_categorical_feature') and model._categorical_feature:
+        sw_l3 = load_sw_l3(con, get_pool_codes())
+        if not sw_l3.empty:
+            idx_codes = factors.index.get_level_values("code")
+            factors["sw_l3"] = idx_codes.map(sw_l3).fillna(-1).astype(int)
 
     all_dates = sorted(factors.index.get_level_values("date").unique())
     if target_date is not None:
@@ -121,32 +138,57 @@ def load_and_predict(target_date=None):
     results = pd.DataFrame({"code": pred_df.index})
     results["name"] = results["code"].map(name_map).fillna(results["code"])
 
-    for h in HORIZONS:
-        col = f"pred_{h}d"
-        if col in pred_df.columns:
-            results[f"score_{h}d"] = results["code"].map(pred_df[col].to_dict()).astype(float)
+    # Use model's actual horizon columns
+    model_horizons = list(pred_df.columns)
+    weights: dict = {}
+    total_w = 0
+    for col in model_horizons:
+        h = col.replace("pred_", "")
+        if h == "median_5d":
+            w = 0.5
+        elif h.endswith("d"):
+            try:
+                w = WEIGHTS.get(int(h[:-1]), 0.25)
+            except (ValueError, TypeError):
+                w = 0.25
+        else:
+            w = 0.25
+        weights[col] = w
+        total_w += w
+    if total_w > 0:
+        for col in model_horizons:
+            weights[col] /= total_w
 
-    results["composite"] = (results["score_20d"] + results["score_30d"]) / 2
+    for col in model_horizons:
+        results[f"score_{col.replace('pred_', '')}"] = results["code"].map(pred_df[col].to_dict()).astype(float)
 
-    score_cols = [f"score_{h}d" for h in HORIZONS if f"score_{h}d" in results.columns] + ["composite"]
-    results = results.dropna(subset=score_cols).reset_index(drop=True)
+    score_cols = [f"score_{col.replace('pred_', '')}" for col in model_horizons]
+    results["composite"] = sum(
+        results[f"score_{col.replace('pred_', '')}"] * weights[col]
+        for col in model_horizons
+    )
+    results = results.dropna(subset=score_cols + ["composite"]).reset_index(drop=True)
 
     results = results.sort_values("composite", ascending=False).reset_index(drop=True)
     results["rank"] = range(1, len(results) + 1)
 
-    display_cols = ["rank", "code", "name"] + [f"score_{h}d" for h in HORIZONS] + ["composite"]
+    display_cols = ["rank", "code", "name"] + score_cols + ["composite"]
     results = results[display_cols]
 
     named_count = sum(1 for n in results["name"] if not n.isdigit())
     print(f"      predictions: {len(results)} stocks scored ({named_count} with names)")
+
+    # Build display-friendly horizon labels
+    display_horizons = [col.replace("pred_", "") for col in model_horizons]
+    display_weights = {h: weights[f"pred_{h}"] for h in display_horizons}
 
     cfg = model._config
     meta = {
         "prediction_date": str(latest_date.date()),
         "generated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "n_stocks": len(results),
-        "horizons": HORIZONS,
-        "weights": WEIGHTS,
+        "horizons": display_horizons,
+        "weights": display_weights,
         "model_info": {
             "path": str(MODEL_PATH),
             "num_leaves": cfg["num_leaves"],
@@ -163,7 +205,7 @@ def load_and_predict(target_date=None):
 
     print(f"\n    Top 5 by composite score:")
     for _, row in results.head(5).iterrows():
-        scores = " ".join(f"{h}d={row[f'score_{h}d']:+.6f}" for h in HORIZONS)
+        scores = " ".join(f"{h}={row[f'score_{h}']:+.6f}" for h in display_horizons)
         print(f"      {row['rank']:3d}. {row['code']:6s}  {row['name']:8s}  "
               f"{scores}  composite={row['composite']:+.6f}")
 
@@ -306,7 +348,9 @@ def _score_cell(val):
 
 def build_html(scored, meta):
     rows = []
-    score_cols = [f"score_{h}d" for h in HORIZONS]
+    horizons = meta["horizons"]
+    weights = meta["weights"]
+    score_cols = [f"score_{h}" for h in horizons]
     for _, r in scored.iterrows():
         cells = "".join(_score_cell(r[col]) for col in score_cols)
         row = (
@@ -322,9 +366,9 @@ def build_html(scored, meta):
 
     meta["table_rows"] = "\n".join(rows)
     meta["model_tags"] = build_model_tags(meta)
-    meta["weight_display"] = "/".join(f"{WEIGHTS[h]:.2f}" for h in HORIZONS)
-    meta["header_cols"] = "".join(f"<th>{h}d Pred</th>" for h in HORIZONS)
-    meta["footer_formula"] = " + ".join(f"{WEIGHTS[h]:.2f}*{h}d" for h in HORIZONS)
+    meta["weight_display"] = "/".join(f"{weights[h]:.2f}" for h in horizons)
+    meta["header_cols"] = "".join(f"<th>{h} Pred</th>" for h in horizons)
+    meta["footer_formula"] = " + ".join(f"{weights[h]:.2f}*{h}" for h in horizons)
 
     return HTML_TEMPLATE.format(**meta)
 

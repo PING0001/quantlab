@@ -124,14 +124,14 @@ def _load_index_data(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     """Load CSI (000985) and HS300 (000300) market state features."""
     df = con.execute(
         "SELECT code, date, close FROM index_daily "
-        "WHERE code IN ('000985', '000300') ORDER BY code, date"
+        "WHERE code IN ('000985', '000300', '399303') ORDER BY code, date"
     ).fetchdf()
     if df.empty:
         return pl.DataFrame()
     df["date"] = df["date"].astype(str)
 
     r = {}
-    for code, prefix in [("000985", "CSI"), ("000300", "HS300")]:
+    for code, prefix in [("000985", "CSI"), ("000300", "HS300"), ("399303", "GZ2000")]:
         part = df[df["code"] == code][["date", "close"]].copy()
         if part.empty:
             continue
@@ -156,6 +156,17 @@ def _load_index_data(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     if "HS300" in r:
         market = market.join(r["HS300"], on="datetime", how="left") if not market.is_empty() else r["HS300"]
     return market
+
+
+def _load_shibor(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
+    """Load SHIBOR daily rates (on, 1m) for macro feature."""
+    df = con.execute(
+        "SELECT date, shibor_on, shibor_1m FROM macro_daily ORDER BY date"
+    ).fetchdf()
+    if df.empty:
+        return pl.DataFrame()
+    df["date"] = df["date"].astype(str)
+    return pl.from_pandas(df).rename({"date": "datetime"})
 
 
 def _load_stock_info(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
@@ -326,6 +337,14 @@ def compute_panel(
         symbols = extra_df.select("vt_symbol").unique()
         market_df = symbols.join(market_df, how="cross")
         extra_df = extra_df.join(market_df, on=["datetime", "vt_symbol"], how="left")
+
+    shibor_df = _load_shibor(con)
+    if not shibor_df.is_empty():
+        dates = extra_df.select("datetime").unique()
+        shibor_df = dates.join(shibor_df, on="datetime", how="left")
+        symbols = extra_df.select("vt_symbol").unique()
+        shibor_df = symbols.join(shibor_df, how="cross")
+        extra_df = extra_df.join(shibor_df, on=["datetime", "vt_symbol"], how="left")
 
     isst_df = _compute_isst(con)
     if not isst_df.is_empty():

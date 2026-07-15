@@ -137,5 +137,6 @@ def get_backtest_dir(name: str = None) -> Path:
     return ROOT / "backtest" / (name or POOL_NAME)
 
 
-# ---- Forecast HTML ----def get_forecast_lgb_dir(name: str = None) -> Path:
+# ---- Forecast HTML ----
+def get_forecast_lgb_dir(name: str = None) -> Path:
     return ROOT / "forecast_display" / "html_lgb" / (name or POOL_NAME)
