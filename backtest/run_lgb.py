@@ -241,7 +241,7 @@ def main():
     if test_end_date is not None:
         cutoff = pd.Timestamp(test_end_date)
         test_dates = [d for d in test_dates if d <= cutoff]
-    bench_df = compute_benchmark(full_ohlcv, test_dates, delist_info=delist_info)
+    bench_df = compute_benchmark(full_ohlcv, test_dates, delist_info=delist_info, excluded_codes=excluded_codes)
 
     # ========================================================================
     # REPORT
@@ -263,7 +263,7 @@ def main():
     # Benchmark
     if not bench_df.empty and len(bench_df) > 0:
         bench_daily = bench_df['daily_ret'].dropna()
-        bench_total = float((1.0 + bench_daily).prod() - 1.0)  # cumprod of returns, not equity[-1]/equity[0]
+        bench_total = float(bench_df['equity'].iloc[-1] - 1.0)  # buy-and-hold equity[-1] - 1
         bench_ret = bench_df['daily_ret'].dropna()
         b_mean = float(bench_ret.mean())
         b_std = float(bench_ret.std())

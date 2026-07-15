@@ -868,47 +868,70 @@ def run_long_short(
     return stats, equity_df
 
 
-def compute_benchmark(ohlcv_map, test_dates, delist_info=None):
-    """Compute equal-weight benchmark daily returns, with delisting accounted as -100%."""
-    if not test_dates:
+def compute_benchmark(ohlcv_map, test_dates, delist_info=None, excluded_codes=None):
+    """Buy-and-hold equal-weight benchmark.
+
+    Start with 1 unit per stock at test_dates[0], never rebalance.
+    Suspended stocks hold at last known close.
+    Delisted stocks become worthless after delist_date.
+    ST stocks excluded.
+    """
+    if not test_dates or not ohlcv_map:
         return pd.DataFrame()
 
-    delist_events = []
+    excluded = excluded_codes or set()
+
+    # Build delist set: code → delist_date
+    delist_dates = {}
     if delist_info:
-        for code in delist_info:
-            if code in ohlcv_map:
-                last_dt = ohlcv_map[code].index[-1]
-                try:
-                    idx = test_dates.index(last_dt)
-                    if idx + 1 < len(test_dates):
-                        delist_events.append((test_dates[idx + 1], code))
-                except (ValueError, IndexError):
-                    pass
+        for code, dl_date in delist_info.items():
+            delist_dates[code] = pd.Timestamp(dl_date)
 
-    daily_rets = {}
+    # For each stock, find base close (first date in test period with data)
+    base_dt = test_dates[0]
+    base_close: dict[str, float] = {}
+    for code, ohlcv in ohlcv_map.items():
+        valid = ohlcv[ohlcv.index >= base_dt]
+        if not valid.empty:
+            base_close[code] = float(valid.iloc[0]["Close"])
+
+    # Track last known close for each stock (for suspension handling)
+    last_close: dict[str, float] = dict(base_close)
+
+    nav_records = []
     for dt in test_dates:
-        rets = []
-        for ohlcv in ohlcv_map.values():
-            if dt not in ohlcv.index:
+        active = 0
+        nav = 0.0
+        for code, base_cl in base_close.items():
+            if code in excluded:
                 continue
-            pos = ohlcv.index.get_loc(dt)
-            if pos == 0:
+            # Delisted after delist_date → value = 0
+            if code in delist_dates and dt >= delist_dates[code]:
                 continue
-            prev_close = ohlcv.iloc[pos - 1]["Close"]
-            curr_close = ohlcv.loc[dt, "Close"]
-            if prev_close > 0:
-                rets.append(float(curr_close / prev_close - 1))
+            ohlcv = ohlcv_map.get(code)
+            if ohlcv is None:
+                continue
+            if dt in ohlcv.index:
+                cl = float(ohlcv.loc[dt, "Close"])
+                last_close[code] = cl
+            else:
+                cl = last_close.get(code, base_cl)
+            if pd.isna(cl) or cl <= 0:
+                continue
+            active += 1
+            nav += cl / base_cl
 
-        # delisting day: -100% loss
-        for evt_date, _ in delist_events:
-            if evt_date == dt:
-                rets.append(-1.0)
+        if active > 0 and nav > 0:
+            nav_records.append((dt, nav))
 
-        if rets:
-            daily_rets[dt] = float(np.mean(rets))
+    if len(nav_records) < 2:
+        return pd.DataFrame()
 
-    sr = pd.Series(daily_rets, name="benchmark_ret")
-    sr.index = pd.to_datetime(sr.index)
-    sr = sr.sort_index()
-    equity = (1.0 + sr).cumprod()
-    return pd.DataFrame({"daily_ret": sr, "equity": equity})
+    nav_series = pd.Series(
+        [v for _, v in nav_records],
+        index=pd.DatetimeIndex([d for d, _ in nav_records]),
+    ).sort_index()
+
+    daily_ret = nav_series.pct_change().dropna()
+    equity = nav_series / nav_series.iloc[0]
+    return pd.DataFrame({"daily_ret": daily_ret, "equity": equity})
