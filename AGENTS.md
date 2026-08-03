@@ -2,10 +2,10 @@
 
 ## Project Overview
 
-Quantlab 是一个 **A股量化选股系统**，针对主板微盘股（流通市值 1-20 亿）进行多周期收益预测。核心流程：
+Quantlab 是一个 **A股量化选股系统**，针对主板微盘股（流通市值 1-20 亿）进行收益分类预测。核心流程：
 
 ```
-Tushare 数据 → DuckDB 存储 → 因子计算（138个，含101个 Alpha101） → LightGBM 多周期训练（4 个独立模型） → 回测 → HTML 预测报告
+Tushare 数据 → DuckDB 存储 → 因子计算（138个，含101个 Alpha101） → LightGBM 分类训练（单模型） → 回测 → HTML 预测报告
 ```
 
 ## Technology Stack
@@ -15,7 +15,7 @@ Tushare 数据 → DuckDB 存储 → 因子计算（138个，含101个 Alpha101�
 | 数据源 | Tushare（通过 quicksync.cn 中继） |
 | 数据库 | **DuckDB**（嵌入式 OLAP，所有数据单一来源） |
 | 数值计算 | numpy, pandas, scipy, polars |
-| 机器学习 | **LightGBM**（主模型，4 个独立 LGBMRegressor 每 horizon 一个） |
+| 机器学习 | **LightGBM**（主模型，单 LGBMClassifier，收益三分类） |
 | 序列化 | joblib（LightGBM）、parquet（预测缓存）、JSON（meta） |
 | 配置 | python-dotenv（.env 中的 Tushare token）、config.py（中心配置） |
 
@@ -54,7 +54,7 @@ quantlab/
 │   ├── base.py              # BaseStrategy 抽象基类 + walk_forward() 滚动框架
 │   ├── labels.py            # 前向收益标签 + 退市感知 + 涨跌停 mask
 │   ├── evaluation.py        # rank IC, Pearson IC, IC 汇总统计
-│   └── lgb.py               # LightGBM 多目标策略（★ 主模型，4 个独立 LGBMRegressor）
+│   └── lgb.py               # LightGBM 分类策略（★ 主模型，LGBMClassifier + 期望收益打分）
 │
 ├── backtest/                # 回测
 │   ├── run_lgb.py           # LightGBM 回测：5日调仓 long-only（★ 主用）
@@ -71,7 +71,7 @@ quantlab/
 │   └── {pool_name}/         # 按股票池分子目录
 │       └── lgb_multi.joblib     # LightGBM 模型（★ 主模型）
 │
-├── run_lgb.py               # ★ 主训练入口：LightGBM 多周期
+├── run_lgb.py               # ★ 主训练入口：LightGBM 分类（label: +1/0/-1）
 ├── _check_pkgs.py           # 依赖检查工具
 └── .env                     # Tushare API token
 ```
@@ -81,16 +81,18 @@ quantlab/
 ### 1. DuckDB 单一数据源
 所有行情数据和因子值均存储在 `data/ashare.duckdb` 这一个嵌入式数据库中。前复权价格通过 SQL VIEW `daily_kline` 实时计算，原始数据保持不变。**切勿引入其他数据库或文件格式来存储市场数据。**
 
-### 2. LightGBM 多目标架构（★ 主模型）
-- **4 个独立 LGBMRegressor**：每 horizon 一个，参数完全不共享，各自训练独立的梯度提升树
-- **138 个因子输入**（101 个 Alpha101 + 37 个非 alpha，含 IsST、LnAge、筹码分布因子）
-- 每个模型独立使用早停、L1+L2 正则、bagging 防过拟合
+### 2. LightGBM 分类架构（★ 主模型）
+- **单 LGBMClassifier**：将 T+16~T+20 中位数收盘收益分类为三档——`>= +8% → +1`，`<= -4% → -1`，否则 `0`（`run_lgb.py` 的 `_classify`）
+- **打分**：`predict_proba` 输出期望收益 `p(+1)*0.08 + p(-1)*(-0.04)`，作为排序分值（`strategies/lgb.py`）
+- **+1 类 3x 样本权重**：放大看多信号权重
+- **138 个因子输入**（101 个 Alpha101 + 37 个非 alpha，含 IsST、LnAge、筹码分布因子；若 `factors/selected_{pool}.json` 存在则用其子集）
+- 早停、L1+L2 正则、bagging 防过拟合
 
 ### 3. 固定测试集的 Walk-Forward
 - 在 2025-06-01 之前的所有数据上一次性训练
 - 使用该冻结模型预测整个测试期（2025-06-01 至 2026-06-01，约 242 个交易日）
-- 计算高效，且避免前视偏差
-- **不是**在扩展窗口上迭代重训练
+- 计算高效，**不是**在扩展窗口上迭代重训练
+- **未来函数警示（标签侧）**：特征 point-in-time（特征侧无未来函数），但 `walk_forward` 训练掩码只截到 `date < TEST_START`，未给标签前视窗口（T+16~T+20）留 buffer → 训练末 20 个交易日（2025-04-30~05-30，约 22k 行）的标签引用了测试期 6 月价格。**6 月测试指标（accuracy/IC）虚高**，解读时打折扣；7 月起价格未泄漏，受影响小。如需干净指标，训练掩码应截到 `first_test - 20 交易日`（`_leak_check.py` 可复验）。
 
 ### 4. 因子集（138个）
 涵盖：Alpha101（101个 WorldQuant alpha，基于 vnpy 表达式 DSL，字符串表达式 + Polars DataProxy 延迟计算）、动量（3）、波动率（4）、价格位置/技术（6）、日内形态（2）、成交量/流动性（2）、市值/成交额（3）、换手率（2）、日内（1）、市场状态（5）、横截面排名（3）、个股年龄（1）、ST状态（1）、筹码分布（4）。
@@ -131,11 +133,12 @@ quantlab/
 - **ST 过滤**：测试 IC 计算时剔除当日 IsST=1 的所有观测——ST 股流动性差且涨跌停频繁，IC 不可复现
 - 过滤后 IC 不降反升（20d: 0.2564 → 0.2600），说明 ST 在稀释信号而非虚增 IC
 
-### 7. 预测 Horizon
-- **Horizon**：`[5, 10, 20, 30]` 日（从 `[3,5,10,20]` 改为去掉 3d、加 30d）
-- **训练权重**：均分 `{5:0.25, 10:0.25, 20:0.25, 30:0.25}`
-- **展示权重**：均分 `{5:0.25, 10:0.25, 20:0.25, 30:0.25}`，按 pred_20d 排名
-- 回测建仓用 `pred_20d` 列（保持不变）
+### 7. 预测目标（分类标签）
+- **标签 `label`**：T+16~T+20 中位数收盘收益分类——`>= +8% → +1`，`<= -4% → -1`，否则 `0`
+- **单 horizon**：`HORIZONS = ['label']`，`WEIGHTS = {'label': 1.0}`（不再是多 horizon 回归）
+- **打分列 `pred_label`**：期望收益 `p(+1)*0.08 + p(-1)*(-0.04)`，按此降序排名
+- **参考 IC**：用连续值 `ret_median` / `ret_20d` 算 Rank IC 参考；分类准确率为 `train_acc` / `test_acc`
+- 回测建仓用 `pred_label` 列（`backtest/run_lgb.py` `PRED_COL`）
 
 ### 8. 多股票池配置
 - **中心配置**：所有模块通过 `config.py` 获取路径和股票池，不再硬编码
@@ -183,7 +186,7 @@ quantlab/
 
 ## Common Workflows
 
-所有命令默认使用 `QUANTLAB_POOL` 环境变量指定的股票池（默认 `smallcap_on_mainboard`）。切换方式：
+所有命令默认使用 `QUANTLAB_POOL` 环境变量指定的股票池（默认 `mainboard_microcap`）。切换方式：
 ```bash
 set QUANTLAB_POOL=mainboard_microcap && python run_lgb.py
 ```
@@ -248,7 +251,7 @@ python _check_pkgs.py
 - **Tushare 中继限流**：quicksync 中继稳定速率 200次/分钟，上限 600次/分钟。`build_db.py` 按日拉取全市场数据，每交易日 3 次 API（daily + adj_factor + daily_basic），无主动 sleep，由 relay 响应天然限速（实际 ~80-160 次/分钟）。修改数据拉取代码时注意保持此限制
 - **无 notebook**：本项目不使用 Jupyter notebook，所有分析均通过 Python 脚本完成
 - **无正式依赖文件**：项目没有 requirements.txt 或 pyproject.toml。所需包见 `_check_pkgs.py`
-- **仅支持 A 股主板**：股票池定义在 `pools/` 目录下的 JSON 文件中，聚焦流通市值 1-28 亿的主板股票
+- **仅支持 A 股主板**：股票池定义在 `pools/` 目录下的 JSON 文件中，聚焦主板小市值股票（默认微盘池流通市值 1-20 亿）
 
 ## Coding Conventions
 

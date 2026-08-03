@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-LightGBM long-only backtest — 5-day rebalancing with pred_20d.
+LightGBM long-only backtest — 5-day rebalancing with pred_label.
 
 Loads pre-computed LightGBM predictions from run_lgb.py output, then simulates
 a periodic rebalancing strategy:
-  - Every 5 trading days: rank stocks by pred_20d, sell positions that dropped
+  - Every 5 trading days: rank stocks by pred_label, sell positions that dropped
     out of top-N, buy top-N stocks not yet held.
   - All trades use overnight limit orders with auction + intraday execution.
   - Sell orders persist across non-rebalance days.
