@@ -25,6 +25,10 @@ from config import DB_PATH, POOL_NAME, get_pool_codes, get_lgb_model_path, get_f
 MODEL_PATH = get_lgb_model_path()
 WEIGHTS = {5: 0.25, 10: 0.25, 20: 0.25, 30: 0.25}
 
+# 理论中性值：基于预测公式 p(+1)*0.08 + p(-1)*(-0.04) 的不对称性
+# 以及 +1 类 3x 样本权重，无预测能力时的期望输出约为 0.015
+NEUTRAL = 0.015
+
 HTML_DIR = get_forecast_lgb_dir()
 
 
@@ -189,25 +193,14 @@ def load_and_predict(target_date=None):
     display_horizons = [col.replace("pred_", "") for col in model_horizons]
     display_weights = {h: weights[f"pred_{h}"] for h in display_horizons}
 
-    cfg = model._config
     meta = {
         "prediction_date": str(latest_date.date()),
         "generated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "n_stocks": len(results),
         "horizons": display_horizons,
         "weights": display_weights,
-        "model_info": {
-            "path": str(MODEL_PATH),
-            "num_leaves": cfg["num_leaves"],
-            "learning_rate": cfg["learning_rate"],
-            "min_child_samples": cfg["min_child_samples"],
-            "reg_alpha": cfg["reg_alpha"],
-            "reg_lambda": cfg["reg_lambda"],
-            "factor_count": len(model.factor_names),
-            "trees": tree_info,
-        },
-        "positive_count": int((results["composite"] > 0).sum()),
-        "negative_count": int((results["composite"] <= 0).sum()),
+        "positive_count": int((results["composite"] > NEUTRAL).sum()),
+        "negative_count": int((results["composite"] <= NEUTRAL).sum()),
     }
 
     print(f"\n    Top 5 by composite score:")
@@ -259,15 +252,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   }}
   thead {{ background: #2c2c3a; color: #f0f0f5; }}
   th {{
-    padding: 10px 8px; text-align: right; font-size: 12px; font-weight: 500; white-space: nowrap;
+    padding: 8px 12px; text-align: right; font-size: 12px; font-weight: 500; white-space: nowrap;
   }}
-  th:first-child {{ text-align: center; width: 44px; }}
+  th:first-child {{ text-align: center; width: 40px; }}
   th:nth-child(2) {{ text-align: left; }}
   th:nth-child(3) {{ text-align: left; }}
   td {{
-    padding: 8px; font-size: 12px; border-bottom: 1px solid #eef0f4; text-align: right; white-space: nowrap;
+    padding: 6px 12px; font-size: 12px; border-bottom: 1px solid #eef0f4; text-align: right; white-space: nowrap;
   }}
-  td:first-child {{ text-align: center; color: #888; font-size: 11px; width: 44px; }}
+  td:first-child {{ text-align: center; color: #888; font-size: 11px; width: 40px; }}
   td:nth-child(2) {{ text-align: left; font-family: "SF Mono", "Cascadia Code", "Consolas", monospace; }}
   td:nth-child(3) {{ text-align: left; }}
   tbody tr:hover {{ background: #f7f8fb; }}
@@ -289,14 +282,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <h1>LightGBM Multi-Horizon Prediction</h1>
     <div class="meta">
       <span>Pred Date: {prediction_date}</span>
-      {model_tags}
-      <span>Weight: {weight_display}</span>
       <span>Generated: {generated_at}</span>
     </div>
     <div class="stats">
       <div class="stat-box"><div class="val">{n_stocks}</div><div class="lbl">Total</div></div>
-      <div class="stat-box pos"><div class="val">{positive_count}</div><div class="lbl">Bullish (composite &gt; 0)</div></div>
-      <div class="stat-box neg"><div class="val">{negative_count}</div><div class="lbl">Bearish (composite &le; 0)</div></div>
+      <div class="stat-box pos"><div class="val">{positive_count}</div><div class="lbl">Bullish (&gt; {neutral:.3f})</div></div>
+      <div class="stat-box neg"><div class="val">{negative_count}</div><div class="lbl">Bearish (&le; {neutral:.3f})</div></div>
     </div>
   </header>
   <div class="toolbar">
@@ -316,7 +307,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </tbody>
   </table>
   <footer>
-    Composite = {footer_formula} &middot;
+    Composite = {composite_label}
     LightGBM model &middot; For reference only
   </footer>
 </div>
@@ -333,22 +324,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </html>"""
 
 
-def build_model_tags(meta):
-    info = meta["model_info"]
-    return (
-        f"<span>LightGBM: leaves={info['num_leaves']}, "
-        f"lr={info['learning_rate']}, "
-        f"{info['factor_count']} factors</span>"
-    )
-
-
 def _score_cell(val):
-    cls = "score-pos" if val > 0 else "score-neg"
+    dev = val - NEUTRAL  # 相对中性值的偏离
+    cls = "score-pos" if dev > 0 else "score-neg"
     px_per_unit = 1200
     max_px = 150
-    bar_w = max(int(min(abs(val) * px_per_unit, max_px)), 0)
-    bar_w = max(bar_w, 2) if val != 0 else 0
-    bar_color = "#0a8f4a" if val > 0 else "#c0392b"
+    bar_w = max(int(min(abs(dev) * px_per_unit, max_px)), 0)
+    bar_w = max(bar_w, 2) if abs(dev) > 1e-6 else 0
+    bar_color = "#0a8f4a" if dev > 0 else "#c0392b"
     bar = f'<span class="score-bar" style="width:{bar_w}px;background:{bar_color};"></span>'
     return f'<td class="{cls}">{bar}{val:+.6f}</td>'
 
@@ -372,10 +355,10 @@ def build_html(scored, meta):
         rows.append(row)
 
     meta["table_rows"] = "\n".join(rows)
-    meta["model_tags"] = build_model_tags(meta)
-    meta["weight_display"] = "/".join(f"{weights[h]:.2f}" for h in horizons)
-    meta["header_cols"] = "".join(f"<th>{h} Pred</th>" for h in horizons)
-    meta["footer_formula"] = " + ".join(f"{weights[h]:.2f}*{h}" for h in horizons)
+    meta["header_cols"] = "<th>Prediction</th>"
+    meta["footer_formula"] = ""
+    meta["composite_label"] = "Prediction"
+    meta["neutral"] = NEUTRAL
 
     return HTML_TEMPLATE.format(**meta)
 
