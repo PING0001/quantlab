@@ -23,7 +23,25 @@ Tushare 数据 → DuckDB 存储 → 因子计算 → LightGBM 分类训练 → 
 
 ### 1. 环境准备
 
-安装依赖：
+进入项目根目录（以下所有命令均在此目录下执行）：
+
+```bash
+cd quantlab
+```
+
+建议使用 venv 虚拟环境隔离依赖（需 Python >= 3.9）：
+
+```bash
+python -m venv .venv
+```
+
+激活环境后安装依赖：
+
+| 环境 | 激活命令 |
+|---|---|
+| Windows cmd | `.venv\Scripts\activate` |
+| Windows PowerShell | `.venv\Scripts\Activate.ps1` |
+| Linux / macOS | `source .venv/bin/activate` |
 
 ```bash
 pip install -r requirements.txt
@@ -76,8 +94,12 @@ python trade_signals/export.py             # 导出交易信号
 
 股票池定义在 `pools/mainboard_microcap.json`：~1112 只主板微盘股（流通市值 1-20 亿，半年度筛选更新）。系统默认使用该池，无需额外配置；模型、预测缓存、回测结果、HTML 报告均输出到对应的 `mainboard_microcap/` 子目录。
 
-## 目录结构
+## 输出信号
+模型对每只股票每日输出一个**看多打分**：未来 16~20 个交易日中位数收益**涨超 8% 的概率**减去**跌超 4% 的概率**。打分越高，模型越看好；中性值在 0.015 左右。
 
+HTML 预测报告（`forecast_display/html_lgb/mainboard_microcap/`）用HTML的形式展示某日预测结果
+
+## 目录结构
 ```
 quantlab/
 ├── config.py          # 中心配置：DB 路径、股票池、各模块输出路径
