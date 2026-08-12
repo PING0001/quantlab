@@ -1,6 +1,5 @@
 # Quantlab
 
-> **当前主要维护分支：`feature/prob_forecast`**，`main` 分支可能落后，请以本分支为准。
 
 一个小量化系统，专注于A股微盘。
 
