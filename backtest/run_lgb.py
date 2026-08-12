@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-LightGBM long-only backtest — 5-day rebalancing with pred_20d.
+LightGBM long-only backtest — 5-day rebalancing with pred_label.
 
 Loads pre-computed LightGBM predictions from run_lgb.py output, then simulates
 a periodic rebalancing strategy:
-  - Every 5 trading days: rank stocks by pred_20d, sell positions that dropped
+  - Every 5 trading days: rank stocks by pred_label, sell positions that dropped
     out of top-N, buy top-N stocks not yet held.
   - All trades use overnight limit orders with auction + intraday execution.
   - Sell orders persist across non-rebalance days.
@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import DB_PATH, POOL_NAME, get_pool_codes, get_lgb_predictions_path, get_backtest_dir
 
 from strategies import rank_ic, ic_summary
-from strategies.labels import compute_forward_returns
+from strategies.labels import compute_median_close, compute_nextopen_limit_mask
 from backtest.signals import run_portfolio_rebalance, compute_benchmark, run_long_short
 
 # ============================================================================
@@ -35,9 +35,8 @@ from backtest.signals import run_portfolio_rebalance, compute_benchmark, run_lon
 # ============================================================================
 TEST_START = pd.Timestamp("2025-06-01")
 
-PRED_HORIZON = 20          # use pred_20d column
-PRED_COL = f"pred_{PRED_HORIZON}d"
-LABEL_HORIZON = 20          # forward return horizon for IC reference
+PRED_COL = "pred_label"
+LABEL_HORIZON = "median_16_20"  # median close return T+16~T+20
 
 MAX_POSITIONS = 10
 REBALANCE_FREQ = 5          # rebalance every 5 trading days
@@ -160,26 +159,55 @@ def main():
     print(f"  Delist info: {len(delist_info)} stocks")
     con.close()
 
-    # ---- 3. IC reference check ----
-    print(f"\n[3/4] IC reference ({PRED_COL} vs forward_{LABEL_HORIZON}d) ...")
+    # ---- 3. IC reference check (with limit-hit + ST filter, matching train eval) ----
+    print(f"\n[3/4] IC reference ({PRED_COL} vs median_16_20) ...")
     con_r = duckdb.connect(str(DB_PATH), read_only=True)
     placeholders = ",".join(["?"] * len(pool_codes))
     kline = con_r.execute(
-        f"SELECT code, date, close FROM daily_kline WHERE code IN ({placeholders}) ORDER BY code, date",
+        f"SELECT code, date, open, close FROM daily_kline WHERE code IN ({placeholders}) ORDER BY code, date",
         pool_codes,
     ).fetchdf()
-    labels = compute_forward_returns(kline, horizon=LABEL_HORIZON, delist_info=delist_info)
+
+    # Load ST series from factor_values
+    try:
+        st_df = con_r.execute(
+            f"SELECT code, date, IsST FROM factor_values WHERE code IN ({placeholders})",
+            pool_codes,
+        ).fetchdf()
+        if not st_df.empty:
+            st_df["date"] = pd.to_datetime(st_df["date"])
+            st_series = st_df.set_index(["date", "code"])["IsST"].astype(bool)
+        else:
+            st_series = None
+    except Exception:
+        st_series = None
+
+    limit_mask = compute_nextopen_limit_mask(kline, st_series=st_series)
+
+    labels = compute_median_close(kline, start_day=16, end_day=20, delist_info=delist_info)
     con_r.close()
 
     common = preds.index.intersection(labels.index)
-    ric = rank_ic(preds.loc[common], labels.loc[common])
+    p_ic = preds.loc[common]
+    l_ic = labels.loc[common]
+
+    safe = ~limit_mask.reindex(p_ic.index, fill_value=False)
+    if st_series is not None:
+        safe = safe & ~st_series.reindex(p_ic.index, fill_value=False)
+    ric = rank_ic(p_ic.loc[safe], l_ic.loc[safe])
     ic_s = ic_summary(ric)
-    print(f"  Rank IC (20d): mean={ic_s['mean_ic']:.4f}, IR={ic_s['ir']:.2f}, "
-          f"hit_rate={ic_s['hit_rate']:.2%}, {ic_s['n_periods']} dates")
+    n_excl = (~safe).sum()
+    print(f"  Rank IC (median_16_20): mean={ic_s['mean_ic']:.4f}, IR={ic_s['ir']:.2f}, "
+          f"hit_rate={ic_s['hit_rate']:.2%}, {ic_s['n_periods']} dates, {n_excl} excluded")
+
+    pred_dates = sorted(preds.index.get_level_values("date").unique())
+    test_end_date = str(pred_dates[-1].date()) if len(pred_dates) > 0 else str(TEST_START.date())
+    print(f"  Prediction period: {pred_dates[0].date()} ~ {pred_dates[-1].date()} ({len(pred_dates)} dates)")
+    print(f"  Backtest will stop at prediction end: {test_end_date}")
 
     # ---- 4. Portfolio backtest ----
     print(f"\n[4/4] Running 5-day rebalance backtest "
-          f"(max_pos={MAX_POSITIONS}, rebalance_freq={REBALANCE_FREQ}, horizon={PRED_HORIZON}d) ...")
+          f"(max_pos={MAX_POSITIONS}, rebalance_freq={REBALANCE_FREQ}) ...")
     port_stats, equity_df, trade_df = run_portfolio_rebalance(
         preds, ohlcv_map,
         test_start=str(TEST_START.date()),
@@ -190,9 +218,18 @@ def main():
         excluded_codes=excluded_codes,
         initial_cash_per_stock=CASH_PER_STOCK,
         commission=COMMISSION,
+        stamp_duty=STAMP_DUTY,
         risk_free_rate=RISK_FREE_RATE,
         delist_info=delist_info,
     )
+
+    # Truncate equity to prediction end date
+    if not equity_df.empty and test_end_date is not None:
+        cutoff = pd.Timestamp(test_end_date)
+        equity_df = equity_df[equity_df.index <= cutoff]
+        # Recompute stats on truncated equity
+        from backtest.signals import _compute_stats
+        port_stats, equity_df = _compute_stats(equity_df["Equity"], risk_free_rate=RISK_FREE_RATE)
 
     n_trades = len(trade_df)
     n_buys = int((trade_df["action"] == "BUY").sum()) if n_trades > 0 else 0
@@ -200,7 +237,11 @@ def main():
     print(f"  Trades: {n_trades} total (BUY={n_buys}, SELL={n_sells})")
 
     test_dates = sorted(preds.index.get_level_values("date").unique())
-    bench_df = compute_benchmark(full_ohlcv, test_dates, delist_info=delist_info)
+    # Truncate benchmark dates to prediction end
+    if test_end_date is not None:
+        cutoff = pd.Timestamp(test_end_date)
+        test_dates = [d for d in test_dates if d <= cutoff]
+    bench_df = compute_benchmark(full_ohlcv, test_dates, delist_info=delist_info, excluded_codes=excluded_codes)
 
     # ========================================================================
     # REPORT
@@ -221,7 +262,8 @@ def main():
 
     # Benchmark
     if not bench_df.empty and len(bench_df) > 0:
-        bench_total = float(bench_df['equity'].iloc[-1] / bench_df['equity'].iloc[0] - 1)
+        bench_daily = bench_df['daily_ret'].dropna()
+        bench_total = float(bench_df['equity'].iloc[-1] - 1.0)  # buy-and-hold equity[-1] - 1
         bench_ret = bench_df['daily_ret'].dropna()
         b_mean = float(bench_ret.mean())
         b_std = float(bench_ret.std())

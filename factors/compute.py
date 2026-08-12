@@ -212,7 +212,12 @@ def _compute_isst(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     if not records:
         return pl.DataFrame(schema={"vt_symbol": pl.Utf8, "datetime": pl.Utf8, "IsST": pl.Int32})
 
-    return pl.DataFrame(records)
+    result = pl.DataFrame(records)
+    # Deduplicate: a stock with overlapping ST/*ST namechange records would
+    # otherwise emit multiple rows per (vt_symbol, datetime), multiplying
+    # through the downstream extra_df.join into duplicate factor rows.
+    result = result.unique(subset=["vt_symbol", "datetime"], keep="first")
+    return result
 
 
 # ---- Main Pipeline ----

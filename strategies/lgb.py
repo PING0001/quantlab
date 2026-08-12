@@ -93,6 +93,7 @@ class LGBStrategy(BaseStrategy):
         boosting_type: str = "gbdt",
         drop_rate: float = 0.0,
         objective: str | None = None,
+        model_type: str = "regressor",
         categorical_feature: list[str] | None = None,
         name: str | None = None,
         l1_loss_horizon: Any = None,
@@ -100,6 +101,7 @@ class LGBStrategy(BaseStrategy):
         super().__init__(factor_names=factor_names, name=name)
         self.horizons = horizons
         self._l1_loss_horizon = l1_loss_horizon
+        self._model_type = model_type
         self._config = dict(
             num_leaves=num_leaves,
             max_depth=max_depth,
@@ -120,6 +122,7 @@ class LGBStrategy(BaseStrategy):
             n_jobs=n_jobs,
             verbosity=verbosity,
             objective=objective,
+            model_type=model_type,
             categorical_feature=categorical_feature or [],
         )
         self._models: dict[Any, lgb.LGBMRegressor] = {}
@@ -205,17 +208,41 @@ class LGBStrategy(BaseStrategy):
             is_peak = (
                 self._l1_loss_horizon is not None and h == self._l1_loss_horizon
             )
-            if is_peak:
-                model_kwargs["objective"] = "regression_l1"
 
-            model = lgb.LGBMRegressor(**model_kwargs)
+            if cfg.get("model_type") == "classifier":
+                model_kwargs.pop("objective", None)
+                model_kwargs.pop("reg_alpha", None)
+                model_kwargs.pop("reg_lambda", None)
+                if is_peak:
+                    model_kwargs["objective"] = "regression_l1"
+                    model = lgb.LGBMRegressor(**model_kwargs)
+                else:
+                    model = lgb.LGBMClassifier(**model_kwargs)
+            else:
+                if is_peak:
+                    model_kwargs["objective"] = "regression_l1"
+                model = lgb.LGBMRegressor(**model_kwargs)
             fit_kwargs = {}
             if cat_feature:
                 fit_kwargs["categorical_feature"] = cat_feature
+
+            is_cls = cfg.get("model_type") == "classifier" and not is_peak
+
+            if is_cls:
+                # LGBMClassifier requires labels 0..K-1, remap from {-1,0,1} to {0,1,2}
+                y_tr = y_h_train.astype(int) + 1
+                y_vl = y_h_val.astype(int) + 1
+                # sample weights: +1 class (mapped to 2) gets higher weight
+                sample_w = np.ones_like(y_tr, dtype=float)
+                sample_w[y_tr == 2] = 3.0  # triple weight for +1 class
+                fit_kwargs["sample_weight"] = sample_w
+            else:
+                y_tr = y_h_train
+                y_vl = y_h_val
+
             model.fit(
-                X_train,
-                y_h_train,
-                eval_set=[(X_val, y_h_val)],
+                X_train, y_tr,
+                eval_set=[(X_val, y_vl)],
                 callbacks=callbacks,
                 eval_metric="mae" if is_peak else None,
                 **fit_kwargs,
@@ -249,8 +276,13 @@ class LGBStrategy(BaseStrategy):
                 X_sel[col] = col_vals.values if isinstance(col_vals, pd.Series) else col_vals
 
         for h in self.horizons:
-            pred = self._models[h].predict(X_sel)
-            result[_horizon_pcol(h)] = pred
+            if isinstance(self._models[h], lgb.LGBMClassifier):
+                proba = self._models[h].predict_proba(X_sel)
+                # Expected return under classification: p(+1)*0.08 + p(-1)*(-0.04)
+                result[_horizon_pcol(h)] = proba[:, 2] * 0.08 + proba[:, 0] * (-0.04)
+            else:
+                pred = self._models[h].predict(X_sel)
+                result[_horizon_pcol(h)] = pred
 
         return result
 
@@ -301,6 +333,7 @@ class LGBStrategy(BaseStrategy):
             n_jobs=cfg.get("n_jobs", -1),
             verbosity=cfg.get("verbosity", -1),
             objective=cfg.get("objective"),
+            model_type=cfg.get("model_type", "regressor"),
             categorical_feature=cfg.get("categorical_feature"),
             name=bundle.get("name"),
             l1_loss_horizon=bundle.get("l1_loss_horizon"),

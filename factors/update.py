@@ -109,6 +109,17 @@ def main():
         con.close()
         return
 
+    # Deduplicate on (code, date): compute_panel can emit duplicate rows when
+    # a stock has overlapping ST/*ST namechange records (both multiply through
+    # the IsST join). store_factor_values (full path) dedups via panel.unique();
+    # the incremental path must do the same.
+    n_before = len(panel)
+    panel = panel.unique(subset=["code", "date"], keep="last")
+    n_after = len(panel)
+    if n_after < n_before:
+        log.warning("Deduplicated new panel: %d -> %d rows (-%d duplicates)",
+                    n_before, n_after, n_before - n_after)
+
     n_new = len(panel)
     n_dates = panel["date"].n_unique() if "date" in panel.columns else 0
     log.info("New factor rows: %d rows, %d dates", n_new, n_dates)
@@ -134,9 +145,16 @@ def main():
     if pdf.empty:
         log.info("All new rows already exist in factor_values.")
     else:
-        con.execute("INSERT INTO factor_values SELECT * FROM pdf")
+        # Insert only columns that exist in both the table and new data
+        existing_cols = {r[0] for r in con.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='factor_values'"
+        ).fetchall()}
+        insert_cols = [c for c in pdf.columns if c in existing_cols]
+        pdf_sel = pdf[insert_cols]
+        cols_str = ", ".join(insert_cols)
+        con.execute(f"INSERT INTO factor_values ({cols_str}) SELECT * FROM pdf_sel")
         con.execute("CHECKPOINT")
-        log.info("Inserted %d rows into factor_values.", len(pdf))
+        log.info("Inserted %d rows into factor_values.", len(pdf_sel))
 
     con.close()
     log.info("Done.")

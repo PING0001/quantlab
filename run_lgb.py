@@ -15,6 +15,7 @@ from pathlib import Path
 from datetime import datetime
 
 import duckdb
+import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -33,21 +34,21 @@ WARMUP_DAYS = 90
 TRAIN_WINDOW = 252
 MIN_TRAIN = 252
 
-HORIZONS = ['median_5d', 20]
-WEIGHTS = {'median_5d': 0.50, 20: 0.50}
+HORIZONS = ['label']
+WEIGHTS = {'label': 1.0}
 
 LGB_KWARGS = dict(
     num_leaves=8,
     max_depth=4,
-    learning_rate=0.02,
+    learning_rate=0.05,
     n_estimators=3000,
     min_child_samples=2000,
-    reg_alpha=10.0,
-    reg_lambda=10.0,
+    reg_alpha=3.0,
+    reg_lambda=3.0,
     subsample=0.6,
     subsample_freq=1,
     colsample_bytree=0.3,
-    objective="regression_l1",
+    model_type="classifier",
     categorical_feature=["sw_l3"],
     early_stopping=True,
     validation_fraction=0.10,
@@ -136,6 +137,9 @@ def main():
     if missing:
         print(f"  WARNING: {len(missing)} selected factors not in DB: {missing}")
     factor_cols = available
+    # IsST may not be in the selected-factors JSON; capture it before column
+    # pruning so ST exclusion and the next-open limit mask still work.
+    st_series = factors_raw["IsST"].astype(bool) if "IsST" in factors_raw.columns else None
     factors_raw = factors_raw[factor_cols].copy()
     
     # ---- add sw_l3 categorical feature ----
@@ -156,11 +160,26 @@ def main():
     t0 = time.time()
 
     # ---- labels ----
-    print(f"  computing labels for horizons {HORIZONS} ...")
-    label_dfs = {}
-    label_dfs['median_5d'] = compute_median_close(kline, start_day=16, end_day=20, delist_info=delist_info)
-    label_dfs[20] = compute_forward_returns(kline, horizon=20, delist_info=delist_info)
-    labels_raw = pd.DataFrame({h: label_dfs[h] for h in HORIZONS})
+    # 分类目标：T+16~T+20 中位数收盘 vs T日收盘
+    #   >= +8% → 1,  <= -4% → -1,  否则 → 0
+    print(f"  computing labels: median_5d close return (T+16~T+20) ...")
+    median_ret = compute_median_close(kline, start_day=16, end_day=20, delist_info=delist_info)
+    
+    label_20d = compute_forward_returns(kline, horizon=20, delist_info=delist_info)
+
+    def _classify(ret):
+        if ret >= 0.08:
+            return 1
+        if ret <= -0.04:
+            return -1
+        return 0
+
+    # 分类标签
+    y_class = median_ret.apply(_classify)
+    y_class.name = "label"
+
+    # 同时保留连续值用于 IC 参考
+    labels_raw = pd.DataFrame({"label": y_class, "ret_20d": label_20d, "ret_median": median_ret})
 
     # ---- align ----
     common = factors_raw.index.intersection(labels_raw.index)
@@ -178,7 +197,8 @@ def main():
     print(f"  date range: {date_level.min().date()} ~ {date_level.max().date()}")
 
     # ---- exclude ST + delisted observations from training ----
-    st_series = factors_raw["IsST"].astype(bool) if "IsST" in factors_raw.columns else None
+    # st_series captured before column pruning above (it may be absent from
+    # the selected-factors JSON and would otherwise be silently dropped).
     if st_series is not None:
         st_mask = st_series.reindex(X.index, fill_value=False)
     else:
@@ -234,63 +254,60 @@ def main():
         n_dates = 0
         print(f"  predictions: NONE ({t_pred - t0:.1f}s)")
 
-    # ---- train-set IC ----
+    # ---- evaluation ----
+    all_results = {}
+    h = 'label'
+    col = f"pred_{h}"
+    print(f"\n--- Classification (label: >=8%→+1, <=-4%→-1, else→0) ---")
+
+    # train classification accuracy
     train_mask = X.index.get_level_values("date") < TEST_START
     preds_train = strategy.predict(X.loc[train_mask])
+    train_pred = preds_train[col].values
+    train_true = y.loc[train_mask, h].values
 
-    def _pred_col(h):
-        if isinstance(h, str):
-            return f"pred_{h}"
-        return f"pred_{h}d"
+    train_pred_class = np.sign(train_pred).astype(int)
+    train_acc = np.mean(train_pred_class == train_true)
+    print(f"  train-set accuracy: {train_acc:.4f}")
+    print(f"  train label dist: +1={sum(train_true==1)}, 0={sum(train_true==0)}, -1={sum(train_true==-1)}")
 
-    def _h_label(h):
-        if isinstance(h, str):
-            return h
-        return f"{h}d"
+    if n_pred > 0 and col in preds.columns:
+        test_pred = preds[col]
+        test_true = y.reindex(preds.index)[h]
 
-    all_results = {}
-    for h in HORIZONS:
-        col = _pred_col(h)
-        h_label = _h_label(h)
-        print(f"\n--- Horizon {h_label} ---")
-        ric_train = rank_ic(preds_train[col], y[h])
-        s_train = ic_summary(ric_train)
-        if s_train.get("n_periods", 0) > 0:
-            print(f"  train-set Rank IC: mean_ic={s_train['mean_ic']:.4f}, ir={s_train['ir']:.3f}, hit_rate={s_train['hit_rate']:.2%}, {s_train['n_periods']} dates")
-        else:
-            print(f"  train-set Rank IC: NO DATA")
+        safe = ~limit_mask.reindex(preds.index, fill_value=False)
+        if st_series is not None:
+            safe = safe & ~st_series.reindex(preds.index, fill_value=False)
+        n_excl = (~safe).sum()
 
-        if n_pred > 0 and col in preds.columns:
-            test_pred = preds[col]
-            test_y = y.reindex(preds.index)[h]
+        tp = test_pred.loc[safe].values
+        tt = test_true.loc[safe].values
 
-            safe = ~limit_mask.reindex(preds.index, fill_value=False)
-            n_limit = (~safe).sum()
+        test_pred_class = np.sign(tp).astype(int)
+        test_acc = np.mean(test_pred_class == tt)
+        print(f"\n  test-set  accuracy: {test_acc:.4f}")
+        print(f"  test label dist: +1={sum(tt==1)}, 0={sum(tt==0)}, -1={sum(tt==-1)}")
+        print(f"  excluded: {n_excl} obs")
 
-            if st_series is not None:
-                st_mask = st_series.reindex(preds.index, fill_value=False)
-                safe = safe & ~st_mask
-                n_st = st_mask.sum()
-            else:
-                n_st = 0
+        # Rank IC vs continuous median return (reference)
+        ret_median = y.reindex(preds.index)["ret_median"]
+        ric = rank_ic(test_pred.loc[safe], ret_median.loc[safe])
+        s = ic_summary(ric)
+        print(f"  ref IR vs ret_median: mean_ic={s['mean_ic']:.4f}, ir={s['ir']:.3f}, hit={s['hit_rate']:.2%}")
 
-            ric_test = rank_ic(test_pred.loc[safe], test_y.loc[safe])
-            pic_test = pearson_ic(test_pred.loc[safe], test_y.loc[safe])
-            s_test = ic_summary(ric_test)
-            p_test = ic_summary(pic_test)
-            print(f"  test-set  Rank IC: mean_ic={s_test['mean_ic']:.4f}, ir={s_test['ir']:.3f}, hit_rate={s_test['hit_rate']:.2%}, {s_test['n_periods']} dates")
-            print(f"  test-set Pearson IC: mean_ic={p_test['mean_ic']:.4f}, ir={p_test['ir']:.3f}, hit_rate={p_test['hit_rate']:.2%}, {p_test['n_periods']} dates")
-            print(f"  test-set  excluded: {n_limit} limit-hit + {n_st} ST = {n_limit + n_st} observations")
-            print(f"  IC gap (train - test): {s_train['mean_ic'] - s_test['mean_ic']:.4f}")
-        else:
-            s_test = {"n_periods": 0}
-            p_test = {"n_periods": 0}
+        ret_20d = y.reindex(preds.index)["ret_20d"]
+        ric20 = rank_ic(test_pred.loc[safe], ret_20d.loc[safe])
+        s20 = ic_summary(ric20)
+        print(f"  ref IR vs ret_20d:    mean_ic={s20['mean_ic']:.4f}, ir={s20['ir']:.3f}, hit={s20['hit_rate']:.2%}")
 
         all_results[h] = {
-            "train_ic": s_train,
-            "test_ic": s_test,
-            "test_pearson_ic": p_test,
+            "train_acc": float(train_acc),
+            "test_acc": float(test_acc),
+            "ref_ic_median": s,
+            "ref_ic_20d": s20,
         }
+    else:
+        all_results[h] = {"train_acc": float(train_acc)}
 
     # ---- persist model ----
     model_path = get_lgb_model_path()
@@ -305,15 +322,14 @@ def main():
 
     # ---- save meta ----
     meta = {
-        "model": "LightGBM",
+        "model": "LightGBM (classification)",
         "horizons": HORIZONS,
-        "weights": WEIGHTS,
         "factor_names": factor_cols,
         "test_start": str(TEST_START.date()),
         "test_end": str(TEST_END.date()),
         "train_window": TRAIN_WINDOW,
         "lgb_kwargs": LGB_KWARGS,
-        "results_per_horizon": {str(h): all_results[h] for h in HORIZONS},
+        "results": {str(k): all_results[k] for k in all_results},
         "model_path": str(model_path),
         "predictions_path": str(pred_path),
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -326,12 +342,11 @@ def main():
     print(f"\n{'=' * 60}")
     print("=== Summary ===")
     print(f"{'=' * 60}")
-    for h in HORIZONS:
-        r = all_results[h]
-        st = r["test_ic"]
-        h_label = _h_label(h)
-        print(f"  Horizon {h_label}: train_ic={r['train_ic']['mean_ic']:.4f}, "
-              f"test_rank_ic={st.get('mean_ic', float('nan')):.4f}")
+    r = all_results.get("label", {})
+    print(f"  Train accuracy: {r.get('train_acc', 0):.4f}")
+    print(f"  Test  accuracy: {r.get('test_acc', 0):.4f}")
+    ref = r.get("ref_ic_median", {})
+    print(f"  Ref IC (ret_median): ir={ref.get('ir', 0):.3f}, hit={ref.get('hit_rate', 0):.2%}")
     print("\nDone.")
 
 
