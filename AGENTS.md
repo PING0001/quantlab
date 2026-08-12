@@ -5,7 +5,7 @@
 Quantlab 是一个 **A股量化选股系统**，针对主板微盘股（流通市值 1-20 亿）进行收益分类预测。核心流程：
 
 ```
-Tushare 数据 → DuckDB 存储 → 因子计算（138个，含101个 Alpha101） → LightGBM 分类训练（单模型） → 回测 → HTML 预测报告
+Tushare 数据 → DuckDB 存储 → 因子计算（因子库155个，含101个 Alpha101，预筛选30个入模） → LightGBM 分类训练（单模型） → 回测 → HTML 预测报告
 ```
 
 ## Technology Stack
@@ -24,10 +24,10 @@ Tushare 数据 → DuckDB 存储 → 因子计算（138个，含101个 Alpha101�
 ```
 quantlab/
 ├── config.py                # ★ 中心配置：DB 路径、股票池加载、各模块输出路径
-├── pools/                   # 股票池定义（JSON，多池支持）
-│   ├── mainboard_microcap.json   # ★ 默认池，~1112只主板微盘股（1e < circ_mv < 20e）
-│   ├── smallcap_on_mainboard.json # ~2965只主板小市值股票（1e < circ_mv < 40e）
-│   ├── mainboard_commodity_mega.json # 24只商品周期大盘股
+├── pools/                   # 股票池定义（JSON，多池机制；当前仅维护 mainboard_microcap）
+│   ├── mainboard_microcap.json   # ★ 唯一维护的池，~1112只主板微盘股（1e < circ_mv < 20e）
+│   ├── smallcap_on_mainboard.json # 已停止维护（历史遗留，勿用于新任务）
+│   ├── mainboard_commodity_mega.json # 已停止维护（历史遗留，勿用于新任务）
 │   └── build_microcap.py    # 微盘池构建：半年度 circ_mv 通胀调整筛选
 │
 ├── data/                    # 数据摄入
@@ -46,6 +46,9 @@ quantlab/
 │   ├── utility.py           # 表达式求值引擎 calculate_by_expression()
 │   ├── alpha101.py          # 101 个 WorldQuant alpha 表达式定义
 │   ├── extra_factors.py     # 非 alpha 因子 + IndNeutralize 行业中性化（申万 L3）
+│   ├── select_factors.py    # 因子预筛选：IC 排序 + 相关性去冗余 → selected_{pool}.json
+│   ├── build_ai_factor.py   # AI 因子：LightGBM 预测国证2000收益 → ai_gz2000_* 写入 factor_values
+│   ├── selected_*.json      # 各池预筛选入模因子清单（mainboard_microcap: 30 个）
 │   ├── compute.py           # 主计算流水线：DuckDB → Polars → 并行计算 → factor_values
 │   ├── update.py            # 增量因子更新入口
 │   └── __init__.py
@@ -85,7 +88,7 @@ quantlab/
 - **单 LGBMClassifier**：将 T+16~T+20 中位数收盘收益分类为三档——`>= +8% → +1`，`<= -4% → -1`，否则 `0`（`run_lgb.py` 的 `_classify`）
 - **打分**：`predict_proba` 输出期望收益 `p(+1)*0.08 + p(-1)*(-0.04)`，作为排序分值（`strategies/lgb.py`）
 - **+1 类 3x 样本权重**：放大看多信号权重
-- **138 个因子输入**（101 个 Alpha101 + 37 个非 alpha，含 IsST、LnAge、筹码分布因子；若 `factors/selected_{pool}.json` 存在则用其子集）
+- **30 个因子输入**：因子库共 155 列，经 `factors/select_factors.py` 预筛选（IC 排序 + 相关性去冗余，corr_threshold=0.75），入模清单存于 `factors/selected_{pool}.json`（mainboard_microcap 为 30 个）；若该文件不存在则退回代码内 SELECTED_FACTORS 列表
 - 早停、L1+L2 正则、bagging 防过拟合
 
 ### 3. 固定测试集的 Walk-Forward
@@ -94,8 +97,10 @@ quantlab/
 - 计算高效，**不是**在扩展窗口上迭代重训练
 - **未来函数警示（标签侧）**：特征 point-in-time（特征侧无未来函数），但 `walk_forward` 训练掩码只截到 `date < TEST_START`，未给标签前视窗口（T+16~T+20）留 buffer → 训练末 20 个交易日（2025-04-30~05-30，约 22k 行）的标签引用了测试期 6 月价格。**6 月测试指标（accuracy/IC）虚高**，解读时打折扣；7 月起价格未泄漏，受影响小。如需干净指标，训练掩码应截到 `first_test - 20 交易日`（`_leak_check.py` 可复验）。
 
-### 4. 因子集（138个）
-涵盖：Alpha101（101个 WorldQuant alpha，基于 vnpy 表达式 DSL，字符串表达式 + Polars DataProxy 延迟计算）、动量（3）、波动率（4）、价格位置/技术（6）、日内形态（2）、成交量/流动性（2）、市值/成交额（3）、换手率（2）、日内（1）、市场状态（5）、横截面排名（3）、个股年龄（1）、ST状态（1）、筹码分布（4）。
+### 4. 因子集（155个，预筛选30个入模）
+涵盖：Alpha101（101个 WorldQuant alpha，基于 vnpy 表达式 DSL，字符串表达式 + Polars DataProxy 延迟计算）、动量、波动率、价格位置/技术、日内形态、成交量/流动性、市值/成交额、换手率、日内、市场状态（CSI/HS300/GZ2000）、利率（SHIBOR）、横截面排名、个股年龄、ST状态、筹码分布、AI 因子等。
+
+**预筛选流程**：`factors/select_factors.py` 按 20d IC 绝对值排序、相关性 > 0.75 去冗余，选出最多 60 个候选，结果写入 `factors/selected_{pool}.json`；当前 mainboard_microcap 入模 **30 个**。新增/删除因子后需重跑筛选并重新训练。
 
 关键新增：
 - **Alpha101 全量因子**：从 vnpy 端口全部 101 个 WorldQuant alpha 表达式，含 18 个行业中性化（申万 L3 IndNeutralize）+ alpha56 市值因子（total_mv → cap）
@@ -104,7 +109,9 @@ quantlab/
 - `Turnover_3d` / `Turnover_3d_ratio`：3日均换手率及其与20日均的比值，换手率由 `volume × close / circ_mv` 实时计算
 - `AvgAmount_90d`：90日均成交额
 - `Intraday_return`：日内收益 `(close-open)/open`
-- `CSI_return_1d/5d/20d`、`CSI_volatility_20d`：中证全指（000985）市场状态特征，横截面广播（同一日期所有股票共享相同值）
+- `CSI_*`（000985）、`HS300_*`（000300）、`GZ2000_*`（399303 国证2000）：市场状态特征，横截面广播（同一日期所有股票共享相同值）；当前入模的是 GZ2000_return_20d / GZ2000_vol_10d / GZ2000_reversal_60d
+- `shibor_on` / `shibor_1m`：SHIBOR 利率（日频广播）
+- `ai_gz2000_20d` / `ai_gz2000_median_5d`：AI 因子，`factors/build_ai_factor.py` 用 LightGBM 预测国证2000前向收益生成
 - `Return_1d_rank` / `Return_20d_rank` / `Turnover_3d_rank`：对现有因子做横截面排名（同日期所有股票百分位 − 0.5），捕捉相对强弱信号
 - `IsST`：当日是否处于 ST/*ST 状态（从 namechange 表解析，0/1 二值因子）
 - `LnAge`：上市日至今日的自然对数天数
@@ -142,12 +149,9 @@ quantlab/
 
 ### 8. 多股票池配置
 - **中心配置**：所有模块通过 `config.py` 获取路径和股票池，不再硬编码
-- **默认股票池**：`mainboard_microcap`（~1112只，1e < circ_mv < 20e）
+- **当前仅维护 `mainboard_microcap`**（~1112只，1e < circ_mv < 20e）；`smallcap_on_mainboard`、`mainboard_commodity_mega` 已停止维护且模型效果不佳，勿用于新任务
 - **股票池文件**：每个池一个 JSON 文件，放在 `pools/` 下
-- **切换股票池**：通过环境变量 `QUANTLAB_POOL` 设置，默认 `mainboard_microcap`
-  ```bash
-  set QUANTLAB_POOL=smallcap_on_mainboard && python run_lgb.py
-  ```
+- **切换机制**：环境变量 `QUANTLAB_POOL`（默认 `mainboard_microcap`，日常无需设置）
 - **输出隔离**：模型、预测缓存、回测、HTML 报告均按 `{pool_name}/` 分子目录存储
 - **数据拉取**：`build_db.py` / `pull_adj.py` 使用 `load_all_pool_stocks()` 加载所有池的并集，确保数据库覆盖所有股票
 
@@ -157,12 +161,12 @@ quantlab/
 ### 10. 市值数据来源
 总市值 `total_mv` 和流通市值 `circ_mv` 来自 `daily_basic` 表（Tushare `daily_basic` 接口），单位为**万元**。`daily_raw` 中的同名字段全为 NULL（Tushare `daily` 接口不返回市值）。因子计算时通过 LEFT JOIN `daily_basic` 获取，注意 `daily_basic.code` 不含后缀（`.SH`/`.SZ`）。
 
-### 11. 市场状态特征（中证全指）
-- 指数日线数据存储在 `index_daily` 表（通过 `data/build_index_db.py` 拉取）
-- 当前使用 **中证全指（000985）**，从 2008 年起全程覆盖
-- 因子计算流水线（`compute_panel`）会自动从 `index_daily` 提取指数数据，计算 `CSI_return_1d/5d/20d` 和 `CSI_volatility_20d`，然后横截面广播到每个股票-日期行
+### 11. 市场状态特征（多指数）
+- 指数日线数据存储在 `index_daily` 表（通过 `data/build_index_db.py` 拉取，含 000985 / 000300 / 399303 / 000016 / 000001 / 932000）
+- `compute.py` 的 `_load_index_data()` 对 **中证全指（000985→CSI）、沪深300（000300→HS300）、国证2000（399303→GZ2000）** 计算收益/波动/回撤等特征，横截面广播到每个股票-日期行；CSI 从 2008 年起全程覆盖
+- 当前入模的市场特征为国证2000系列（GZ2000_return_20d / GZ2000_vol_10d / GZ2000_reversal_60d），与微盘股风格更匹配
 - 增量计算（`compute_panel_incremental`）同样会自动合并市场特征
-- 如需切换指数，修改 `compute.py` 中 `compute_market_features()` 的 WHERE 条件
+- 如需切换指数，修改 `compute.py` 中 `_load_index_data()` 的 WHERE 条件与前缀映射
 
 ### 12. Alpha 因子横截面排名
 - 101 个 alpha 因子中的 `cs_rank()` 调用**原生为横截面排名**（`groupby('datetime').rank()`），因为表达式求值引擎在 DataProxy 上执行，横截面算子 `cs_rank` 天然按日期分组，无需手动后处理
@@ -177,19 +181,16 @@ quantlab/
 | `daily_raw` | `daily` + `adj_factor` | 原始日线 OHLCV + 复权因子（2008-至今） |
 | `daily_basic` | `daily_basic` | 市值/估值指标（total_mv, circ_mv, PE, PB 等） |
 | `daily_kline` | VIEW → daily_raw + latest_adj | 前复权 OHLCV（实时计算） |
-| `factor_values` | `compute.py` | 因子宽表（code, date, 138 因子列） |
+| `factor_values` | `compute.py` | 因子宽表（code, date, 155 因子列） |
 | `cyq_perf` | `cyq_perf` | 筹码分布（his_low/high, cost_*, winner_rate, 2018-至今） |
 | `industry` | `build_industry.py` | 行业分类（申万 SW2021 L1/L2/L3，含 Tushare 行业） |
-| `index_daily` | `index_daily` | 指数日线（000985 中证全指, 000300 沪深300） |
+| `index_daily` | `index_daily` | 指数日线（000985 中证全指, 000300 沪深300, 399303 国证2000 等 6 个指数） |
 | `namechange` | `namechange` | 股票名称变更历史（ST/*ST/终止上市/改名） |
 | `delist_info` | 从 namechange 提取 | 退市日期（code, delist_date） |
 
 ## Common Workflows
 
-所有命令默认使用 `QUANTLAB_POOL` 环境变量指定的股票池（默认 `mainboard_microcap`）。切换方式：
-```bash
-set QUANTLAB_POOL=mainboard_microcap && python run_lgb.py
-```
+所有命令默认使用 `mainboard_microcap` 股票池（当前唯一维护的池），无需设置环境变量；`QUANTLAB_POOL` 可切换到 `pools/` 下其他池（已停止维护，仅兼容保留）。
 
 ### 更新数据（每日运行）
 ```bash
@@ -250,7 +251,7 @@ python _check_pkgs.py
 - **不要提交 .env 文件**：包含 Tushare token
 - **Tushare 中继限流**：quicksync 中继稳定速率 200次/分钟，上限 600次/分钟。`build_db.py` 按日拉取全市场数据，每交易日 3 次 API（daily + adj_factor + daily_basic），无主动 sleep，由 relay 响应天然限速（实际 ~80-160 次/分钟）。修改数据拉取代码时注意保持此限制
 - **无 notebook**：本项目不使用 Jupyter notebook，所有分析均通过 Python 脚本完成
-- **无正式依赖文件**：项目没有 requirements.txt 或 pyproject.toml。所需包见 `_check_pkgs.py`
+- **依赖文件**：`requirements.txt` 列出主要依赖（duckdb / lightgbm / polars / scikit-learn 等）；`_check_pkgs.py` 可自检已安装版本
 - **仅支持 A 股主板**：股票池定义在 `pools/` 目录下的 JSON 文件中，聚焦主板小市值股票（默认微盘池流通市值 1-20 亿）
 
 ## Coding Conventions
