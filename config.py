@@ -62,6 +62,15 @@ def get_pool_codes(name: str = None) -> list[str]:
 
 
 # ---- Selected factor set (single source of truth) ----
+
+# 增量维护的指数清单（ts_code, 存储code）：compute.py 的 _load_index_data
+# 与 data/sources.py 的 index 源共用此定义
+TRACKED_INDICES = [
+    ("000985.CSI", "000985"),   # 中证全指
+    ("000300.SH",  "000300"),   # 沪深300
+    ("399303.SZ",  "399303"),   # 国证2000（微盘基准）
+]
+
 SELECTED_FACTORS = (
     # Alpha101 (101 factors, from vnpy / WorldQuant formulaic alphas)
     [f"alpha{i}" for i in range(1, 102)]

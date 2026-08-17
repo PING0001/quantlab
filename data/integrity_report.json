@@ -1,10 +1,8 @@
 {
-  "checked_at": "2026-08-17T22:34:31",
+  "checked_at": "2026-08-17T22:52:51",
   "hard_fail": false,
   "hard_fail_reason": null,
-  "soft_warnings": [
-    "cyq_perf 在 2018-01-02~2026-08-17 范围内缺 16 个开市日: ['2026-07-14', '2026-07-17', '2026-07-22', '2026-07-23', '2026-07-24']..."
-  ],
+  "soft_warnings": [],
   "degraded": false,
   "tables": {
     "factor_values": {
@@ -32,9 +30,9 @@
     "cyq_perf": {
       "latest": "2026-08-17",
       "rows": 5539,
-      "median20": 5521,
-      "drift": 0.003,
-      "calendar_missing": 16
+      "median20": 5529,
+      "drift": 0.002,
+      "calendar_missing": 0
     }
   },
   "latest_open_day": "2026-08-17"

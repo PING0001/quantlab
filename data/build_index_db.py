@@ -1,12 +1,15 @@
 """
 Store four index daily data into DuckDB.
 上证50: 000016.SH  沪深300: 000300.SH  中证2000: 932000.CSI  上证指数: 000001.SH
+
+注：日常增量维护的指数清单见 config.TRACKED_INDICES（000985/000300/399303，
+由 data/pull.py 的 index 源负责）；本脚本是一次性补充拉取其他指数的工具。
 """
 import os, sys, time, logging
 from pathlib import Path
 from dotenv import load_dotenv
 
-PROJ_ROOT = Path(r"C:\Users\cui\Documents\quantlab")
+PROJ_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJ_ROOT))
 
 import duckdb
