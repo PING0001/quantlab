@@ -79,13 +79,20 @@ def refresh_safe(con: duckdb.DuckDBPyConnection, pro) -> str:
         return cached
 
 
+def _table_exists(con) -> bool:
+    return con.execute(
+        "SELECT count(*) FROM information_schema.tables WHERE table_name='trading_calendar'"
+    ).fetchone()[0] > 0
+
+
 def _fmt(d) -> str:
     return str(d)[:10]
 
 
 def trading_days(con, start: str = None, end: str = None) -> list[str]:
-    """开市日列表（升序，'YYYY-MM-DD'）。"""
-    ensure_table(con)
+    """开市日列表（升序，'YYYY-MM-DD'）。表不存在时返回空（只读连接安全）。"""
+    if not _table_exists(con):
+        return []
     sql = "SELECT date FROM trading_calendar WHERE is_open"
     params = []
     if start:
@@ -99,8 +106,9 @@ def trading_days(con, start: str = None, end: str = None) -> list[str]:
 
 
 def latest(con, on_or_before: str = None) -> str | None:
-    """最近的一个开市日（默认为表内最晚）。"""
-    ensure_table(con)
+    """最近的一个开市日（默认为表内最晚）。表不存在时返回 None。"""
+    if not _table_exists(con):
+        return None
     if on_or_before:
         row = con.execute(
             "SELECT MAX(date) FROM trading_calendar WHERE is_open AND date <= ?::DATE",
@@ -114,8 +122,9 @@ def latest(con, on_or_before: str = None) -> str | None:
 
 
 def recent(con, n: int, on_or_before: str = None) -> list[str]:
-    """最近 n 个开市日（升序），用于滚动窗口重拉。"""
-    ensure_table(con)
+    """最近 n 个开市日（升序），用于滚动窗口重拉。表不存在时返回空。"""
+    if not _table_exists(con):
+        return []
     if on_or_before:
         rows = con.execute(
             "SELECT date FROM trading_calendar WHERE is_open AND date <= ?::DATE "

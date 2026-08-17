@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -144,6 +145,37 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
                 report["soft_warnings"].append(
                     f"{table} 在 {lo}~{hi} 范围内缺 {len(missing)} 个开市日: "
                     f"{missing[:5]}{'...' if len(missing) > 5 else ''}"
+                )
+
+    # ---- 软警告 5：因子值级健全性（教训：行数/日期全绿但值坏——
+    #      2026-07-13~08-17 事故中 lookback 窗口损坏，长窗口因子全 NULL
+    #      而当日行数 1108 一切正常）。检查最新开市日入模因子与长窗口
+    #      代表因子的非空率 ----
+    if latest_open:
+        fv_cols = {r[0] for r in con.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='factor_values'"
+        ).fetchall()}
+        cols_to_check = []
+        try:
+            sel_path = Path(__file__).parent / \
+                f"selected_{(os.environ.get('QUANTLAB_POOL') or 'mainboard_microcap')}.json"
+            if sel_path.exists():
+                sel = json.loads(sel_path.read_text(encoding="utf-8"))
+                cols_to_check += [c for c in sel.get("selected_factors", [])
+                                  if c in fv_cols]
+        except Exception:
+            pass
+        cols_to_check += [c for c in ("Return_20d", "Reversal_60d", "GZ2000_return_20d")
+                          if c in fv_cols]
+        for col in dict.fromkeys(cols_to_check):
+            nonnull, total = con.execute(
+                f"SELECT COUNT({col}), COUNT(*) FROM factor_values WHERE date=?::DATE",
+                [latest_open],
+            ).fetchone()
+            if total and nonnull / total < 0.5:
+                report["soft_warnings"].append(
+                    f"因子值级异常: {col} 在 {latest_open} 非空率仅 "
+                    f"{nonnull}/{total}（<50%，疑似 lookback 窗口损坏或特征丢失）"
                 )
 
     return report

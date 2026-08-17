@@ -59,11 +59,23 @@ def get_missing_dates(con: duckdb.DuckDBPyConnection) -> list[str]:
 
 
 def get_lookback_start(con: duckdb.DuckDBPyConnection, from_date: str) -> str:
-    """Get the date LOOKBACK_DAYS trading days before *from_date*."""
+    """from_date 往前 LOOKBACK_DAYS 个交易日（含 from_date）窗口的最早日。
+
+    必须基于 DISTINCT 交易日计算。原实现 `LIMIT 1 OFFSET LOOKBACK_DAYS-1`
+    作用在行级 daily_kline（约 5500 行/天）上：259 行不足半日，返回的
+    仍是 from_date 当天——增量因子因此只装到 1 天历史，长窗口因子
+    （Return_20d/Reversal_60d 等）全 NULL，min_samples=1 类因子用短窗
+    算出错误值（2026-07-13~08-17 因子污染事故根因）。
+    """
     result = con.execute(
-        "SELECT date FROM daily_kline WHERE date <= ? "
-        "ORDER BY date DESC LIMIT 1 OFFSET ?",
-        [from_date, LOOKBACK_DAYS - 1],
+        """
+        SELECT MIN(d) FROM (
+            SELECT DISTINCT date AS d FROM daily_kline
+            WHERE date <= ?::DATE
+            ORDER BY date DESC LIMIT ?
+        )
+        """,
+        [from_date, LOOKBACK_DAYS],
     ).fetchone()
     if result and result[0]:
         return str(result[0])[:10]

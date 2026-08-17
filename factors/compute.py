@@ -121,9 +121,15 @@ def _load_cyq(con: duckdb.DuckDBPyConnection, codes: list[str]) -> pl.DataFrame:
 
 
 def _load_index_data(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
-    """Load CSI (000985) and HS300 (000300) market state features."""
+    """Load CSI (000985) / HS300 (000300) / GZ2000 (399303) market state features.
+
+    GZ2000 九列的计算公式系按列名语义重建，并已用 2026-06 历史存量值
+    回归验证（全部 0.00% 偏差）——原始实现代码从未入 git，2026-07 因子
+    污染事故溯源时发现缺失。注意：GZ2000 feats 必须真正 join 进返回值
+    （历史上构建后被丢弃，导致入模的 GZ2000_* 因子全 NULL）。
+    """
     df = con.execute(
-        "SELECT code, date, close FROM index_daily "
+        "SELECT code, date, high, low, close FROM index_daily "
         "WHERE code IN ('000985', '000300', '399303') ORDER BY code, date"
     ).fetchdf()
     if df.empty:
@@ -132,10 +138,29 @@ def _load_index_data(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
 
     r = {}
     for code, prefix in [("000985", "CSI"), ("000300", "HS300"), ("399303", "GZ2000")]:
-        part = df[df["code"] == code][["date", "close"]].copy()
+        part = df[df["code"] == code][["date", "high", "low", "close"]].copy()
         if part.empty:
             continue
         pl_df = pl.from_pandas(part).rename({"date": "datetime"})
+        if prefix == "GZ2000":
+            h, l, c = pl.col("high"), pl.col("low"), pl.col("close")
+            pc = c.shift(1)
+            tr = pl.max_horizontal(h, pc) - pl.min_horizontal(l, pc)
+            feats = pl_df.select([
+                pl.col("datetime"),
+                (c / c.shift(1) - 1).alias("GZ2000_return_1d"),
+                (c / c.shift(5) - 1).alias("GZ2000_return_5d"),
+                (c / c.shift(20) - 1).alias("GZ2000_return_20d"),
+                ((c / c.shift(1) - 1).rolling_std(10)).alias("GZ2000_vol_10d"),
+                ((c / c.shift(1) - 1).rolling_std(60)).alias("GZ2000_vol_60d"),
+                (-(c / c.shift(60) - 1)).alias("GZ2000_reversal_60d"),
+                ((c - c.rolling_min(252))
+                 / (c.rolling_max(252) - c.rolling_min(252))).alias("GZ2000_pricepos_252d"),
+                tr.rolling_mean(14).alias("GZ2000_atr_14d"),
+                (4 * c.rolling_std(20) / c.rolling_mean(20)).alias("GZ2000_boll_width"),
+            ])
+            r[prefix] = feats
+            continue
         feats = pl_df.select([
             pl.col("datetime"),
             (pl.col("close") / pl.col("close").shift(1) - 1).alias(f"{prefix}_return_1d"),
@@ -155,6 +180,8 @@ def _load_index_data(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     market = r.get("CSI", pl.DataFrame())
     if "HS300" in r:
         market = market.join(r["HS300"], on="datetime", how="left") if not market.is_empty() else r["HS300"]
+    if "GZ2000" in r:
+        market = market.join(r["GZ2000"], on="datetime", how="left") if not market.is_empty() else r["GZ2000"]
     return market
 
 
