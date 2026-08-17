@@ -55,30 +55,34 @@ pip install -r requirements.txt
 TUSHARE_TOKEN=你的token
 ```
 
-> 注：以下数据脚本开头有 API 地址设置，请将其改为官方地址 `https://api.tushare.pro`（或直接删除该行）：
-> - `data/build_db.py`
+> 注：数据拉取的 API 中转地址统一在 `data/_ts.py` 设置，请将其改为官方地址 `https://api.tushare.pro`（或直接删除该行）。以下脚本仍各自硬编码了中转地址，需单独修改：
 > - `data/build_index_db.py`
 > - `data/build_cyq.py`
 > - `data/build_delist_info.py`
 > - `data/build_industry.py`
-> - `data/pull_adj.py`
 
 ### 2. 首次建库（耗时较长，仅需一次）
 
 ```bash
-python data/build_db.py          # 全市场日线 + 复权因子 + 市值估值（2008 至今，约 2-4 小时）
-python data/build_index_db.py    # 指数日线（中证全指 000985 等）
-python data/build_cyq.py         # 筹码分布数据（2018 至今）
-python data/build_delist_info.py # 名称变更历史 → ST/退市信息
+python -m data.pull --full   # 全市场日线+复权+估值+筹码+指数+SHIBOR+日历（2008 至今，约 2-4 小时）
+python data/build_cyq.py     # （可选）筹码分布按股补全（2018 至今）
 ```
 
-> ⚠️ `build_db.py` 约 1.4 万次 API 调用，请确认有必要再跑，并注意 Tushare 接口限频。
+> ⚠️ 全量拉取约 1.4 万次 API 调用，请确认有必要再跑，并注意 Tushare 接口限频。
 
 ### 3. 每日更新
 
 ```bash
-python data/pull_adj.py    # 增量拉取行情（含指数、筹码、namechange）
-python -m factors.update   # 增量计算因子
+python -m data.pull          # 统一增量拉取（滚动重拉近5日幂等 + 缺口 pending + 当日 cyq 拉空自动延迟重试至 21:00）
+python -m factors.update     # 增量计算因子（日期集合对账，历史空洞自动回补；末尾输出完整性报告）
+```
+
+其他常用命令：
+
+```bash
+python -m data.pull --dry-run     # 只打印各数据源的目标日期
+python -m data.pull --reconcile   # 深对账：全历史 vs 交易日历，缺口入 pending 并补拉（建议月度）
+python -m factors.integrity       # 独立运行完整性校验（硬失败 exit 1）
 ```
 
 ### 4. 训练 / 回测 / 报告
@@ -104,7 +108,7 @@ HTML 预测报告（`forecast_display/html_lgb/mainboard_microcap/`）用HTML的
 quantlab/
 ├── config.py          # 中心配置：DB 路径、股票池、各模块输出路径
 ├── pools/             # 股票池定义（JSON）
-├── data/              # 数据摄入 + DuckDB 数据库（build_db / pull_adj / ...）
+├── data/              # 数据摄入 + DuckDB 数据库（pull 统一入口 / sources 数据源 / calendar 日历 / integrity 校验）
 ├── factors/           # 因子工程：表达式 DSL 引擎 + Alpha101 + 附加因子
 ├── strategies/        # 策略与模型：LightGBM 分类、标签、IC 评估
 ├── backtest/          # 回测（按股票池分子目录输出 equity/benchmark）

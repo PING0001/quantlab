@@ -31,11 +31,17 @@ quantlab/
 │   └── build_microcap.py    # 微盘池构建：半年度 circ_mv 通胀调整筛选
 │
 ├── data/                    # 数据摄入
-│   ├── build_db.py          # 全量建库：按日拉全市场日线、复权因子、市值/估值（2008-2026）
-│   ├── build_index_db.py    # 全量建库：拉取指数日线（中证全指 000985 等）
-│   ├── build_cyq.py         # 全量/增量拉取筹码分布数据（cyq_perf, 2018-至今）
-│   ├── build_delist_info.py # 全量拉取 namechange → 构建 delist_info + ISST 历史
-│   ├── pull_adj.py          # 增量更新：每日行情 + 每日 namechange 增量 + 每日 namechange 增量
+│   ├── pull.py              # ★ 统一拉取入口：默认增量（滚动重拉+pending+cyq当日延迟重试）；--reconcile 深对账；--full 全量；--dry-run
+│   ├── sources.py           # 数据源注册表（函数式）：daily/cyq/index/shibor/namechange/stock_info + 行级后验
+│   ├── calendar.py          # trading_calendar 表（trade_cal 唯一真相源，所有增量日期判断基于此）
+│   ├── lock.py              # flock 进程锁（防并发写 DuckDB）
+│   ├── _ts.py               # 共享 Tushare 客户端（quicksync 中转）与重试封装
+│   ├── migrate_fv_pk.py     # 一次性迁移（已执行）：factor_values 加 PK
+│   ├── build_db.py          # 薄包装 == python -m data.pull --full
+│   ├── build_cyq.py         # 筹码分布按股补全工具（2018-至今）
+│   ├── build_index_db.py    # 补充拉取其他指数（000016/932000 等）
+│   ├── build_delist_info.py # namechange 按股全量重建工具
+│   ├── pull_adj.py          # 已弃用（迁移期对照，将删除）
 │   └── ashare.duckdb        # DuckDB 数据库，所有数据唯一来源
 │
 ├── factors/                 # 因子工程（基于 vnpy 表达式 DSL 引擎）
@@ -50,7 +56,8 @@ quantlab/
 │   ├── build_ai_factor.py   # AI 因子：LightGBM 预测国证2000收益 → ai_gz2000_* 写入 factor_values
 │   ├── selected_*.json      # 各池预筛选入模因子清单（mainboard_microcap: 30 个）
 │   ├── compute.py           # 主计算流水线：DuckDB → Polars → 并行计算 → factor_values
-│   ├── update.py            # 增量因子更新入口
+│   ├── update.py            # 增量因子更新：日期集合对账 + 列所有权写入（INSERT新日期/UPDATE回补）
+│   ├── integrity.py         # 数据完整性校验：硬失败(当日因子缺失,exit 1)/软警告(缺口/漂移)
 │   └── __init__.py
 │
 ├── strategies/              # 策略与模型
@@ -132,7 +139,7 @@ quantlab/
   2. `isst_map`（`factor_values.IsST`）：主力，每日 ST 状态，来自 namechange 表
   3. `delist_info`（`delist_date`）：排除已退市股票（当前日期 >= delist_date）
   - 适用于 `run_portfolio`、`run_portfolio_rebalance`、`run_long_short`、`run_holding_test`
-- **增量更新**：`pull_adj.py` 每次运行时调用 `_incremental_namechange()`，通过 Tushare `namechange` API（不指定 ts_code）拉取全市场近期 namechange 记录，合并到 namechange 表并重新提取 delist_info
+- **增量更新**：`data/pull.py` 的 namechange 源（event 粒度）按 -7d 重叠窗口拉近期记录，**写入与 delist_info 重派生均过滤所有池的并集**（`load_all_pool_stocks()`），避免旧版全市场增量造成的表污染。stale 检测：`pending_pulls` 表记录拉取失败/为空的 (source, date)，下次运行优先补拉，attempts≥5 转 dead 状态告警
 
 ### 6. 测试集 IC 过滤
 为保证 IC 反映实盘可复现的预测能力，测试集 IC 计算时排除以下观测：
@@ -153,7 +160,7 @@ quantlab/
 - **股票池文件**：每个池一个 JSON 文件，放在 `pools/` 下
 - **切换机制**：环境变量 `QUANTLAB_POOL`（默认 `mainboard_microcap`，日常无需设置）
 - **输出隔离**：模型、预测缓存、回测、HTML 报告均按 `{pool_name}/` 分子目录存储
-- **数据拉取**：`build_db.py` / `pull_adj.py` 使用 `load_all_pool_stocks()` 加载所有池的并集，确保数据库覆盖所有股票
+- **数据拉取**：`data/pull.py` / `data/sources.py` 中 namechange、industry 触发等使用 `load_all_pool_stocks()` 加载所有池的并集，确保数据库覆盖所有股票；行情/筹码/指数按日全市场拉取
 
 ### 9. 换手率实时计算
 `daily_kline` VIEW 继承的 `turn` 字段为 NULL（Tushare `daily` 接口不返回换手率）。计算因子时通过 `volume × close / NULLIF(circ_mv, 0)` 在 `load_all_stocks` SQL 中实时算得换手率。
@@ -181,21 +188,34 @@ quantlab/
 | `daily_raw` | `daily` + `adj_factor` | 原始日线 OHLCV + 复权因子（2008-至今） |
 | `daily_basic` | `daily_basic` | 市值/估值指标（total_mv, circ_mv, PE, PB 等） |
 | `daily_kline` | VIEW → daily_raw + latest_adj | 前复权 OHLCV（实时计算） |
-| `factor_values` | `compute.py` | 因子宽表（code, date, 155 因子列） |
+| `factor_values` | `compute.py`/`update.py` | 因子宽表（code, date, 155 因子列 + ai_gz2000_*），**PK(code,date)**；因子列归 compute/update，ai 列归 build_ai_factor（UPDATE 写入，勿整行替换） |
 | `cyq_perf` | `cyq_perf` | 筹码分布（his_low/high, cost_*, winner_rate, 2018-至今） |
 | `industry` | `build_industry.py` | 行业分类（申万 SW2021 L1/L2/L3，含 Tushare 行业） |
 | `index_daily` | `index_daily` | 指数日线（000985 中证全指, 000300 沪深300, 399303 国证2000 等 6 个指数） |
-| `namechange` | `namechange` | 股票名称变更历史（ST/*ST/终止上市/改名） |
+| `namechange` | `namechange` | 股票名称变更历史（ST/*ST/终止上市/改名，池并集过滤） |
 | `delist_info` | 从 namechange 提取 | 退市日期（code, delist_date） |
+| `trading_calendar` | `trade_cal(SSE)` | 交易日历唯一真相源（date, is_open，2008-至今） |
+| `pending_pulls` | `pull.py` | 拉取失败/为空的 (source, date) 暂存（attempts≥5 转 dead） |
 
 ## Common Workflows
 
 所有命令默认使用 `mainboard_microcap` 股票池（当前唯一维护的池），无需设置环境变量；`QUANTLAB_POOL` 可切换到 `pools/` 下其他池（已停止维护，仅兼容保留）。
 
-### 更新数据（每日运行）
+### 更新数据（每日运行，workbuddy 自动化每工作日 19:30 触发）
+
 ```bash
-python data/pull_adj.py      # 拉取最新日线行情（含指数、cyq_perf、namechange 增量）
-python -m factors.update     # 增量计算因子
+python -m data.pull          # ★ 统一增量拉取：pending 补拉 + 滚动重拉近5开市日(幂等) + 新增日
+                             #   当日 cyq 拉空时每30分钟自动重试至 21:00（官方标称18~19点更新，
+                             #   经 quicksync 中转实测约 20:52 才就绪）
+python -m factors.update     # 增量计算因子（日期集合对账，历史空洞自动回补，末尾跑完整性校验）
+```
+
+其他数据命令：
+
+```bash
+python -m data.pull --dry-run     # 只打印各源目标日期，不调 API 不写库
+python -m data.pull --reconcile   # 深对账：全历史 vs 交易日历，缺口入 pending 并补拉（建议月度）
+python -m factors.integrity       # 独立完整性校验（报告 data/integrity_report.json，硬失败 exit 1）
 ```
 
 ### 拉取指数数据（首次/补充）
@@ -246,7 +266,7 @@ python _check_pkgs.py
 
 ## Important Constraints
 
-- **不要启动 `build_db.py` 全量构建**：该脚本拉取 2008-2026 全年全市场 K 线、复权因子和估值指标，按日拉取约 4600 个交易日 × 3 次 API ≈ 13800 次 API 调用，预计耗时 **2-4 小时**。频繁重跑不仅浪费时间，还会加重中转站负担。**除非用户明确要求，否则不要启动 `build_db.py`。**
+- **不要启动全量构建**（`python -m data.pull --full`，等价旧 `build_db.py`）：该模式拉取 2008-至今全市场日线、复权因子、估值、筹码、指数，按日拉取约 4600 个交易日 × 3~4 次 API ≈ 13800+ 次 API 调用，预计耗时 **2-4 小时**。频繁重跑不仅浪费时间，还会加重中转站负担。**除非用户明确要求，否则不要启动 `--full`。**日常增量请用 `python -m data.pull`（空库时日常模式会明确报错要求 --full）
 - **不要提交 DuckDB 文件**：`.gitignore` 已排除 `*.duckdb`，数据库文件较大且包含敏感配置
 - **不要提交 .env 文件**：包含 Tushare token
 - **Tushare 中继限流**：quicksync 中继稳定速率 200次/分钟，上限 600次/分钟。`build_db.py` 按日拉取全市场数据，每交易日 3 次 API（daily + adj_factor + daily_basic），无主动 sleep，由 relay 响应天然限速（实际 ~80-160 次/分钟）。修改数据拉取代码时注意保持此限制
