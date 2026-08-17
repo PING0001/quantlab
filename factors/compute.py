@@ -182,41 +182,49 @@ def _load_stock_info(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
 
 
 def _compute_isst(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
-    """Compute IsST factor from namechange table."""
+    """Compute IsST factor from namechange table (vectorized).
+
+    namechange 中每股一条 ST/*ST 区间记录（可能有重叠区间），与全部交易日
+    做笛卡尔积后按区间过滤。替代原先的 Python 双层循环（~4600 日 × ST 行，
+    是重复行事故的根因兼性能瓶颈）。
+    """
     df = con.execute("""
-        SELECT code, start_date, end_date, change_reason
+        SELECT code, start_date, end_date
         FROM namechange
         WHERE change_reason IN ('ST', '*ST')
         ORDER BY code, start_date
     """).fetchdf()
-
     if df.empty:
         return pl.DataFrame()
 
-    # For each (code, date) in daily_kline date range, check if in ST period
     date_range = con.execute("SELECT DISTINCT date FROM daily_kline ORDER BY date").fetchdf()
     if date_range.empty:
         return pl.DataFrame()
 
-    all_dates = sorted(date_range["date"].astype(str).tolist())
+    nc = pl.from_pandas(df).with_columns([
+        # 先 cast(Date) 再 cast(Utf8)，得到 'YYYY-MM-DD'（与 pandas
+        # astype(str) 及下游 extra_df 的 datetime 格式一致；直接对
+        # datetime64 cast(Utf8) 会带 ' 00:00:00.000000' 后缀导致 join 失配）
+        pl.col("start_date").cast(pl.Date).cast(pl.Utf8),
+        pl.col("end_date").cast(pl.Date).cast(pl.Utf8).fill_null("9999-12-31"),
+    ])
+    dates = pl.from_pandas(date_range).with_columns(
+        pl.col("date").cast(pl.Date).cast(pl.Utf8)
+    )
 
-    records = []
-    for _, row in df.iterrows():
-        code = row["code"]
-        start = str(row["start_date"])
-        end = str(row["end_date"]) if row["end_date"] else "9999-12-31"
-        for d in all_dates:
-            if start <= d <= end:
-                records.append({"vt_symbol": code, "datetime": d, "IsST": 1})
-
-    if not records:
-        return pl.DataFrame(schema={"vt_symbol": pl.Utf8, "datetime": pl.Utf8, "IsST": pl.Int32})
-
-    result = pl.DataFrame(records)
-    # Deduplicate: a stock with overlapping ST/*ST namechange records would
-    # otherwise emit multiple rows per (vt_symbol, datetime), multiplying
-    # through the downstream extra_df.join into duplicate factor rows.
-    result = result.unique(subset=["vt_symbol", "datetime"], keep="first")
+    result = (
+        nc.join(dates, how="cross")
+        .filter(
+            (pl.col("date") >= pl.col("start_date"))
+            & (pl.col("date") <= pl.col("end_date"))
+        )
+        .select([
+            pl.col("code").alias("vt_symbol"),
+            pl.col("date").alias("datetime"),
+            pl.lit(1, dtype=pl.Int32).alias("IsST"),
+        ])
+        .unique(subset=["vt_symbol", "datetime"], keep="first")
+    )
     return result
 
 
@@ -407,8 +415,18 @@ def _compute_one_alpha(args: tuple) -> tuple[str, pl.Series]:
 
 # ---- Storage ----
 
+AI_FACTOR_COLUMNS = ["ai_gz2000_20d", "ai_gz2000_median_5d"]
+
+
 def store_factor_values(con: duckdb.DuckDBPyConnection, panel: pl.DataFrame):
-    """Store factor panel into DuckDB factor_values table."""
+    """Store factor panel into DuckDB factor_values table (full rebuild).
+
+    factor_values 是列所有权分离的双写入方表：本函数拥有 155 个因子列，
+    build_ai_factor.py 拥有 ai_gz2000_* 两列。重建时必须：
+      1. 保留 ai 列结构并回填其数据（panel 不计算 ai 因子）；
+      2. 重建 PRIMARY KEY (code, date)（旧实现 CREATE TABLE AS 会丢掉
+         约束与 ai 列，属 schema 回归）。
+    """
     if panel.is_empty():
         log.warning("Empty panel, nothing to store.")
         return
@@ -416,18 +434,51 @@ def store_factor_values(con: duckdb.DuckDBPyConnection, panel: pl.DataFrame):
     # Deduplicate on (code, date)
     panel = panel.unique(subset=["code", "date"], keep="last")
 
+    # 备份 ai 因子列（若旧表存在且有数据）
+    old_cols = {r[0] for r in con.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='factor_values'"
+    ).fetchall()}
+    has_ai = all(c in old_cols for c in AI_FACTOR_COLUMNS)
+    if has_ai:
+        con.execute(
+            "CREATE OR REPLACE TEMP TABLE _ai_keep AS "
+            "SELECT code, date, ai_gz2000_20d, ai_gz2000_median_5d "
+            "FROM factor_values WHERE ai_gz2000_20d IS NOT NULL "
+            "OR ai_gz2000_median_5d IS NOT NULL"
+        )
+        n_keep = con.execute("SELECT COUNT(*) FROM _ai_keep").fetchone()[0]
+    else:
+        n_keep = 0
+
     con.execute("DROP TABLE IF EXISTS factor_values")
 
-    # Build schema from panel columns
+    # Build table from pandas (date 列保持 VARCHAR 'YYYY-MM-DD' 约定)
     pandas_df = panel.to_pandas()
     pandas_df = pandas_df.sort_values(["date", "code"])
-
-    # Create table automatically from pandas
     con.execute("CREATE TABLE factor_values AS SELECT * FROM pandas_df")
 
+    # 恢复 ai 列结构 + 主键
+    for col in AI_FACTOR_COLUMNS:
+        con.execute(f"ALTER TABLE factor_values ADD COLUMN IF NOT EXISTS {col} DOUBLE")
+    con.execute("ALTER TABLE factor_values ADD PRIMARY KEY (code, date)")
+
+    # 回填 ai 数据
+    if has_ai and n_keep > 0:
+        con.execute("""
+            UPDATE factor_values f SET
+                ai_gz2000_20d = k.ai_gz2000_20d,
+                ai_gz2000_median_5d = k.ai_gz2000_median_5d
+            FROM _ai_keep k
+            WHERE f.code = k.code AND f.date = k.date
+        """)
+        n_restored = con.execute(
+            "SELECT COUNT(*) FROM factor_values WHERE ai_gz2000_20d IS NOT NULL"
+        ).fetchone()[0]
+        log.info("ai factor columns restored: %d/%d rows", n_restored, n_keep)
+
     con.execute("CHECKPOINT")
-    log.info("factor_values table created with %d rows, %d columns",
-             len(pandas_df), len(pandas_df.columns))
+    log.info("factor_values table created with %d rows, %d columns (PK on code,date)",
+             len(pandas_df), len(pandas_df.columns) + len(AI_FACTOR_COLUMNS))
 
 
 # ---- Main Entry ----
