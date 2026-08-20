@@ -41,7 +41,6 @@ quantlab/
 │   ├── build_cyq.py         # 筹码分布按股补全工具（2018-至今）
 │   ├── build_index_db.py    # 补充拉取其他指数（000016/932000 等）
 │   ├── build_delist_info.py # namechange 按股全量重建工具
-│   ├── pull_adj.py          # 已弃用（迁移期对照，将删除）
 │   └── ashare.duckdb        # DuckDB 数据库，所有数据唯一来源
 │
 ├── factors/                 # 因子工程（基于 vnpy 表达式 DSL 引擎）
@@ -56,7 +55,7 @@ quantlab/
 │   ├── build_ai_factor.py   # AI 因子：LightGBM 预测国证2000收益 → ai_gz2000_* 写入 factor_values
 │   ├── selected_*.json      # 各池预筛选入模因子清单（mainboard_microcap: 30 个）
 │   ├── compute.py           # 主计算流水线：DuckDB → Polars → 并行计算 → factor_values
-│   ├── update.py            # 增量因子更新：日期集合对账 + 列所有权写入（INSERT新日期/UPDATE回补）
+│   ├── update.py            # 增量因子更新：日期+股票级对账（--backfill-stocks 回补池内缺口）+ 列所有权写入（(code,date) 行级 INSERT/UPDATE）
 │   ├── integrity.py         # 数据完整性校验：硬失败(当日因子缺失,exit 1)/软警告(缺口/漂移)
 │   └── __init__.py
 │
@@ -89,7 +88,7 @@ quantlab/
 ## Key Architectural Decisions
 
 ### 1. DuckDB 单一数据源
-所有行情数据和因子值均存储在 `data/ashare.duckdb` 这一个嵌入式数据库中。前复权价格通过 SQL VIEW `daily_kline` 实时计算，原始数据保持不变。**切勿引入其他数据库或文件格式来存储市场数据。**
+所有行情数据和因子值均存储在 `data/ashare.duckdb` 这一个嵌入式数据库中。前复权价格通过 SQL VIEW `daily_kline` 实时计算（`raw × adj_factor / latest_adj`，2026-08-20 修复了公式分子分母写反的严重 bug——旧公式 `raw × latest_adj / adj_factor` 在除权日产生巨大假收益，如 002594@2025-07-29 官方 +0.37% 被算成 −89.11%；`ensure_view()` 现为无条件 `CREATE OR REPLACE`，存量库跑一次 `python -m data.pull` 即自愈），原始数据保持不变。**切勿引入其他数据库或文件格式来存储市场数据。**
 
 ### 2. LightGBM 分类架构（★ 主模型）
 - **单 LGBMClassifier**：将 T+16~T+20 中位数收盘收益分类为三档——`>= +8% → +1`，`<= -4% → -1`，否则 `0`（`run_lgb.py` 的 `_classify`）
@@ -102,7 +101,7 @@ quantlab/
 - 在 2025-06-01 之前的所有数据上一次性训练
 - 使用该冻结模型预测整个测试期（2025-06-01 至 2026-06-01，约 242 个交易日）
 - 计算高效，**不是**在扩展窗口上迭代重训练
-- **未来函数警示（标签侧）**：特征 point-in-time（特征侧无未来函数），但 `walk_forward` 训练掩码只截到 `date < TEST_START`，未给标签前视窗口（T+16~T+20）留 buffer → 训练末 20 个交易日（2025-04-30~05-30，约 22k 行）的标签引用了测试期 6 月价格。**6 月测试指标（accuracy/IC）虚高**，解读时打折扣；7 月起价格未泄漏，受影响小。如需干净指标，训练掩码应截到 `first_test - 20 交易日`（`_leak_check.py` 可复验）。
+- **标签前视 buffer（2026-08-20 已修复）**：`walk_forward` 训练掩码现截到 `test_start` 前 `label_buffer`（默认 20，`run_lgb.py` 传 `LABEL_BUFFER=20`）个交易日，早停验证集取自 buffer 截断后的训练尾段，标签不再引用测试期价格。修复前训练的旧模型/旧指标在重训前不可引用（`_leak_check.py` 可复验）。
 
 ### 4. 因子集（155个，预筛选30个入模）
 涵盖：Alpha101（101个 WorldQuant alpha，基于 vnpy 表达式 DSL，字符串表达式 + Polars DataProxy 延迟计算）、动量、波动率、价格位置/技术、日内形态、成交量/流动性、市值/成交额、换手率、日内、市场状态（CSI/HS300/GZ2000）、利率（SHIBOR）、横截面排名、个股年龄、ST状态、筹码分布、AI 因子等。
@@ -113,8 +112,8 @@ quantlab/
 - **Alpha101 全量因子**：从 vnpy 端口全部 101 个 WorldQuant alpha 表达式，含 18 个行业中性化（申万 L3 IndNeutralize）+ alpha56 市值因子（total_mv → cap）
 - **表达式 DSL 引擎**：字符串表达式 → eval() → DataProxy 链式延迟计算（Polars），横截面 rank 原生正确（cross-sectional by construction）
 - `LnMktCap`：对数总市值（Size 因子），`total_mv` from daily_basic
-- `Turnover_3d` / `Turnover_3d_ratio`：3日均换手率及其与20日均的比值，换手率由 `volume × close / circ_mv` 实时计算
-- `AvgAmount_90d`：90日均成交额
+- `Turnover_3d` / `Turnover_3d_ratio`：3日均换手率及其与20日均的比值。换手率由 `amount / circ_mv / 10` 实时计算（amount 千元、circ_mv 万元；2026-08-20 前错误使用 `volume × 前复权close / circ_mv`，除权股历史失真）
+- `AvgAmount_90d`：90日均成交额（`amount`，千元）
 - `Intraday_return`：日内收益 `(close-open)/open`
 - `CSI_*`（000985）、`HS300_*`（000300）、`GZ2000_*`（399303 国证2000）：市场状态特征，横截面广播（同一日期所有股票共享相同值）；当前入模的是 GZ2000_return_20d / GZ2000_vol_10d / GZ2000_reversal_60d
 - `shibor_on` / `shibor_1m`：SHIBOR 利率（日频广播）
@@ -130,8 +129,7 @@ quantlab/
   - `start_date` / `end_date` 定义状态区间
 - **delist_info 表**：从 namechange 中提取 `change_reason='终止上市'` 记录，存储退市日期
   - **不使用名称匹配**（不查 name 含"退"字），避免误匹配正常股票名
-- **IsST 因子**：`_merge_st_flag()` 在因子计算后处理中广播，对每个 `(code, date)` 判断是否处于 ST 期间
-  - 修复了 NULL end_date 的覆盖问题：自动截断到下一条 namechange 记录之前
+- **IsST 因子**：`compute.py` 的 `_compute_isst()` 解析 namechange 生成 (code, date, IsST)。区间终止语义（2026-08-20 修复）：`end_date` 为 NULL 时截断到该股下一条 namechange 记录的 `start_date`（LEAD 排他上界），撤销类记录（撤销ST/撤销*ST/摘星/摘帽）作为 ST 区间终止信号且自身不开新区间；不再用 9999-12-31 兜底（旧实现曾过度标记 7,628 行/71 只）
 - **退市感知 Forward Return**：`compute_forward_returns()` 对退市股在 `delist_date` 之后、forward horizon 跨过最后交易日时，填充 `-1.0`（价值归零）
 - **训练排除**：训练集中剔除 IsST=1 和退市后的观测（`run_lgb.py` 中实现）
 - **回测过滤**（3 层防御）：
@@ -139,7 +137,7 @@ quantlab/
   2. `isst_map`（`factor_values.IsST`）：主力，每日 ST 状态，来自 namechange 表
   3. `delist_info`（`delist_date`）：排除已退市股票（当前日期 >= delist_date）
   - 适用于 `run_portfolio`、`run_portfolio_rebalance`、`run_long_short`、`run_holding_test`
-- **增量更新**：`data/pull.py` 的 namechange 源（event 粒度）按 -7d 重叠窗口拉近期记录，**写入与 delist_info 重派生均过滤所有池的并集**（`load_all_pool_stocks()`），避免旧版全市场增量造成的表污染。stale 检测：`pending_pulls` 表记录拉取失败/为空的 (source, date)，下次运行优先补拉，attempts≥5 转 dead 状态告警
+- **增量更新**：`data/pull.py` 的 namechange 源（event 粒度）按公告日（`ann_date`）锚定 -90d 窗口拉近期记录（退市/ST 公告可能远晚于生效日，旧的按生效日锚定 -7d 窗口会系统性漏事件）；**写入与 delist_info 重派生均过滤所有池的并集**（`load_all_pool_stocks()`），避免旧版全市场增量造成的表污染。stale 检测：`pending_pulls` 表记录拉取失败/为空的 (source, date)，下次运行优先补拉，attempts≥5 转 dead 状态告警
 
 ### 6. 测试集 IC 过滤
 为保证 IC 反映实盘可复现的预测能力，测试集 IC 计算时排除以下观测：
@@ -163,7 +161,7 @@ quantlab/
 - **数据拉取**：`data/pull.py` / `data/sources.py` 中 namechange、industry 触发等使用 `load_all_pool_stocks()` 加载所有池的并集，确保数据库覆盖所有股票；行情/筹码/指数按日全市场拉取
 
 ### 9. 换手率实时计算
-`daily_kline` VIEW 继承的 `turn` 字段为 NULL（Tushare `daily` 接口不返回换手率）。计算因子时通过 `volume × close / NULLIF(circ_mv, 0)` 在 `load_all_stocks` SQL 中实时算得换手率。
+`daily_kline` VIEW 继承的 `turn` 字段为 NULL（Tushare `daily` 接口不返回换手率）。计算因子时通过 `amount / NULLIF(circ_mv, 0) / 10` 在 `load_all_stocks` SQL 中实时算得换手率（单位换算见上）。
 
 ### 10. 市值数据来源
 总市值 `total_mv` 和流通市值 `circ_mv` 来自 `daily_basic` 表（Tushare `daily_basic` 接口），单位为**万元**。`daily_raw` 中的同名字段全为 NULL（Tushare `daily` 接口不返回市值）。因子计算时通过 LEFT JOIN `daily_basic` 获取，注意 `daily_basic.code` 不含后缀（`.SH`/`.SZ`）。
@@ -178,13 +176,13 @@ quantlab/
 ### 12. Alpha 因子横截面排名
 - 101 个 alpha 因子中的 `cs_rank()` 调用**原生为横截面排名**（`groupby('datetime').rank()`），因为表达式求值引擎在 DataProxy 上执行，横截面算子 `cs_rank` 天然按日期分组，无需手动后处理
 - **实现方式**：`calculate_by_expression()` 将各列包装为 DataProxy，表达式中的 `cs_rank()` → 调用 `cs_function.cs_rank()` → `pl.col('data').rank().over('datetime')`
-- 横截面排名因子 `Return_1d_rank`、`Return_20d_rank`、`Turnover_3d_rank` 在 `extra_factors.py` 中通过 `rank().over('datetime')` 生成
+- 横截面排名因子 `Return_1d_rank`、`Return_20d_rank`、`Turnover_3d_rank` 在 `extra_factors.py` 中通过 `(rank − 0.5)/n − 0.5` 生成（百分位 −0.5，值域 (−0.5, 0.5)，池规模无关）
 - 极端值保护：表达式引擎内 DataProxy 通过 `fill_nan(null)` + `is_infinite → null` 自动处理溢出值
 
 ### 13. 数据库表清单
 | 表 / VIEW | 来源 | 说明 |
 |-----------|------|------|
-| `stock_info` | `stock_basic(list_status='L')` | 当前上市股票信息（code, name, market, list_date） |
+| `stock_info` | `stock_basic(list_status='L'+'D')` | 股票信息（code, name, market, full_code, list_date, list_status, delist_date）；含退市股（2026-08-20 前仅 'L' 快照，漏 99% 退市股 → 池构建幸存者偏差） |
 | `daily_raw` | `daily` + `adj_factor` | 原始日线 OHLCV + 复权因子（2008-至今） |
 | `daily_basic` | `daily_basic` | 市值/估值指标（total_mv, circ_mv, PE, PB 等） |
 | `daily_kline` | VIEW → daily_raw + latest_adj | 前复权 OHLCV（实时计算） |
@@ -193,7 +191,7 @@ quantlab/
 | `industry` | `build_industry.py` | 行业分类（申万 SW2021 L1/L2/L3，含 Tushare 行业） |
 | `index_daily` | `index_daily` | 指数日线（000985 中证全指, 000300 沪深300, 399303 国证2000 等 6 个指数） |
 | `namechange` | `namechange` | 股票名称变更历史（ST/*ST/终止上市/改名，池并集过滤） |
-| `delist_info` | 从 namechange 提取 | 退市日期（code, delist_date） |
+| `delist_info` | 主源 `stock_basic(list_status='D').delist_date`，namechange '终止上市' 补充去重 | 退市日期（code, delist_date）；2026-08-20 前仅从 namechange 提取，仅 5 行 |
 | `trading_calendar` | `trade_cal(SSE)` | 交易日历唯一真相源（date, is_open，2008-至今） |
 | `pending_pulls` | `pull.py` | 拉取失败/为空的 (source, date) 暂存（attempts≥5 转 dead） |
 
@@ -207,7 +205,9 @@ quantlab/
 python -m data.pull          # ★ 统一增量拉取：pending 补拉 + 滚动重拉近5开市日(幂等) + 新增日
                              #   当日 cyq 拉空时每30分钟自动重试至 21:00（官方标称18~19点更新，
                              #   经 quicksync 中转实测约 20:52 才就绪）
-python -m factors.update     # 增量计算因子（日期集合对账，历史空洞自动回补，末尾跑完整性校验）
+python -m factors.update     # 增量计算因子（日期+股票级对账，历史空洞自动回补，末尾跑完整性校验）
+python -m factors.update --dry-run            # 只打印待计算日期与股票级缺口（不计算不写库）
+python -m factors.update --backfill-stocks    # 显式触发池内缺口股票的全历史回补（大计算）
 ```
 
 其他数据命令：
@@ -231,7 +231,7 @@ python data/build_cyq.py --incr # 增量拉取最近缺失交易日
 
 ### 拉取退市/ST 数据（首次/补充）
 ```bash
-python data/build_delist_info.py   # 拉取全池 namechange → delist_info + IsST 历史
+python data/build_delist_info.py   # 重建退市表：主源 stock_basic(list_status='D') + namechange '终止上市' 补充
 ```
 
 ### 训练模型
