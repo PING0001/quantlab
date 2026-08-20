@@ -26,3 +26,21 @@ trade_signals/output/
 
 # Editor/tool cache
 .zcode/
+.mimocode/
+.workbuddy/
+
+# macOS metadata
+.DS_Store
+
+# Generated LightGBM forecast HTML reports
+forecast_display/html_lgb/*/
+
+# Data backup directory
+data/archive/
+
+# Runtime lock file (auto-created by data/lock.py)
+data/.pull.lock
+
+# Runtime-generated reports (regenerated daily)
+data/integrity_report.json
+data/alpha_test_report.json

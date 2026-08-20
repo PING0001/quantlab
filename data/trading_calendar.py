@@ -11,7 +11,7 @@
 约定一致，字典序即时间序）。
 
 用法：
-    python -m data.calendar     # 全量刷新日历（单次 trade_cal 调用）
+    python -m data.trading_calendar   # 全量刷新日历（单次 trade_cal 调用）
 """
 from __future__ import annotations
 

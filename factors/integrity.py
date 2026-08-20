@@ -56,7 +56,7 @@ def _dates_in(con, table: str) -> list[str]:
 def _latest_open_day(con) -> tuple[str, bool]:
     """返回 (最新开市日, 日历是否可用)。日历缺失时降级用 daily_kline 最大日。"""
     try:
-        from data import calendar as cal
+        from data import trading_calendar as cal
         d = cal.latest(con)
         if d:
             return d, True
@@ -140,7 +140,7 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
 
     # ---- 软警告 4：日历对账（各表自身范围内缺的开市日）----
     if cal_ok and latest_open:
-        from data import calendar as cal
+        from data import trading_calendar as cal
         for table in ["daily_raw", "daily_basic", "cyq_perf", "factor_values"]:
             tdates = set(_dates_in(con, table))
             if not tdates:

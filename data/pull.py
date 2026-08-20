@@ -28,7 +28,7 @@ import duckdb
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from config import DB_PATH
-from data import calendar as cal
+from data import trading_calendar as cal
 from data import sources
 from data._ts import init_pro
 from data.lock import file_lock
@@ -224,12 +224,17 @@ def _trigger_industry(con):
     ).fetchone()[0]
     if not missing:
         return
-    log.info("%d pool stocks missing industry coverage -> build_industry.py", missing)
+    log.info("%d pool stocks missing industry coverage -> build_industry", missing)
     try:
-        subprocess.run([sys.executable, str(Path(__file__).parent / "build_industry.py")],
-                       check=True, timeout=1800)
+        # 用 -m 模块方式运行（cwd=项目根）：脚本直跑会把 data/ 顶到 sys.path[0]，
+        # data/ 下的模块名可能遮蔽 stdlib（calendar 事故的教训）
+        subprocess.run(
+            [sys.executable, "-m", "data.build_industry"],
+            cwd=Path(__file__).resolve().parent.parent,
+            check=True, timeout=1800)
     except Exception as e:
-        log.error("industry refresh failed (run data/build_industry.py manually): %s", e)
+        log.error("industry refresh failed (run `python -m data.build_industry` "
+                  "manually): %s", e)
 
 
 def run(full: bool = False, reconcile: bool = False, dry_run: bool = False) -> int:

@@ -33,7 +33,7 @@ quantlab/
 ├── data/                    # 数据摄入
 │   ├── pull.py              # ★ 统一拉取入口：默认增量（滚动重拉+pending+cyq当日延迟重试）；--reconcile 深对账；--full 全量；--dry-run
 │   ├── sources.py           # 数据源注册表（函数式）：daily/cyq/index/shibor/namechange/stock_info + 行级后验
-│   ├── calendar.py          # trading_calendar 表（trade_cal 唯一真相源，所有增量日期判断基于此）
+│   ├── trading_calendar.py  # trading_calendar 表（trade_cal 唯一真相源，所有增量日期判断基于此）
 │   ├── lock.py              # flock 进程锁（防并发写 DuckDB）
 │   ├── _ts.py               # 共享 Tushare 客户端（quicksync 中转）与重试封装
 │   ├── migrate_fv_pk.py     # 一次性迁移（已执行）：factor_values 加 PK

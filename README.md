@@ -108,7 +108,7 @@ HTML 预测报告（`forecast_display/html_lgb/mainboard_microcap/`）用HTML的
 quantlab/
 ├── config.py          # 中心配置：DB 路径、股票池、各模块输出路径
 ├── pools/             # 股票池定义（JSON）
-├── data/              # 数据摄入 + DuckDB 数据库（pull 统一入口 / sources 数据源 / calendar 日历 / integrity 校验）
+├── data/              # 数据摄入 + DuckDB 数据库（pull 统一入口 / sources 数据源 / trading_calendar 日历 / integrity 校验）
 ├── factors/           # 因子工程：表达式 DSL 引擎 + Alpha101 + 附加因子
 ├── strategies/        # 策略与模型：LightGBM 分类、标签、IC 评估
 ├── backtest/          # 回测（按股票池分子目录输出 equity/benchmark）
