@@ -38,7 +38,7 @@ def _load_ohlcv(con: duckdb.DuckDBPyConnection, codes: list[str]) -> pl.DataFram
     """Load daily kline data for given codes, compute VWAP."""
     placeholders = ",".join(["?"] * len(codes))
     df = con.execute(
-        f"SELECT code, date, open, high, low, close, volume "
+        f"SELECT code, date, open, high, low, close, volume, amount "
         f"FROM daily_kline WHERE code IN ({placeholders}) "
         f"ORDER BY code, date",
         codes,
@@ -214,10 +214,36 @@ def _compute_isst(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     namechange 中每股一条 ST/*ST 区间记录（可能有重叠区间），与全部交易日
     做笛卡尔积后按区间过滤。替代原先的 Python 双层循环（~4600 日 × ST 行，
     是重复行事故的根因兼性能瓶颈）。
+
+    区间终止语义（不再用 9999-12-31 兜底 NULL end_date）：
+    - end_date 为 NULL 时，截断到该股下一条 namechange 记录的 start_date
+      （LEAD 语义，exclusive——换名生效日即不再处于旧 ST 名称）；无下一条
+      记录时才延伸到样本末端。
+    - 撤销类记录（撤销ST/撤销*ST/摘星/摘帽）作为当前 ST 区间的终止信号
+      （取区间内最早者），其自身不开启新 ST 区间。注意 '撤消*ST并实行ST'
+      不属于撤销类（摘星后仍为 ST）。
     """
     df = con.execute("""
-        SELECT code, start_date, end_date
-        FROM namechange
+        WITH ordered AS (
+            SELECT code, change_reason, start_date, end_date,
+                   LEAD(start_date) OVER (
+                       PARTITION BY code ORDER BY start_date, end_date NULLS LAST
+                   ) AS next_start
+            FROM namechange
+        )
+        SELECT code, start_date,
+               LEAST(
+                   COALESCE(end_date + 1, next_start, DATE '9999-12-31'),
+                   COALESCE((
+                       SELECT MIN(r.start_date) FROM namechange r
+                       WHERE r.code = ordered.code
+                         AND (r.change_reason IN ('撤销ST', '撤销*ST')
+                              OR r.change_reason LIKE '摘星%'
+                              OR r.change_reason LIKE '摘帽%')
+                         AND r.start_date >= ordered.start_date
+                   ), DATE '9999-12-31')
+               ) AS end_excl
+        FROM ordered
         WHERE change_reason IN ('ST', '*ST')
         ORDER BY code, start_date
     """).fetchdf()
@@ -233,7 +259,8 @@ def _compute_isst(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         # astype(str) 及下游 extra_df 的 datetime 格式一致；直接对
         # datetime64 cast(Utf8) 会带 ' 00:00:00.000000' 后缀导致 join 失配）
         pl.col("start_date").cast(pl.Date).cast(pl.Utf8),
-        pl.col("end_date").cast(pl.Date).cast(pl.Utf8).fill_null("9999-12-31"),
+        # end_excl 为排他上界：date < end_excl 等价于含端点的闭区间终点
+        pl.col("end_excl").cast(pl.Date).cast(pl.Utf8),
     ])
     dates = pl.from_pandas(date_range).with_columns(
         pl.col("date").cast(pl.Date).cast(pl.Utf8)
@@ -243,7 +270,7 @@ def _compute_isst(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         nc.join(dates, how="cross")
         .filter(
             (pl.col("date") >= pl.col("start_date"))
-            & (pl.col("date") <= pl.col("end_date"))
+            & (pl.col("date") < pl.col("end_excl"))
         )
         .select([
             pl.col("code").alias("vt_symbol"),

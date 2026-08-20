@@ -1,4 +1,4 @@
-﻿"""
+"""
 Strategy base classes and walk-forward framework.
 
 Data convention: arguments are pandas objects with a MultiIndex (date, code).
@@ -8,6 +8,7 @@ DataFrame with one column per horizon.
 """
 from __future__ import annotations
 
+import bisect
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
@@ -44,6 +45,20 @@ class BaseStrategy(ABC):
         return self._fitted
 
 
+def buffered_train_end(
+    all_dates: list[pd.Timestamp],
+    boundary: pd.Timestamp,
+    label_buffer: int,
+) -> pd.Timestamp:
+    """Exclusive upper bound for training dates: *boundary* stepped back
+    *label_buffer* trading days in sorted *all_dates*.  Rows dated in the
+    dropped tail carry forward-looking labels (T+1..T+label_buffer) that
+    reference prices at or after *boundary*, so training on them would leak
+    the evaluation window."""
+    i = bisect.bisect_left(all_dates, boundary)
+    return all_dates[max(0, i - label_buffer)]
+
+
 def walk_forward(
     strategy: BaseStrategy,
     factor_panel: pd.DataFrame,
@@ -54,12 +69,16 @@ def walk_forward(
     test_start: pd.Timestamp | None = None,
     test_end: pd.Timestamp | None = None,
     warmup_days: int = 0,
+    label_buffer: int = 20,
 ) -> pd.DataFrame:
     """
     Walk-forward cross-sectional prediction.
 
     When *test_start* and *test_end* are provided, dates in [test_start, test_end]
     are predicted using a single model trained on all data before *test_start*.
+    Training rows within *label_buffer* trading days of the prediction boundary
+    are dropped in both branches: their forward labels would reference prices
+    from the prediction period.
 
     Returns a DataFrame with one column per horizon, indexed by (date, code).
     """
@@ -76,7 +95,10 @@ def walk_forward(
 
     if has_test:
         # -- fixed test-set: train once, predict frozen --
-        train_mask = (idx_dates >= all_dates[0]) & (idx_dates < test_start)
+        # drop the label_buffer trading days before the test set: their
+        # labels reference test-period prices (label look-ahead buffer)
+        train_end = buffered_train_end(all_dates, test_start, label_buffer)
+        train_mask = (idx_dates >= all_dates[0]) & (idx_dates < train_end)
         X_train = factor_panel.loc[train_mask]
         y_train = forward_returns.loc[train_mask].reindex(columns=list(strategy.horizons))
 
@@ -105,7 +127,10 @@ def walk_forward(
     predictions: dict[pd.Timestamp, pd.DataFrame] = {}
     for i, dt in enumerate(all_dates):
         train_start = all_dates[max(0, i - train_window)]
-        train_mask = (idx_dates >= train_start) & (idx_dates < dt)
+        # labels of the last label_buffer days before dt are not realised yet
+        # at prediction time; exclude them the same way as the fixed branch
+        train_end = buffered_train_end(all_dates, dt, label_buffer)
+        train_mask = (idx_dates >= train_start) & (idx_dates < train_end)
         X_train = factor_panel.loc[train_mask]
         y_train = forward_returns.loc[train_mask].reindex(columns=list(strategy.horizons))
 

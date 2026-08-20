@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-"""数据完整性校验：硬失败/软警告分级。
+"""
+数据完整性校验：硬失败/软警告分级。
 
 workbuddy 自动化"任何一步失败即停止"，因此分级至关重要：
 - 硬失败（exit 1，阻断下游 generate_lgb）：最新开市日的 factor_values 无数据
   --当日预测不可产出，继续没有意义；
-- 软警告（exit 0，仅记录）：历史缺口、行数漂移、adj_factor 缺失、cyq pending
+- 软警告（exit 0，仅记录）：历史缺口、行数漂移、adj_factor 缺失、cyq pending、
+  股票级覆盖缺口、因子列区间性高 NULL
   --可见但不砍断当日产品。
 
 日历对账依赖 trading_calendar（trade_cal 唯一真相）；日历不可用时该组检查
@@ -27,7 +29,7 @@ import duckdb
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import DB_PATH
+from config import DB_PATH, get_pool_codes
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +37,12 @@ REPORT_PATH = DB_PATH.parent / "integrity_report.json"
 
 # 行数漂移监控的表（trading 粒度）
 ROW_DRIFT_TABLES = ["daily_raw", "daily_basic", "cyq_perf", "factor_values"]
+
+# 因子列 NULL 率监控窗口（交易日）与告警阈值。阈值取 0.30 而非 0.50：
+# 实证 alpha100 在近 250 交易日 NULL 率 33%（80/250 天全空）从未触发旧
+# 50% 阈值，而健康列次高仅 ~9%（筹码列，cyq 起始 2018 属正常口径差异）
+NULL_WINDOW_DAYS = 250
+NULL_RATE_MAX = 0.30
 
 
 def _dates_in(con, table: str) -> list[str]:
@@ -177,6 +185,83 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
                     f"因子值级异常: {col} 在 {latest_open} 非空率仅 "
                     f"{nonnull}/{total}（<50%，疑似 lookback 窗口损坏或特征丢失）"
                 )
+
+    # ---- 软警告 6：股票级覆盖缺口（池代码 vs factor_values 历史覆盖）----
+    #      日期级空洞检查（软警告 1）看不见池扩容缺口：新成员的历史日期在
+    #      表内已有旧池股票的行。量化只数与行数，供 --backfill-stocks 决策。
+    try:
+        from .update import STOCK_COVERAGE_MIN
+
+        pool_codes = get_pool_codes()
+        rows = con.execute(
+            """
+            WITH pool AS (SELECT DISTINCT unnest(?::VARCHAR[]) AS code),
+            k AS (SELECT code, COUNT(*) AS n FROM daily_kline GROUP BY code),
+            f AS (SELECT code, COUNT(*) AS n FROM factor_values GROUP BY code)
+            SELECT p.code, COALESCE(k.n, 0), COALESCE(f.n, 0)
+            FROM pool p
+            LEFT JOIN k ON k.code = p.code
+            LEFT JOIN f ON f.code = p.code
+            WHERE COALESCE(k.n, 0) > 0
+              AND COALESCE(f.n, 0) < COALESCE(k.n, 0) * ?
+            ORDER BY p.code
+            """,
+            [pool_codes, STOCK_COVERAGE_MIN],
+        ).fetchall()
+        miss_rows = sum(int(k - f) for _, k, f in rows)
+        report["tables"].setdefault("factor_values", {})["stock_gaps"] = {
+            "codes": len(rows), "pool": len(pool_codes), "missing_rows": miss_rows,
+        }
+        if rows:
+            sample = ", ".join(str(c) for c, _, _ in rows[:5])
+            report["soft_warnings"].append(
+                f"factor_values 股票级缺口: {len(rows)}/{len(pool_codes)} 只池内代码"
+                f"覆盖不足（<{STOCK_COVERAGE_MIN:.0%}，约缺 {miss_rows} 行），"
+                f"示例 {sample}{'...' if len(rows) > 5 else ''}"
+                f"（python -m factors.update --backfill-stocks 回补）"
+            )
+    except Exception:
+        log.debug("stock coverage check skipped", exc_info=True)
+
+    # ---- 软警告 7：因子列区间性高 NULL（alpha100 案例：1,331/4,528 天全空
+    #      从未告警——运行期非确定性异常被吞成整列 NULL，值级检查只看最新日
+    #      且只看入模因子，区间性坏死不可见）。近 NULL_WINDOW_DAYS 个交易日
+    #      逐列 NULL 率超阈值即告警 ----
+    try:
+        fv_cols = {r[0] for r in con.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='factor_values'"
+        ).fetchall()}
+        null_cols = [c for c in sorted(fv_cols)
+                     if c not in ("code", "date") and not c.startswith("ai_")]
+        if null_cols:
+            cutoff = con.execute(
+                "SELECT MIN(date) FROM (SELECT DISTINCT date FROM factor_values "
+                "ORDER BY date DESC LIMIT ?)", [NULL_WINDOW_DAYS]
+            ).fetchone()[0]
+            total = con.execute(
+                "SELECT COUNT(*) FROM factor_values WHERE date >= ?", [cutoff]
+            ).fetchone()[0]
+            if total:
+                exprs = ", ".join(f"COUNT({c})" for c in null_cols)
+                nonnulls = con.execute(
+                    f"SELECT {exprs} FROM factor_values WHERE date >= ?", [cutoff]
+                ).fetchone()
+                high_null = [
+                    {"column": c, "null_rate": round(1 - n / total, 3)}
+                    for c, n in zip(null_cols, nonnulls) if (1 - n / total) > NULL_RATE_MAX
+                ]
+                if high_null:
+                    report["tables"].setdefault("factor_values", {})[
+                        "high_null_columns"] = high_null
+                    detail = ", ".join(
+                        f"{h['column']}({h['null_rate']:.0%})" for h in high_null[:10])
+                    report["soft_warnings"].append(
+                        f"因子列近 {NULL_WINDOW_DAYS} 交易日 NULL 率超 "
+                        f"{NULL_RATE_MAX:.0%}: {detail}"
+                        f"{'...' if len(high_null) > 10 else ''}（疑似计算异常被吞）"
+                    )
+    except Exception:
+        log.debug("column null-rate check skipped", exc_info=True)
 
     return report
 

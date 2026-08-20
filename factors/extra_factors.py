@@ -164,9 +164,9 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
         (pl.col("_ret1d").abs() / (vs + 1e-10)).alias("Amihud_illiquidity")
     )
 
-    # ---- Avg Amount 90d (approximate: volume * close) ----
+    # ---- Avg Amount 90d (daily amount, Tushare unit: 千元) ----
     result = result.with_columns(
-        (vs * cs).rolling_mean(90, min_samples=1).over("vt_symbol").alias("AvgAmount_90d")
+        pl.col("amount").rolling_mean(90, min_samples=1).over("vt_symbol").alias("AvgAmount_90d")
     )
 
     # ---- LnMktCap / LnFloatCap ----
@@ -176,7 +176,8 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
     ])
 
     # ---- Turnover ----
-    turnover = vs * cs / pl.col("circ_mv")
+    # amount(千元) / circ_mv(万元) / 10 = 换手率(小数)：amount*1e3/(circ_mv*1e4)
+    turnover = pl.col("amount") / pl.col("circ_mv") / 10
     result = result.with_columns(turnover.alias("_turnover_1d"))
     result = result.with_columns([
         pl.col("_turnover_1d").rolling_mean(3, min_samples=1).over("vt_symbol").alias("Turnover_3d"),
@@ -185,11 +186,15 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
         (pl.col("Turnover_3d") / pl.col("Turnover_3d").rolling_mean(20, min_samples=1).over("vt_symbol")).alias("Turnover_3d_ratio"),
     ])
 
-    # ---- Cross-sectional Rank factors ----
+    # ---- Cross-sectional Rank factors (percentile (rank-0.5)/n minus 0.5, ∈ (-0.5, 0.5)) ----
+    def _pct_rank(col: str) -> pl.Expr:
+        r = pl.col(col)
+        return ((r.rank() - 0.5) / r.count()).over("datetime") - 0.5
+
     result = result.with_columns([
-        pl.col("_ret1d").rank().over("datetime").alias("Return_1d_rank"),
-        pl.col("Return_20d").rank().over("datetime").alias("Return_20d_rank"),
-        pl.col("Turnover_3d").rank().over("datetime").alias("Turnover_3d_rank"),
+        _pct_rank("_ret1d").alias("Return_1d_rank"),
+        _pct_rank("Return_20d").alias("Return_20d_rank"),
+        _pct_rank("Turnover_3d").alias("Turnover_3d_rank"),
     ])
 
     # ---- LnAge (trading days since list_date) ----
@@ -208,7 +213,7 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
 
     # ---- drop intermediate columns and keep only factor columns ----
     intermediate_cols = ["_ret1d", "_tr", "_turnover_1d", "_list_dt", "_age_days"]
-    source_cols = ["open", "high", "low", "close", "volume", "vwap",
+    source_cols = ["open", "high", "low", "close", "volume", "amount", "vwap",
                    "total_mv", "circ_mv", "cap", "list_date", "pct_chg"]
 
     factor_cols = [c for c in result.columns

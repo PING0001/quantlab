@@ -98,36 +98,40 @@ def ensure_tables(con):
     con.execute("""
         CREATE TABLE IF NOT EXISTS stock_info (
             code VARCHAR PRIMARY KEY, name VARCHAR, market VARCHAR,
-            full_code VARCHAR, list_date DATE)
+            full_code VARCHAR, list_date DATE,
+            list_status VARCHAR, delist_date DATE)
     """)
+    # 存量库补列（幂等；旧表无 list_status/delist_date）
+    con.execute("ALTER TABLE stock_info ADD COLUMN IF NOT EXISTS list_status VARCHAR")
+    con.execute("ALTER TABLE stock_info ADD COLUMN IF NOT EXISTS delist_date DATE")
     ensure_view(con)
 
 
 def ensure_view(con):
-    """daily_kline VIEW（前复权，最新 adj_factor 为基准）。仅在缺失时创建。"""
-    try:
-        con.execute("SELECT count(*) FROM daily_kline LIMIT 1")
-    except Exception:
-        con.execute("DROP VIEW IF EXISTS daily_kline")
-        con.execute("""
-            CREATE OR REPLACE VIEW daily_kline AS
-            WITH latest_adj AS (
-                SELECT code, MAX_BY(adj_factor, date) AS latest_adj
-                FROM daily_raw
-                WHERE adj_factor IS NOT NULL AND adj_factor > 0
-                GROUP BY code
-            )
-            SELECT
-                r.code, r.date,
-                r.open   * (l.latest_adj / NULLIF(r.adj_factor, 0)) AS open,
-                r.high   * (l.latest_adj / NULLIF(r.adj_factor, 0)) AS high,
-                r.low    * (l.latest_adj / NULLIF(r.adj_factor, 0)) AS low,
-                r.close  * (l.latest_adj / NULLIF(r.adj_factor, 0)) AS close,
-                r.volume, r.amount, r.pct_chg, r.turn
-            FROM daily_raw r
-            LEFT JOIN latest_adj l ON r.code = l.code
-        """)
-        log.info("daily_kline VIEW created")
+    """daily_kline VIEW（前复权：raw × adj_factor / latest_adj，最新 adj 为基准）。
+
+    无条件 CREATE OR REPLACE（幂等）：公式修正后存量库在下次 pull 自动重建，
+    不再依赖「VIEW 缺失才创建」。
+    """
+    con.execute("""
+        CREATE OR REPLACE VIEW daily_kline AS
+        WITH latest_adj AS (
+            SELECT code, MAX_BY(adj_factor, date) AS latest_adj
+            FROM daily_raw
+            WHERE adj_factor IS NOT NULL AND adj_factor > 0
+            GROUP BY code
+        )
+        SELECT
+            r.code, r.date,
+            r.open   * (r.adj_factor / NULLIF(l.latest_adj, 0)) AS open,
+            r.high   * (r.adj_factor / NULLIF(l.latest_adj, 0)) AS high,
+            r.low    * (r.adj_factor / NULLIF(l.latest_adj, 0)) AS low,
+            r.close  * (r.adj_factor / NULLIF(l.latest_adj, 0)) AS close,
+            r.volume, r.amount, r.pct_chg, r.turn
+        FROM daily_raw r
+        LEFT JOIN latest_adj l ON r.code = l.code
+    """)
+    log.info("daily_kline VIEW ensured")
 
 
 # ---- fetch（API 层，移植自 pull_adj.py）----
@@ -279,48 +283,80 @@ def _pool_union_codes() -> set[str]:
     return {s["code"] for s in load_all_pool_stocks()}
 
 
-def pull_namechange(con, pro, dates: list[str]) -> int:
-    """namechange 事件流（忽略 dates）：-7d 重叠窗口重拉。
+def dedup_namechange(df: pd.DataFrame) -> pd.DataFrame:
+    """namechange 去重：先全键去重（只去完全重复行）；同 (code, start_date)
+    不同值时保留 ann_date 最新一条（更晚公告≈更正/覆盖）并告警。
 
-    修复原实现的全市场污染：写入与 delist_info 重派生均限定所有池的并集。
+    不再 drop_duplicates(keep="first") 静默丢同键不同值行；同时避免
+    INSERT OR REPLACE 同一语句内两次写同一主键触发 DuckDB 冲突错误。
     """
-    raw = con.execute("SELECT MAX(start_date) FROM namechange").fetchone()[0]
+    df = df.drop_duplicates()
+    dup = df.duplicated(subset=["code", "start_date"], keep=False)
+    if dup.any():
+        log.warning("namechange: %d rows share (code, start_date) with different "
+                    "values; keeping latest ann_date per key", int(dup.sum()))
+        df = (df.sort_values("ann_date", na_position="first")
+                .drop_duplicates(subset=["code", "start_date"], keep="last"))
+    return df
+
+
+def _sync_delist_info(con):
+    """重派生 delist_info（与 namechange 窗口拉取解耦，每次固定执行）。
+
+    stock_basic(list_status='D') 的 delist_date 为主源（最后写入、覆盖补充值，
+    为真实摘牌日）；namechange '终止上市' 仅补主源缺失的池内 code（其
+    MIN(start_date) 可能早于摘牌日，只作补充）。不再按池并集 DELETE：
+    delist_info 以全市场退市档案为准，行集合不随池成员变动（与
+    build_delist_info.py 的全量重建同口径）。
+    """
+    pool_codes = _pool_union_codes()
+    if pool_codes:
+        ph = ",".join(["?"] * len(pool_codes))
+        con.execute(f"""
+            INSERT OR REPLACE INTO delist_info
+            SELECT code, MIN(start_date) FROM namechange
+            WHERE change_reason = '终止上市' AND code IN ({ph})
+            GROUP BY code
+        """, sorted(pool_codes))
+    con.execute("""
+        INSERT OR REPLACE INTO delist_info
+        SELECT code, delist_date FROM stock_info
+        WHERE list_status = 'D' AND delist_date IS NOT NULL
+    """)
+
+
+def pull_namechange(con, pro, dates: list[str]) -> int:
+    """namechange 事件流（忽略 dates）：按公告日（ann_date）锚定近窗口重拉。
+
+    修复原实现的全市场污染：写入限定所有池的并集。
+    窗口锚定 ann_date（API 的 start_date/end_date 过滤的是公告日；退市/ST
+    公告常远晚于生效日，原按生效日 start_date 锚定 +7d 回看会让公告滞后
+    >7d 的事件永久落在窗口外），窗口放宽到 90d 兜底公告滞后与拉取失败。
+    """
+    n = 0
+    raw = con.execute("SELECT MAX(ann_date) FROM namechange").fetchone()[0]
     if raw is not None:
-        start_date = (pd.Timestamp(raw) - pd.Timedelta(days=7)).strftime("%Y%m%d")
+        start_date = (pd.Timestamp(raw) - pd.Timedelta(days=90)).strftime("%Y%m%d")
     else:
         start_date = "20080101"
     end_date = datetime.now().strftime("%Y%m%d")
-    if start_date > end_date:
-        return 0
 
-    df = retry_api(pro.namechange, start_date=start_date, end_date=end_date)
-    if df is None or df.empty:
-        return 0
+    if start_date <= end_date:
+        df = retry_api(pro.namechange, start_date=start_date, end_date=end_date)
+        if df is not None and not df.empty:
+            pool_codes = _pool_union_codes()
+            df["code"] = df["ts_code"].str[:6]
+            df = df[df["code"].isin(pool_codes)]
+            if not df.empty:
+                df["start_date"] = pd.to_datetime(df["start_date"], errors="coerce").dt.date
+                df["end_date"] = pd.to_datetime(df["end_date"], errors="coerce")
+                df["ann_date"] = pd.to_datetime(df["ann_date"], errors="coerce").dt.date
+                cols = ["code", "ts_code", "name", "start_date", "end_date", "ann_date", "change_reason"]
+                df = dedup_namechange(df[cols])
+                con.execute("INSERT OR REPLACE INTO namechange SELECT * FROM df")
+                n = len(df)
 
-    pool_codes = _pool_union_codes()
-    df["code"] = df["ts_code"].str[:6]
-    df = df[df["code"].isin(pool_codes)]
-    if df.empty:
-        return 0
-    df["start_date"] = pd.to_datetime(df["start_date"], errors="coerce").dt.date
-    df["end_date"] = pd.to_datetime(df["end_date"], errors="coerce")
-    df["ann_date"] = pd.to_datetime(df["ann_date"], errors="coerce").dt.date
-    cols = ["code", "ts_code", "name", "start_date", "end_date", "ann_date", "change_reason"]
-    df = df[cols].drop_duplicates(subset=["code", "start_date"], keep="first")
-
-    con.execute("INSERT OR REPLACE INTO namechange SELECT * FROM df")
-    n = len(df)
-
-    # 重派生 delist_info（同样限定池并集）
-    ph = ",".join(["?"] * len(pool_codes))
-    con.execute(f"""
-        INSERT OR REPLACE INTO delist_info
-        SELECT code, MIN(start_date) FROM namechange
-        WHERE change_reason = '终止上市' AND code IN ({ph})
-        GROUP BY code
-    """, sorted(pool_codes))
-    # 清掉池外历史残留（曾经的增量污染）
-    con.execute(f"DELETE FROM delist_info WHERE code NOT IN ({ph})", sorted(pool_codes))
+    _sync_delist_info(con)
     return n
 
 
@@ -328,11 +364,22 @@ def pull_stock_info(con, pro, dates: list[str]) -> tuple[int, list[str]]:
     """stock_info 快照（忽略 dates）。返回 (写入行数, 新增 code 列表)。
 
     原系统无此源：新上市股票永远进不了 stock_info，LnAge/industry 缺失。
+    现合并拉取 list_status='L'（当前上市）+ 'D'（退市）：表为只增不删的
+    累积快照，只拉 L 会让历史退市股永久缺席（池构建幸存者偏差的根因），
+    故每次以 D 列表回填退市档案（含 list_status/delist_date）。
     """
-    df = retry_api(pro.stock_basic, exchange="", list_status="L",
-                   fields="ts_code,symbol,name,area,industry,market,list_date")
-    if df is None or df.empty:
+    fields = "ts_code,symbol,name,area,industry,market,list_date,list_status,delist_date"
+    frames = []
+    for status in ("L", "D"):
+        df = retry_api(pro.stock_basic, exchange="", list_status=status, fields=fields)
+        if df is not None and not df.empty:
+            frames.append(df)
+    if not frames:
         return 0, []
+    df = pd.concat(frames, ignore_index=True)
+    # 同一 ts_code 不应同时出现在 L/D 两个列表；万一出现，保留 L（当前上市）
+    # 避免同一主键在一次 INSERT OR REPLACE 中写入两次导致整批失败。
+    df = df.drop_duplicates(subset=["ts_code"], keep="first")
     existing = {r[0] for r in con.execute("SELECT code FROM stock_info").fetchall()}
     df["code"] = df["ts_code"].str[:6]
     new_codes = sorted(set(df["code"]) - existing)
@@ -342,9 +389,16 @@ def pull_stock_info(con, pro, dates: list[str]) -> tuple[int, list[str]]:
         "name": df.get("name", ""),
         "market": df.get("market", ""),
         "full_code": df["ts_code"],
-        "list_date": pd.to_datetime(df["list_date"], format="%Y%m%d"),
+        "list_date": pd.to_datetime(df["list_date"], format="%Y%m%d", errors="coerce"),
+        "list_status": df.get("list_status", ""),
+        "delist_date": pd.to_datetime(df.get("delist_date"), format="%Y%m%d", errors="coerce"),
     })
-    con.execute("INSERT OR REPLACE INTO stock_info SELECT * FROM out")
+    con.execute("""
+        INSERT OR REPLACE INTO stock_info
+            (code, name, market, full_code, list_date, list_status, delist_date)
+        SELECT code, name, market, full_code, list_date, list_status, delist_date
+        FROM out
+    """)
     return len(out), new_codes
 
 

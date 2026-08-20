@@ -91,12 +91,18 @@ def main():
             "high_yi": round(BASE_HIGH_YI * factor, 2),
         }
 
+        # 宇宙含退市股（幸存者偏差修复）：stock_info 为只增不删的累积快照，
+        # 已退市股可能缺席，故以 daily_basic 当日有行为准，market 用代码前缀
+        # 兜底（00/60 前缀 = 主板；daily_basic 无 B 股行，20/90 前缀不适用）。
         codes = con.execute(
             """
             SELECT DISTINCT b.code
             FROM daily_basic b
-            JOIN stock_info s ON b.code = s.code
-            WHERE s.market = '主板'
+            LEFT JOIN stock_info s ON b.code = s.code
+            WHERE COALESCE(
+                      s.market,
+                      CASE WHEN b.code LIKE '00%' OR b.code LIKE '60%'
+                           THEN '主板' END) = '主板'
               AND b.date = ?
               AND b.circ_mv > ?
               AND b.circ_mv < ?

@@ -154,6 +154,11 @@ class LGBStrategy(BaseStrategy):
         X_sel = X_sel.sort_index(level="date")
         y_sel = y_sel.loc[X_sel.index]
 
+        # Early-stopping split: trailing `validation_fraction` of the dates
+        # contained in the data passed to fit() (no independent date source).
+        # walk_forward truncates the label look-ahead buffer before calling
+        # fit, which keeps this validation tail free of labels that reference
+        # the test period; direct callers of fit must do the same.
         dates = X_sel.index.get_level_values("date").unique()
         n_val_dates = max(1, int(len(dates) * cfg["validation_fraction"]))
         train_dates = set(dates[: len(dates) - n_val_dates])

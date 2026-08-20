@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from config import DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS, get_lgb_model_path, get_lgb_predictions_path, get_lgb_predictions_meta_path
 
 from strategies import LGBStrategy, walk_forward, rank_ic, pearson_ic, ic_summary
+from strategies.base import buffered_train_end
 from strategies.labels import compute_forward_returns, compute_median_close, compute_nextopen_limit_mask
 
 
@@ -33,6 +34,10 @@ TEST_END   = pd.Timestamp("2026-06-01")
 WARMUP_DAYS = 90
 TRAIN_WINDOW = 252
 MIN_TRAIN = 252
+# trading days dropped from the training tail before TEST_START: labels are
+# the T+16..T+20 median close return, so the last 20 trading days of the old
+# training window referenced test-period prices
+LABEL_BUFFER = 20
 
 HORIZONS = ['label']
 WEIGHTS = {'label': 1.0}
@@ -233,7 +238,11 @@ def main():
     print(f"  strategy: {strategy.name}, horizons={HORIZONS}")
 
     # ---- walk-forward ----
-    print(f"  walk-forward: train_window={TRAIN_WINDOW}, test={TEST_START.date()}~{TEST_END.date()}, warmup={WARMUP_DAYS}")
+    # fixed test-set branch: actual training dates = first date after warmup
+    # up to TEST_START stepped back LABEL_BUFFER trading days
+    train_dates_all = sorted(X.index.get_level_values("date").unique())[WARMUP_DAYS:]
+    train_end = buffered_train_end(train_dates_all, TEST_START, LABEL_BUFFER)
+    print(f"  walk-forward: train={train_dates_all[0].date()}~{train_end.date()} (label_buffer={LABEL_BUFFER}), test={TEST_START.date()}~{TEST_END.date()}, warmup={WARMUP_DAYS}")
     preds = walk_forward(
         strategy,
         X, y,
@@ -242,6 +251,7 @@ def main():
         warmup_days=WARMUP_DAYS,
         test_start=TEST_START,
         test_end=TEST_END,
+        label_buffer=LABEL_BUFFER,
     )
     t_pred = time.time()
 
@@ -327,7 +337,12 @@ def main():
         "factor_names": factor_cols,
         "test_start": str(TEST_START.date()),
         "test_end": str(TEST_END.date()),
-        "train_window": TRAIN_WINDOW,
+        # fixed test-set branch trains once on [train_start, train_end) —
+        # not a TRAIN_WINDOW rolling window; train_end excludes label_buffer
+        # trading days before test_start whose labels reference test prices
+        "train_start": str(train_dates_all[0].date()),
+        "train_end": str(train_end.date()),
+        "label_buffer": LABEL_BUFFER,
         "lgb_kwargs": LGB_KWARGS,
         "results": {str(k): all_results[k] for k in all_results},
         "model_path": str(model_path),

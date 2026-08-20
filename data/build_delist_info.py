@@ -1,8 +1,10 @@
 """
-Build delist_info table: pull namechange for pool stocks, extract
-delisting (termination) dates and ST periods.
+Build delist_info table: stock_basic(list_status='D') delist_date as the
+primary source (whole market), supplemented by namechange '终止上市'
+termination rows pulled per stock for the pool union.
 
-Stores to DuckDB for use by label computation and training.
+namechange rows are merged via upsert (no full-table DELETE), keeping the
+same pool-union scope as data/pull.py's namechange source.
 """
 from __future__ import annotations
 
@@ -22,7 +24,8 @@ import tushare as ts
 import tushare.pro.client as client
 client.DataApi._DataApi__http_url = "http://api.quicksync.cn"
 
-from config import DB_PATH, get_pool_codes
+from config import DB_PATH, load_all_pool_stocks
+from data.sources import dedup_namechange
 
 logging.basicConfig(
     level=logging.INFO,
@@ -156,6 +159,7 @@ def extract_delist_info(namechange_df):
     """Extract delisting dates from namechange data.
 
     Only uses change_reason == '终止上市' as the authoritative signal.
+    Used as the supplement source (primary is stock_basic list_status='D').
     """
     if namechange_df.empty:
         return pd.DataFrame(columns=["code", "delist_date"])
@@ -169,36 +173,65 @@ def extract_delist_info(namechange_df):
     return term_dates
 
 
+def pull_delisted_basic(pro):
+    """stock_basic(list_status='D')：全市场退市股档案（delist_date 主源）。"""
+    df = _retry_api(pro.stock_basic, exchange="", list_status="D",
+                    fields="ts_code,symbol,name,market,list_date,list_status,delist_date")
+    if df is None or df.empty:
+        return pd.DataFrame(columns=["code", "delist_date"])
+    df = df.copy()
+    df["code"] = df["ts_code"].str[:6]
+    df["delist_date"] = pd.to_datetime(df["delist_date"], format="%Y%m%d",
+                                       errors="coerce").dt.date
+    out = df.loc[df["delist_date"].notna(), ["code", "delist_date"]]
+    return out.drop_duplicates(subset=["code"], keep="first")
+
+
+def merge_delist_sources(primary, supplement):
+    """合并 delist_date：stock_basic(D) 主源优先，namechange '终止上市'
+    仅补主源缺失的 code（namechange 的 MIN(start_date) 可能早于真实摘牌日）。"""
+    if primary is None or primary.empty:
+        primary = pd.DataFrame(columns=["code", "delist_date"])
+    if supplement is None or supplement.empty:
+        supplement = pd.DataFrame(columns=["code", "delist_date"])
+    supp = supplement[~supplement["code"].isin(set(primary["code"]))]
+    return pd.concat([primary, supp], ignore_index=True)
+
+
 def main():
     con = duckdb.connect(str(DB_PATH))
     ensure_tables(con)
 
     pro = _init_pro()
-    codes = get_pool_codes()
-    log.info("Pool: %d stocks", len(codes))
+    codes = sorted({s["code"] for s in load_all_pool_stocks()})
+    pool_set = set(codes)
+    log.info("Pool union: %d stocks", len(codes))
 
-    log.info("Pulling namechange for %d pool stocks ...", len(codes))
+    # ---- 主源：stock_basic(list_status='D') 全市场退市档案 ----
+    log.info("Pulling stock_basic(list_status='D') ...")
+    primary = pull_delisted_basic(pro)
+    log.info("Delisted from stock_basic(D): %d stocks", len(primary))
+
+    # ---- 补充源：namechange 按股全量（池并集，与主路径口径一致）----
+    log.info("Pulling namechange for %d pool-union stocks ...", len(codes))
     t_start = time.time()
     df = pull_namechange_for_codes(pro, codes, con)
     elapsed = time.time() - t_start
     log.info("Total namechange rows: %d (%.0fs)", len(df), elapsed)
 
-    if df.empty:
-        log.warning("No namechange data returned.")
-        con.close()
-        return
-
-    con.execute("DELETE FROM namechange")
-    # Dedup in case namechange API returns duplicates for same (code, start_date)
-    df = df.drop_duplicates(subset=["code", "start_date"], keep="first")
-    con.execute("INSERT INTO namechange SELECT * FROM df")
-    con.execute("CHECKPOINT")
+    if not df.empty:
+        # 合并写入（不再全表 DELETE：保留池外/历史行，与主路径并集口径一致）
+        df = dedup_namechange(df)
+        con.execute("INSERT OR REPLACE INTO namechange SELECT * FROM df")
+        con.execute("CHECKPOINT")
     n_nc = con.execute("SELECT count(*) FROM namechange").fetchone()[0]
     log.info("namechange table: %d rows", n_nc)
 
-    delist_df = extract_delist_info(df)
+    # ---- delist_info 全量重建：stock_basic(D) 主源，namechange 终止上市补充 ----
+    supplement = extract_delist_info(df)
+    delist_df = merge_delist_sources(primary, supplement)
+    con.execute("DELETE FROM delist_info")
     if not delist_df.empty:
-        con.execute("DELETE FROM delist_info")
         con.execute("INSERT INTO delist_info SELECT * FROM delist_df")
         con.execute("CHECKPOINT")
     n_di = con.execute("SELECT count(*) FROM delist_info").fetchone()[0]
@@ -206,9 +239,10 @@ def main():
 
     print()
     print("=" * 60)
-    print("  Delisted stocks in pool:")
-    if not delist_df.empty:
-        for _, r in delist_df.iterrows():
+    print("  Delisted stocks in pool union:")
+    in_pool = delist_df[delist_df["code"].isin(pool_set)]
+    if not in_pool.empty:
+        for _, r in in_pool.iterrows():
             code = r["code"]
             name_row = con.execute(
                 "SELECT name FROM stock_info WHERE code=?", [code]

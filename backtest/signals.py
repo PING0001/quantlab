@@ -418,7 +418,8 @@ def run_portfolio_rebalance(
       - Rank all eligible stocks by prediction score descending → top N.
       - Sell positions that dropped out of top N.
       - Buy top N stocks not yet held.
-      - Sell/buy orders persist across non-rebalance days.
+      - Sell orders persist across non-rebalance days; unfilled buy orders
+        expire at end of their execution day.
 
     predictions : pd.Series, MultiIndex (date, code), values = pred_hd scores
     ohlcv_map   : {code: DataFrame} with DatetimeIndex, columns Open/High/Low/Close/Volume/IsST
@@ -514,7 +515,6 @@ def run_portfolio_rebalance(
         # ================================================================
         # Phase 2: Execute buy orders
         # ================================================================
-        filled_buys = set()
         buy_slots_remaining = max_positions - len(positions)
 
         for code, limit_price in list(buy_orders.items()):
@@ -559,10 +559,11 @@ def run_portfolio_rebalance(
             trades.append({"date": date, "code": code, "action": "BUY",
                            "price": fill_px, "shares": shares})
             buy_slots_remaining -= 1
-            filled_buys.add(code)
 
-        # Keep unfilled buy orders for next trading days (remove only filled ones)
-        buy_orders = {c: p for c, p in buy_orders.items() if c not in filled_buys}
+        # Unfilled buy orders expire at end of day (same as run_portfolio):
+        # limit prices are based on tonight's close/pred and must not survive
+        # to later days. Fresh orders are only placed on rebalance evenings.
+        buy_orders.clear()
 
         buy_lock = {code for code, pos in positions.items() if pos["entry_date"] == date}
 

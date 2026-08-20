@@ -88,6 +88,8 @@ def load_and_predict(target_date=None):
 
     print("\n[2/3] Loading factor data ...")
     factors = load_factors(con)
+    # Keep the point-in-time ST flag around before narrowing to model features
+    isst_all = factors["IsST"] if "IsST" in factors.columns else None
 
     print("      loading stock names ...")
     name_map = load_name_map(con)
@@ -118,16 +120,24 @@ def load_and_predict(target_date=None):
     else:
         latest_date = all_dates[-1]
 
-    # Build exclusion set: ST/退 + stocks listed < 90 days
-    excluded = {c for c, n in name_map.items() if "ST" in n or "退" in n}
+    # Build exclusion set: IsST=1 on prediction date (primary, point-in-time,
+    # same as training/backtest) ∪ name containing ST/退 (fallback snapshot)
+    # + stocks listed < 90 days
+    name_st = {c for c, n in name_map.items() if "ST" in n or "退" in n}
+    isst_codes = set()
+    if isst_all is not None:
+        day_isst = isst_all.xs(latest_date, level="date")
+        isst_codes = set(day_isst[day_isst == 1].index)
     cutoff = (latest_date - pd.Timedelta(days=90)).date()
     warmup = con.execute(
         "SELECT code FROM stock_info WHERE list_date > ?",
         [cutoff],
     ).fetchall()
+    excluded = name_st | isst_codes
     for (c,) in warmup:
         excluded.add(c)
-    print(f"      excluded (ST/退: {len(excluded) - len(warmup)} + listed<90d: {len(warmup)} = {len(excluded)} stocks)")
+    print(f"      excluded (IsST=1: {len(isst_codes)}, name ST/退: {len(name_st)}, "
+          f"union: {len(name_st | isst_codes)} + listed<90d: {len(warmup)} = {len(excluded)} stocks)")
     con.close()
 
     n_latest = (factors.index.get_level_values("date") == latest_date).sum()
@@ -136,7 +146,7 @@ def load_and_predict(target_date=None):
 
     print(f"\n[3/3] Predicting scores for {latest_date.date()} ...")
     X_latest = factors.xs(latest_date, level="date", drop_level=False)
-    X_latest = X_latest.fillna(0)
+    # No fillna: LightGBM handles NaN natively, same as training (LGBMStrategy.predict)
     pred_df = model.predict(X_latest)
 
     if isinstance(pred_df.index, pd.MultiIndex):

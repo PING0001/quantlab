@@ -103,14 +103,19 @@ def quesval2(threshold: DataProxy, feature1: DataProxy, feature2: DataProxy | fl
 
 
 def pow1(base: DataProxy, exponent: float) -> DataProxy:
-    df: pl.DataFrame = base.df.with_columns(
-        pl.when(pl.col("data") > 0)
-        .then(pl.col("data").pow(exponent))
-        .when(pl.col("data") < 0)
-        .then(pl.lit(-1) * pl.col("data").abs().pow(exponent))
-        .otherwise(0)
-        .alias("data")
-    )
+    # 论文语义 x^y：整数指数直接取幂（(-2)^2 = 4，负基偶次幂不再翻转符号）；
+    # 非整数指数无法对负基定义，退化为 WorldQuant signed power sign(x)·|x|^y
+    if float(exponent).is_integer():
+        powered = pl.col("data").pow(exponent)
+    else:
+        powered = (
+            pl.when(pl.col("data") > 0)
+            .then(pl.col("data").pow(exponent))
+            .when(pl.col("data") < 0)
+            .then(pl.lit(-1) * pl.col("data").abs().pow(exponent))
+            .otherwise(0)
+        )
+    df: pl.DataFrame = base.df.with_columns(powered.alias("data"))
     return DataProxy(df)
 
 
