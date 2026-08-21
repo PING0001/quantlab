@@ -41,6 +41,7 @@ TRAIN_START = pd.Timestamp("2020-01-01")
 TEST_START = pd.Timestamp("2025-06-01")
 MAX_FACTORS = 60
 CLUSTER_CORR = 0.7   # 簇优先：average-linkage 距离=1-|corr|，簇内相关 >= 此值合并
+EXCLUDE_PREFIXES = ("alpha",)   # 2026-08-21 用户裁定：alpha 开头因子（vnpy 移植 101 个及变体）全部不入筛选
 MIN_STOCKS_PER_DATE = 30
 MUST_INCLUDE = ["CSI_return_20d"]
 
@@ -98,7 +99,8 @@ def main():
 
     print("Loading factors ...")
     factors_raw = load_factors(con)
-    available = [f for f in SELECTED_FACTORS if f in factors_raw.columns]
+    available = [f for f in SELECTED_FACTORS
+                 if f in factors_raw.columns and not f.startswith(EXCLUDE_PREFIXES)]
     missing = [f for f in SELECTED_FACTORS if f not in factors_raw.columns]
     if missing:
         print(f"  WARNING: {len(missing)} factors missing: {missing[:10]}...")
@@ -330,6 +332,7 @@ def main():
         "train_start_note": "2026-08-21 用户裁定：筛选(IC+相关度)与训练对齐，均自 2020 起（曾用 2015 长历史口径）",
         "algorithm": "cluster-first: average-linkage on 1-|corr|, best-|IC| per cluster, clusters ranked by rep |IC|",
         "cluster_corr_threshold": CLUSTER_CORR,
+        "exclude_prefixes": list(EXCLUDE_PREFIXES),
         "n_clusters": n_clusters,
         "max_factors": MAX_FACTORS,
         "n_dates_corr": int(corr_count),
