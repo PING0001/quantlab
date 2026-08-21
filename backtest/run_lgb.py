@@ -137,17 +137,21 @@ def holding_days(trade_df: pd.DataFrame) -> pd.Series:
 
 def main():
     parser = argparse.ArgumentParser(description="Dual-regression combined backtest")
-    parser.add_argument("--threshold", type=float, default=0.90,
-                        help="准入阈值：当日综合分百分位 >= 该值才买入，无合格则空仓"
-                             "（默认 0.90；传 0 回退强制 top-N 满仓）")
+    parser.add_argument("--entry-q", type=float, default=0.90,
+                        help="准入分位：tau = exec_score 池化分布的该分位数（如 0.90），"
+                             "仅 exec >= tau 的股票可买——exec 是唯一有日间咬合的绝对尺度"
+                             "（按日百分位恒有 ~10% 合格，形同虚设）")
+    parser.add_argument("--entry-exec", type=float, default=None,
+                        help="直接指定 exec 准入阈值（覆盖 --entry-q）")
+    parser.add_argument("--no-threshold", action="store_true",
+                        help="关闭准入，回退强制 top-N 满仓（对照用）")
     args = parser.parse_args()
-    rank_threshold = args.threshold if args.threshold > 0 else None
 
     print("=" * 60)
-    if rank_threshold is not None:
-        print(f"  Dual-Regression Backtest — DAILY, entry >= P{rank_threshold * 100:.0f}")
-    else:
+    if args.no_threshold:
         print("  Dual-Regression Backtest — DAILY, forced top-N (no threshold)")
+    else:
+        print(f"  Dual-Regression Backtest — DAILY, exec entry quantile P{args.entry_q * 100:.0f}")
     print(f"  Pool: {POOL_NAME} | weights: 20d={W20}, 6d={W6}")
     print("=" * 60)
 
@@ -157,14 +161,23 @@ def main():
     combined = combine_scores(preds["20d"], preds["6d"], w20=W20, w6=W6)
     rank_s, exec_s = combined["rank_score"], combined["exec_score"]
 
-    # 准入通道：rank_score 再按日转百分位（可解释阈值：0.90 = 当日综合分前 ~10%）
+    # ---- 准入门槛（2026-08-21 用户裁定：阈值买入 + 允许空仓）----
+    # tau 在 exec（期望收益）绝对尺度上校准为其池化分布分位数；排序通道用
+    # rank 百分位，未过 exec 门槛的股票被置 NaN 剔出候选。注意：tau 用预测期
+    # 池化分布校准（未用标签，无标签泄漏；但含 2026 年段——严格前向校准
+    # 需训练期预测，记为后续改进）。
     rank_entry = percentile_per_date(rank_s)
-    if rank_threshold is not None:
-        nq = rank_entry[rank_entry >= rank_threshold].groupby(level="date").size()
-        if not nq.empty:
-            print(f"  entry >= P{rank_threshold * 100:.0f}: qualifying/day "
-                  f"median={nq.median():.0f} p10={nq.quantile(0.1):.0f} "
-                  f"p90={nq.quantile(0.9):.0f} zero-days={int((nq == 0).sum())}")
+    if args.no_threshold:
+        rank_pass, tau = rank_entry, None
+    else:
+        tau = (args.entry_exec if args.entry_exec is not None
+               else float(exec_s.quantile(args.entry_q)))
+        rank_pass = rank_entry.where(exec_s >= tau)
+        nq = rank_pass.groupby(level="date").count()
+        nq = nq.reindex(sorted(rank_entry.index.get_level_values("date").unique()), fill_value=0)
+        print(f"  entry: exec >= {tau:+.4f} (P{args.entry_q * 100:.0f} of pooled exec) | "
+              f"qualifying/day median={nq.median():.0f} p10={nq.quantile(0.1):.0f} "
+              f"p90={nq.quantile(0.9):.0f} zero-days={int((nq == 0).sum())}/{len(nq)}")
 
     n_dates = rank_s.index.get_level_values("date").nunique()
     print(f"  combined: {len(rank_s)} rows, {n_dates} dates")
@@ -266,7 +279,7 @@ def main():
     # ---- 4. Portfolio backtest (daily rebalance) ----
     print(f"\n[4/5] Running DAILY rebalance backtest "
           f"(max_pos={MAX_POSITIONS}, rebalance_freq={REBALANCE_FREQ}, "
-          f"entry={'P%.0f' % (rank_threshold * 100) if rank_threshold is not None else 'topN'}) ...")
+          f"entry={'exec>=%+.4f' % tau if tau is not None else 'topN'}) ...")
     port_stats, equity_df, trade_df = run_portfolio_rebalance(
         exec_s, ohlcv_map,
         test_start=str(TEST_START.date()),
@@ -280,15 +293,18 @@ def main():
         stamp_duty=STAMP_DUTY,
         risk_free_rate=RISK_FREE_RATE,
         delist_info=delist_info,
-        rank_scores=rank_entry,
-        rank_threshold=rank_threshold,
+        rank_scores=rank_pass,
     )
 
     if not equity_df.empty and test_end_date is not None:
         cutoff = pd.Timestamp(test_end_date)
+        pos_keep = {k: port_stats[k] for k in
+                    ("avg_positions", "n_days_empty", "n_days_full", "n_days")
+                    if k in port_stats}
         equity_df = equity_df[equity_df.index <= cutoff]
         from backtest.signals import _compute_stats
         port_stats, equity_df = _compute_stats(equity_df["Equity"], risk_free_rate=RISK_FREE_RATE)
+        port_stats.update(pos_keep)
 
     n_trades = len(trade_df)
     n_buys = int((trade_df["action"] == "BUY").sum()) if n_trades > 0 else 0
@@ -341,7 +357,12 @@ def main():
     # ---- save outputs（独立命名，勿覆写旧文件——report_strategy 还在消费旧对照）----
     bt_dir = get_backtest_dir()
     bt_dir.mkdir(parents=True, exist_ok=True)
-    th_suffix = f"_p{int(rank_threshold * 100)}" if rank_threshold is not None else "_topN"
+    if args.no_threshold:
+        th_suffix = "_topN"
+    elif args.entry_exec is not None:
+        th_suffix = f"_exec{args.entry_exec:g}"
+    else:
+        th_suffix = f"_q{int(args.entry_q * 100)}"
     eq_path = bt_dir / f"equity_lgb_combined_daily{th_suffix}_rebalance.csv"
     equity_df.to_csv(eq_path)
     if not bench_df.empty:
