@@ -55,5 +55,27 @@ try:
 except ValueError:
     check("bad weights raise", True)
 
+# ---- v8 三模型融合（2026-08-22）----
+from strategies.combine import combine_scores3
+
+p2 = series({(D1, "A"): 0.02, (D1, "B"): 0.01, (D1, "C"): -0.01, (D1, "D"): np.nan, (D1, "E"): 0.0})
+s3 = combine_scores3(p2, p6, p20)
+
+check("v8 A = 0.4*0.02+0.35*0.03+0.25*0.10",
+      np.isclose(s3.loc[(D1, "A")], 0.4 * 0.02 + 0.35 * 0.03 + 0.25 * 0.10))
+# B 缺 6d：按 0.4/0.25 重归一
+check("v8 B missing 6d -> (0.4*p2+0.25*p20)/0.65",
+      np.isclose(s3.loc[(D1, "B")], (0.4 * 0.01 + 0.25 * 0.05) / 0.65))
+# D 缺 2d 与 20d：只剩 6d 原值
+check("v8 D missing 2d/20d -> p6 renorm", np.isclose(s3.loc[(D1, "D")], 0.02))
+# E 只有 2d：原值
+check("v8 E only 2d -> p2 renorm", np.isclose(s3.loc[(D1, "E")], 0.0))
+check("v8 no inf", bool(np.isfinite(s3.dropna()).all()))
+try:
+    combine_scores3(p2, p6, p20, w2d=0.5, w6=0.35, w20=0.25)
+    check("v8 bad weights raise", False)
+except ValueError:
+    check("v8 bad weights raise", True)
+
 print("\nRESULT:", "ALL CHECKS PASSED" if fail == 0 else f"{fail} FAILED")
 sys.exit(1 if fail else 0)

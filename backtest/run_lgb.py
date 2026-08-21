@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
 """
-Dual-regression combined backtest — DAILY rebalancing (bench 2026-08, v4).
+Dual-regression combined backtest — DAILY rebalancing (bench 2026-08, v8).
 
-Loads both model prediction parquets (20d / 6d), blends them into a single
-score = 0.4*pred_20d + 0.6*pred_6d (label anchor close[T]; no percentile
-layer, 2026-08-21 用户口径 v4), then simulates daily:
+Loads three model prediction parquets (open2d / 6d / 20d, 均 next_open 锚),
+blends them into a single score = 0.4*pred_2d + 0.35*pred_6d + 0.25*pred_20d
+(2026-08-22 用户口径 v8), then simulates daily:
   - buy: top-k of cash slots (k = max_positions - held), bargain limit
-    close*(1+score-3%)
-  - sell: every held position at target price close*(1+score)
+    close*(1+score-3%) 或开盘市价（--exec market）
+  - sell: every held position at target price close*(1+score)，或 pred<0
+    开盘市价卖出（market 模式）
 
 Run from project root:
-    python -m backtest.run_lgb
+    python -m backtest.run_lgb [--fold F*] [--exec limit|market]
 """
 from __future__ import annotations
 
@@ -29,7 +30,7 @@ from config import (DB_PATH, POOL_NAME, get_pool_codes, get_backtest_dir,
 
 from strategies import rank_ic, ic_summary
 from strategies.labels import compute_median_open, compute_nextopen_limit_mask
-from strategies.combine import combine_scores
+from strategies.combine import combine_scores3
 from backtest.signals import run_portfolio_rebalance, compute_benchmark, run_long_short
 
 # ============================================================================
@@ -37,8 +38,8 @@ from backtest.signals import run_portfolio_rebalance, compute_benchmark, run_lon
 # ============================================================================
 TEST_START = pd.Timestamp("2025-06-01")
 
-PRED_COLS = {"20d": "pred_label_20d", "6d": "pred_label_6d"}
-W20, W6 = 0.4, 0.6             # v4：score = 0.4*p20 + 0.6*p6（2026-08-21 用户裁定）
+PRED_COLS = {"open2d": "pred_label_open2d", "6d": "pred_label_6d", "20d": "pred_label_20d"}
+W2D, W6D, W20D = 0.40, 0.35, 0.25  # v8：score = 0.4*p2d + 0.35*p6d + 0.25*p20d（三模型均 next_open 锚，2026-08-22 用户裁定）
 
 MAX_POSITIONS = 10
 REBALANCE_FREQ = 1          # 每日调仓（2026-08-21 用户裁定，spec §3.6）
@@ -157,7 +158,7 @@ def main():
     test_start = pd.Timestamp(get_fold(fold)[0]) if fold else TEST_START
 
     print("=" * 60)
-    print(f"  Dual-Regression Backtest — DAILY, score = 0.4*p20 + 0.6*p6"
+    print(f"  Dual-Regression Backtest — DAILY, v8 score = 0.4*p2d + 0.35*p6d + 0.25*p20d"
           f"{f' | fold={fold}' if fold else ''} | exec={exec_label}")
     print(f"  Pool: {POOL_NAME} | label anchor: next_open | "
           f"{'开盘市价（买=开盘必成交，卖=pred<0）' if exec_market else '收盘限价（便宜单+目标价）'}")
@@ -166,7 +167,8 @@ def main():
     # ---- 1. Load + combine predictions ----
     print("\n[1/5] Loading predictions ...")
     preds = load_predictions(fold)
-    score = combine_scores(preds["20d"], preds["6d"], w20=W20, w6=W6)
+    score = combine_scores3(preds["open2d"], preds["6d"], preds["20d"],
+                            w2d=W2D, w6=W6D, w20=W20D)
 
     n_dates = score.index.get_level_values("date").nunique()
     print(f"  combined: {len(score)} rows, {n_dates} dates")
@@ -349,7 +351,7 @@ def main():
     if fold:
         th_suffix = f"_{exec_label}"   # folds/{fid}/equity_lgb_combined_daily_{market|limit}_rebalance.csv
     else:
-        th_suffix = "_v7mo" if exec_market else "_v7"
+        th_suffix = "_v8mo" if exec_market else "_v8"
     eq_path = bt_dir / f"equity_lgb_combined_daily{th_suffix}_rebalance.csv"
     equity_df.to_csv(eq_path)
     if not bench_df.empty:
