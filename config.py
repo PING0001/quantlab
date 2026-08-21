@@ -157,11 +157,12 @@ MODEL_CONFIGS = {
         horizon="label_gap1d",      # 预测列: pred_label_gap1d
     ),
     # 独立实验模型（2026-08-22 用户要求，暂不接入）：预测 T+2 开盘
-    # open[T+2]/close[T]−1（= median_open 窗口(2,2)+close 锚），因子复用 6d 清单
+    # open[T+2]/open[T+1]−1（= median_open 窗口(2,2)+next_open 锚，与 6d/20d
+    # 同锚族；曾用 close 锚 open[T+2]/close[T]−1，IC 0.10~0.15），因子复用 6d 清单
     "open2d": dict(
         label_window=(2, 2),
         label_price="open",
-        baseline="close",
+        baseline="next_open",
         label_buffer=2,
         horizon="label_open2d",     # 预测列: pred_label_open2d
     ),
