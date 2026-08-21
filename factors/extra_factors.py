@@ -4,6 +4,8 @@ Non-alpha factors computed from raw OHLCV data and supplementary tables.
 Also provides IndNeutralize post-processing for alpha factors.
 """
 
+from datetime import date, timedelta
+
 import numpy as np
 import polars as pl
 
@@ -26,6 +28,22 @@ def apply_ind_neutralize(
         )
 
     return df.select(alpha_df.columns)
+
+
+def third_friday(y: int, m: int) -> date:
+    """该月第三个周五（股指期货 IF/IH/IC/IM 交割日，法定假日顺延不处理）"""
+    first = date(y, m, 1)
+    off = (4 - first.weekday()) % 7      # 周一=0..周日=6，周五=4
+    return first + timedelta(days=off + 14)
+
+
+def days_to_delivery(d: date) -> int:
+    """距下一个交割日的自然日数；当天即交割日则为 0"""
+    tf = third_friday(d.year, d.month)
+    if d <= tf:
+        return (tf - d).days
+    y, m = (d.year + 1, 1) if d.month == 12 else (d.year, d.month + 1)
+    return (third_friday(y, m) - d).days
 
 
 def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
@@ -239,6 +257,18 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
         .otherwise(None)
         .alias("LnAge")
     )
+
+    # ---- DaysToDelivery（距下一个股指期货交割日的自然日数，交割日当天=0）----
+    # 纯日期规则（third_friday/days_to_delivery），横截面同日同值，无独立
+    # 横截面 IC，与个股因子交互才有意义
+    _d = result.select(pl.col("datetime").cast(pl.Date).alias("_d_key")).unique().sort("_d_key")
+    _d = _d.with_columns(
+        pl.struct("_d_key").map_elements(
+            lambda s: days_to_delivery(s["_d_key"]), return_dtype=pl.Int64
+        ).alias("DaysToDelivery")
+    )
+    result = (result.with_columns(pl.col("datetime").cast(pl.Date).alias("_d_key"))
+              .join(_d, on="_d_key", how="left").drop("_d_key"))
 
     # ---- drop intermediate columns and keep only factor columns ----
     intermediate_cols = ["_ret1d", "_tr", "_turnover_1d", "_list_dt", "_age_days"]
