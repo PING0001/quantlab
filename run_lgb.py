@@ -1,47 +1,52 @@
 """
-Multi-horizon LightGBM walk-forward training.
+Dual-regression LightGBM walk-forward training (bench 2026-08, spec §3.3).
 
-Trains one LGBMRegressor per horizon (5d / 10d / 20d / 30d).
+One LGBMRegressor per model (20d / 6d). Label = median open return over the
+model's forward window, next_open baseline (compute_median_open). Fixed
+test-set protocol identical to the legacy classifier: train once on data
+before TEST_START stepped back label_buffer trading days, predict the whole
+test period.
 
 Usage:
-    python run_lgb.py
+    python run_lgb.py                # train all models (20d, 6d)
+    python run_lgb.py --model 20d
+    python run_lgb.py --model 6d
 """
 from __future__ import annotations
 
 import sys
 import time
 import json
-from pathlib import Path
+import argparse
 from datetime import datetime
+from pathlib import Path
 
 import duckdb
 import numpy as np
 import pandas as pd
+from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS, get_lgb_model_path, get_lgb_predictions_path, get_lgb_predictions_meta_path
+from config import (DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS,
+                    MODEL_CONFIGS, get_lgb_model_path, get_lgb_predictions_path,
+                    get_lgb_predictions_meta_path)
 
-from strategies import LGBStrategy, walk_forward, rank_ic, pearson_ic, ic_summary
+from strategies import LGBStrategy, walk_forward, rank_ic, ic_summary
 from strategies.base import buffered_train_end
-from strategies.labels import compute_forward_returns, compute_median_close, compute_nextopen_limit_mask
+from strategies.labels import compute_median_open, compute_nextopen_limit_mask
 
 
 # --- config ---
 TRAIN_START = pd.Timestamp("2020-01-01")
 TEST_START = pd.Timestamp("2025-06-01")
-TEST_END   = pd.Timestamp("2026-06-01")
+TEST_END = pd.Timestamp("2026-06-01")
 WARMUP_DAYS = 90
 TRAIN_WINDOW = 252
 MIN_TRAIN = 252
-# trading days dropped from the training tail before TEST_START: labels are
-# the T+16..T+20 median close return, so the last 20 trading days of the old
-# training window referenced test-period prices
-LABEL_BUFFER = 20
 
-HORIZONS = ['label']
-WEIGHTS = {'label': 1.0}
-
+# 超参沿用分类时代调参（num_leaves/min_child/colsample 均为分类调出），
+# 回归首跑结果即基线，之后按回归目标重调（spec §3.3 超参注意）
 LGB_KWARGS = dict(
     num_leaves=8,
     max_depth=4,
@@ -53,7 +58,7 @@ LGB_KWARGS = dict(
     subsample=0.6,
     subsample_freq=1,
     colsample_bytree=0.3,
-    model_type="classifier",
+    model_type="regressor",
     categorical_feature=["sw_l3"],
     early_stopping=True,
     validation_fraction=0.10,
@@ -65,11 +70,7 @@ LGB_KWARGS = dict(
 
 
 def load_industry_sw_l3(con: duckdb.DuckDBPyConnection) -> tuple[pd.Series, dict[str, int]]:
-    """Load SW L3 codes for all stocks, encode into deterministic integers.
-
-    Returns (series, mapping) where series maps stock_code → integer,
-    and mapping is {sw_l3_code: integer} with sorted codes for reproducibility.
-    """
+    """Load SW L3 codes for all stocks, encode into deterministic integers."""
     df = con.execute(
         "SELECT code, sw_l3_code FROM industry WHERE sw_l3_code IS NOT NULL"
     ).fetchdf()
@@ -109,8 +110,229 @@ def load_delist_info(con: duckdb.DuckDBPyConnection) -> dict[str, pd.Timestamp]:
         return {}
 
 
+def decile_analysis(pred: pd.Series, label: pd.Series) -> tuple[list[float], float]:
+    """Per-date decile buckets -> mean label per decile + Spearman(decile, mean).
+
+    Monotonicity reference: a good ranking signal should show roughly
+    increasing mean label from decile 0 (lowest pred) to decile 9.
+    """
+    df = pd.DataFrame({"p": pred, "y": label}).dropna()
+    if df.empty:
+        return [], float("nan")
+    pct = df.groupby(level="date")["p"].rank(pct=True)
+    dec = np.minimum((pct * 10).astype(int), 9)
+    means = df.groupby(dec)["y"].mean().tolist()
+    rho = float(spearmanr(range(len(means)), means).statistic) if len(means) == 10 else float("nan")
+    return means, rho
+
+
+def train_model(
+    model: str,
+    factors_raw: pd.DataFrame,
+    label: pd.Series,
+    st_series: pd.Series | None,
+    limit_mask: pd.Series,
+    delist_info: dict[str, pd.Timestamp],
+    industry_sw_l3: pd.Series,
+    sw_l3_mapping: dict[str, int],
+) -> dict:
+    cfg = MODEL_CONFIGS[model]
+    h = cfg["horizon"]
+    label_buffer = cfg["label_buffer"]
+
+    print(f"\n{'=' * 60}")
+    print(f"=== Model {model}: label T+{cfg['label_window'][0]}..T+{cfg['label_window'][1]} "
+          f"open median, baseline={cfg['baseline']}, buffer={label_buffer} ===")
+    print(f"{'=' * 60}")
+
+    t0 = time.time()
+
+    # ---- factor set: per-model selected list ----
+    selected_path = Path(__file__).resolve().parent / "factors" / f"selected_{POOL_NAME}_{model}.json"
+    if selected_path.exists():
+        selected_data = json.loads(selected_path.read_text())
+        use_factors = selected_data["selected_factors"]
+        print(f"  Using {len(use_factors)} pre-selected factors from {selected_path.name}")
+    else:
+        use_factors = SELECTED_FACTORS
+        print(f"  WARNING: {selected_path.name} not found, falling back to full SELECTED_FACTORS")
+
+    available = [f for f in use_factors if f in factors_raw.columns]
+    missing = [f for f in use_factors if f not in factors_raw.columns]
+    if missing:
+        print(f"  WARNING: {len(missing)} selected factors not in DB: {missing}")
+    factor_cols = available
+
+    X = factors_raw[factor_cols].copy()
+    if not industry_sw_l3.empty:
+        idx_codes = X.index.get_level_values("code")
+        X["sw_l3"] = idx_codes.map(industry_sw_l3).fillna(-1).astype(int)
+        if "sw_l3" not in factor_cols:
+            factor_cols = factor_cols + ["sw_l3"]
+
+    print(f"  factors: {len(factor_cols)} available")
+
+    # ---- label (regression target, continuous) ----
+    y = label.to_frame(h)
+
+    # ---- align + train window ----
+    common = X.index.intersection(y.index)
+    X, y = X.loc[common], y.loc[common]
+
+    mask = y.notna().all(axis=1)
+    X, y = X.loc[mask], y.loc[mask]
+
+    date_level = X.index.get_level_values("date")
+    mask = date_level >= TRAIN_START
+    X, y = X.loc[mask], y.loc[mask]
+
+    print(f"  aligned samples: {len(X)}")
+    print(f"  date range: {date_level.min().date()} ~ {date_level.max().date()}")
+
+    # ---- exclude ST + delisted + next-open-limit observations ----
+    if st_series is not None:
+        st_mask = st_series.reindex(X.index, fill_value=False)
+    else:
+        st_mask = pd.Series(False, index=X.index)
+    idx_date = X.index.get_level_values("date")
+    idx_code = X.index.get_level_values("code")
+    delist_series = pd.Series(delist_info)
+    delist_dates = idx_code.map(delist_series)
+    delist_mask = (idx_date >= delist_dates.values)
+    delist_mask = pd.Series(delist_mask, index=X.index).fillna(False)
+
+    lm = limit_mask.reindex(X.index, fill_value=False)
+    print(f"  limit-hit predictions (next-open): {lm.sum()}")
+
+    exclude = st_mask | delist_mask | lm
+    if exclude.any():
+        X, y = X.loc[~exclude], y.loc[~exclude]
+        print(f"  excluded from training: {exclude.sum()} ST/delist/limit observations")
+
+    # ---- strategy ----
+    strategy = LGBStrategy(
+        factor_names=factor_cols,
+        horizons=(h,),
+        **LGB_KWARGS,
+    )
+    if sw_l3_mapping:
+        strategy._category_mappings["sw_l3"] = sw_l3_mapping
+
+    # ---- walk-forward (fixed test set) ----
+    train_dates_all = sorted(X.index.get_level_values("date").unique())[WARMUP_DAYS:]
+    train_end = buffered_train_end(train_dates_all, TEST_START, label_buffer)
+    print(f"  walk-forward: train={train_dates_all[0].date()}~{train_end.date()} "
+          f"(label_buffer={label_buffer}), test={TEST_START.date()}~{TEST_END.date()}, "
+          f"warmup={WARMUP_DAYS}")
+    preds = walk_forward(
+        strategy,
+        X, y,
+        train_window=TRAIN_WINDOW,
+        min_train=MIN_TRAIN,
+        warmup_days=WARMUP_DAYS,
+        test_start=TEST_START,
+        test_end=TEST_END,
+        label_buffer=label_buffer,
+    )
+
+    col = f"pred_{h}"
+    results: dict = {}
+
+    # ---- train-set reference (MAE + rank IC) ----
+    train_mask = X.index.get_level_values("date") < TEST_START
+    if train_mask.any():
+        preds_train = strategy.predict(X.loc[train_mask])
+        tr_p = preds_train[col].values
+        tr_y = y.loc[train_mask, h].values
+        valid = np.isfinite(tr_p) & np.isfinite(tr_y)
+        results["train_mae"] = float(np.mean(np.abs(tr_p[valid] - tr_y[valid])))
+        tr_ic = rank_ic(preds_train[col], y.loc[train_mask, h])
+        tr_s = ic_summary(tr_ic)
+        results["train_ic"] = tr_s
+        print(f"  train: MAE={results['train_mae']:.4f}  "
+              f"IC mean={tr_s['mean_ic']:.4f}  IR={tr_s['ir']:.3f}")
+
+    # ---- test-set evaluation ----
+    if isinstance(preds, pd.DataFrame) and not preds.empty and col in preds.columns:
+        test_pred = preds[col]
+        test_true = y.reindex(preds.index)[h]
+
+        safe = ~limit_mask.reindex(preds.index, fill_value=False)
+        if st_series is not None:
+            safe = safe & ~st_series.reindex(preds.index, fill_value=False)
+
+        tp = test_pred.loc[safe].values
+        tt = test_true.loc[safe].values
+        valid = np.isfinite(tp) & np.isfinite(tt)
+        mae = float(np.mean(np.abs(tp[valid] - tt[valid])))
+
+        ric = rank_ic(test_pred.loc[safe], test_true.loc[safe])
+        s = ic_summary(ric)
+        dec_means, dec_rho = decile_analysis(test_pred.loc[safe], test_true.loc[safe])
+
+        n_dates = preds.index.get_level_values("date").nunique()
+        print(f"  predictions: {len(preds)} rows over {n_dates} dates ({time.time() - t0:.1f}s)")
+        print(f"  TEST  rank IC: mean={s['mean_ic']:.4f}  IR={s['ir']:.3f}  "
+              f"hit={s['hit_rate']:.2%}  ({s['n_periods']} dates)")
+        print(f"  TEST  MAE={mae:.4f}  decile monotonicity rho={dec_rho:.3f}")
+        print(f"  decile mean labels: {[f'{v:+.4f}' for v in dec_means]}")
+        print(f"  excluded (limit/ST): {int((~safe).sum())} obs")
+
+        results.update({
+            "test_ic": s,
+            "test_mae": mae,
+            "decile_means": dec_means,
+            "decile_rho": dec_rho,
+            "n_pred": int(len(preds)),
+        })
+    else:
+        print(f"  predictions: NONE ({time.time() - t0:.1f}s)")
+
+    # ---- persist ----
+    model_path = get_lgb_model_path(model)
+    strategy.save(model_path)
+    print(f"  model saved: {model_path}")
+
+    pred_path = get_lgb_predictions_path(model)
+    if isinstance(preds, pd.DataFrame) and not preds.empty:
+        preds.to_parquet(pred_path)
+        print(f"  predictions saved: {pred_path} ({len(preds)} rows)")
+
+    meta = {
+        "model": model,
+        "model_type": "LightGBM (regression)",
+        "label_fn": "compute_median_open",
+        "label_window": list(cfg["label_window"]),
+        "baseline": cfg["baseline"],
+        "horizons": [h],
+        "factor_names": factor_cols,
+        "test_start": str(TEST_START.date()),
+        "test_end": str(TEST_END.date()),
+        "train_start": str(train_dates_all[0].date()),
+        "train_end": str(train_end.date()),
+        "label_buffer": label_buffer,
+        "lgb_kwargs": LGB_KWARGS,
+        "results": results,
+        "model_path": str(model_path),
+        "predictions_path": str(pred_path),
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    meta_path = get_lgb_predictions_meta_path(model)
+    meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"  meta saved: {meta_path}")
+
+    return results
+
+
 def main():
-    print(f"=== Loading factor data (pool: {POOL_NAME}) ===")
+    parser = argparse.ArgumentParser(description="Dual-regression LightGBM training")
+    parser.add_argument("--model", default="all",
+                        choices=["all"] + sorted(MODEL_CONFIGS),
+                        help="train which model (default: all)")
+    args = parser.parse_args()
+    models = sorted(MODEL_CONFIGS) if args.model == "all" else [args.model]
+
+    print(f"=== Loading data (pool: {POOL_NAME}, models: {models}) ===")
     con = duckdb.connect(str(DB_PATH), read_only=True)
 
     print("  loading factors ...")
@@ -126,242 +348,31 @@ def main():
     print("  loading industry sw_l3 ...")
     industry_sw_l3, sw_l3_mapping = load_industry_sw_l3(con)
     print(f"  industry categories: {industry_sw_l3.nunique()}")
-
     con.close()
 
-    selected_path = Path(__file__).resolve().parent / "factors" / f"selected_{POOL_NAME}.json"
-    if selected_path.exists():
-        selected_data = json.loads(selected_path.read_text())
-        use_factors = selected_data["selected_factors"]
-        print(f"  Using {len(use_factors)} pre-selected factors from {selected_path.name}")
-    else:
-        use_factors = SELECTED_FACTORS
-
-    available = [f for f in use_factors if f in factors_raw.columns]
-    missing = [f for f in use_factors if f not in factors_raw.columns]
-    if missing:
-        print(f"  WARNING: {len(missing)} selected factors not in DB: {missing}")
-    factor_cols = available
-    # IsST may not be in the selected-factors JSON; capture it before column
-    # pruning so ST exclusion and the next-open limit mask still work.
     st_series = factors_raw["IsST"].astype(bool) if "IsST" in factors_raw.columns else None
-    factors_raw = factors_raw[factor_cols].copy()
-    
-    # ---- add sw_l3 categorical feature ----
-    if not industry_sw_l3.empty:
-        idx_codes = factors_raw.index.get_level_values("code")
-        factors_raw["sw_l3"] = idx_codes.map(industry_sw_l3).fillna(-1).astype(int)
-        if "sw_l3" not in factor_cols:
-            factor_cols = factor_cols + ["sw_l3"]
-        n_cats = industry_sw_l3.nunique()
-        print(f"  sw_l3 categorical: {n_cats} categories")
-    else:
-        print(f"  sw_l3 categorical: not available")
-
-    print(f"  factors: {len(factor_cols)} available")
-    print(f"  full date range: {factors_raw.index.get_level_values('date').min()} ~ {factors_raw.index.get_level_values('date').max()}")
-    print(f"  total stocks: {factors_raw.index.get_level_values('code').nunique()}")
-
-    t0 = time.time()
-
-    # ---- labels ----
-    # 分类目标：T+16~T+20 中位数收盘 vs T日收盘
-    #   >= +8% → 1,  <= -4% → -1,  否则 → 0
-    print(f"  computing labels: median_5d close return (T+16~T+20) ...")
-    median_ret = compute_median_close(kline, start_day=16, end_day=20, delist_info=delist_info)
-    
-    label_20d = compute_forward_returns(kline, horizon=20, delist_info=delist_info)
-
-    def _classify(ret):
-        if ret >= 0.08:
-            return 1
-        if ret <= -0.04:
-            return -1
-        return 0
-
-    # 分类标签
-    y_class = median_ret.apply(_classify)
-    y_class.name = "label"
-
-    # 同时保留连续值用于 IC 参考
-    labels_raw = pd.DataFrame({"label": y_class, "ret_20d": label_20d, "ret_median": median_ret})
-
-    # ---- align ----
-    common = factors_raw.index.intersection(labels_raw.index)
-    X = factors_raw.loc[common]
-    y = labels_raw.loc[common]
-
-    mask = y.notna().all(axis=1)
-    X, y = X.loc[mask], y.loc[mask]
-
-    date_level = X.index.get_level_values("date")
-    mask = date_level >= TRAIN_START
-    X, y = X.loc[mask], y.loc[mask]
-
-    print(f"  aligned samples: {len(X)}")
-    print(f"  date range: {date_level.min().date()} ~ {date_level.max().date()}")
-
-    # ---- exclude ST + delisted observations from training ----
-    # st_series captured before column pruning above (it may be absent from
-    # the selected-factors JSON and would otherwise be silently dropped).
-    if st_series is not None:
-        st_mask = st_series.reindex(X.index, fill_value=False)
-    else:
-        st_mask = pd.Series(False, index=X.index)
-    idx_date = X.index.get_level_values("date")
-    idx_code = X.index.get_level_values("code")
-    delist_series = pd.Series(delist_info)
-    delist_dates = idx_code.map(delist_series)
-    delist_mask = (idx_date >= delist_dates.values)
-    delist_mask = pd.Series(delist_mask, index=X.index).fillna(False)
-    
-    # ---- limit mask (for training and test filtering) ----
     limit_mask = compute_nextopen_limit_mask(kline, st_series=st_series)
-    limit_mask = limit_mask.reindex(X.index, fill_value=False)
-    print(f"  limit-hit predictions (next-open): {limit_mask.sum()}")
 
-    exclude = st_mask | delist_mask | limit_mask
-    if exclude.any():
-        X, y = X.loc[~exclude], y.loc[~exclude]
-        print(f"  excluded from training: {exclude.sum()} ST/delist/limit observations")
-    else:
-        print(f"  excluded from training: 0 ST/delist/limit observations")
-
-    # ---- strategy ----
-    strategy = LGBStrategy(
-        factor_names=factor_cols,
-        horizons=tuple(HORIZONS),
-        **LGB_KWARGS,
-    )
-    if sw_l3_mapping:
-        strategy._category_mappings["sw_l3"] = sw_l3_mapping
-    print(f"  strategy: {strategy.name}, horizons={HORIZONS}")
-
-    # ---- walk-forward ----
-    # fixed test-set branch: actual training dates = first date after warmup
-    # up to TEST_START stepped back LABEL_BUFFER trading days
-    train_dates_all = sorted(X.index.get_level_values("date").unique())[WARMUP_DAYS:]
-    train_end = buffered_train_end(train_dates_all, TEST_START, LABEL_BUFFER)
-    print(f"  walk-forward: train={train_dates_all[0].date()}~{train_end.date()} (label_buffer={LABEL_BUFFER}), test={TEST_START.date()}~{TEST_END.date()}, warmup={WARMUP_DAYS}")
-    preds = walk_forward(
-        strategy,
-        X, y,
-        train_window=TRAIN_WINDOW,
-        min_train=MIN_TRAIN,
-        warmup_days=WARMUP_DAYS,
-        test_start=TEST_START,
-        test_end=TEST_END,
-        label_buffer=LABEL_BUFFER,
-    )
-    t_pred = time.time()
-
-    if isinstance(preds, pd.DataFrame) and not preds.empty:
-        n_pred = len(preds)
-        n_dates = preds.index.get_level_values("date").nunique() if isinstance(preds.index, pd.MultiIndex) else 1
-        print(f"  predictions: {n_pred} rows over {n_dates} dates ({t_pred - t0:.1f}s)")
-    else:
-        n_pred = 0
-        n_dates = 0
-        print(f"  predictions: NONE ({t_pred - t0:.1f}s)")
-
-    # ---- evaluation ----
     all_results = {}
-    h = 'label'
-    col = f"pred_{h}"
-    print(f"\n--- Classification (label: >=8%→+1, <=-4%→-1, else→0) ---")
+    for m in models:
+        cfg = MODEL_CONFIGS[m]
+        s0, e0 = cfg["label_window"]
+        print(f"  computing label {m}: median open T+{s0}..T+{e0}, baseline={cfg['baseline']} ...")
+        label = compute_median_open(kline, start_day=s0, end_day=e0, baseline=cfg["baseline"])
+        all_results[m] = train_model(
+            m, factors_raw, label, st_series, limit_mask, delist_info,
+            industry_sw_l3, sw_l3_mapping,
+        )
 
-    # train classification accuracy
-    train_mask = X.index.get_level_values("date") < TEST_START
-    preds_train = strategy.predict(X.loc[train_mask])
-    train_pred = preds_train[col].values
-    train_true = y.loc[train_mask, h].values
-
-    train_pred_class = np.sign(train_pred).astype(int)
-    train_acc = np.mean(train_pred_class == train_true)
-    print(f"  train-set accuracy: {train_acc:.4f}")
-    print(f"  train label dist: +1={sum(train_true==1)}, 0={sum(train_true==0)}, -1={sum(train_true==-1)}")
-
-    if n_pred > 0 and col in preds.columns:
-        test_pred = preds[col]
-        test_true = y.reindex(preds.index)[h]
-
-        safe = ~limit_mask.reindex(preds.index, fill_value=False)
-        if st_series is not None:
-            safe = safe & ~st_series.reindex(preds.index, fill_value=False)
-        n_excl = (~safe).sum()
-
-        tp = test_pred.loc[safe].values
-        tt = test_true.loc[safe].values
-
-        test_pred_class = np.sign(tp).astype(int)
-        test_acc = np.mean(test_pred_class == tt)
-        print(f"\n  test-set  accuracy: {test_acc:.4f}")
-        print(f"  test label dist: +1={sum(tt==1)}, 0={sum(tt==0)}, -1={sum(tt==-1)}")
-        print(f"  excluded: {n_excl} obs")
-
-        # Rank IC vs continuous median return (reference)
-        ret_median = y.reindex(preds.index)["ret_median"]
-        ric = rank_ic(test_pred.loc[safe], ret_median.loc[safe])
-        s = ic_summary(ric)
-        print(f"  ref IR vs ret_median: mean_ic={s['mean_ic']:.4f}, ir={s['ir']:.3f}, hit={s['hit_rate']:.2%}")
-
-        ret_20d = y.reindex(preds.index)["ret_20d"]
-        ric20 = rank_ic(test_pred.loc[safe], ret_20d.loc[safe])
-        s20 = ic_summary(ric20)
-        print(f"  ref IR vs ret_20d:    mean_ic={s20['mean_ic']:.4f}, ir={s20['ir']:.3f}, hit={s20['hit_rate']:.2%}")
-
-        all_results[h] = {
-            "train_acc": float(train_acc),
-            "test_acc": float(test_acc),
-            "ref_ic_median": s,
-            "ref_ic_20d": s20,
-        }
-    else:
-        all_results[h] = {"train_acc": float(train_acc)}
-
-    # ---- persist model ----
-    model_path = get_lgb_model_path()
-    strategy.save(model_path)
-    print(f"\n  model saved: {model_path}")
-
-    # ---- persist predictions ----
-    pred_path = get_lgb_predictions_path()
-    if isinstance(preds, pd.DataFrame) and not preds.empty:
-        preds.to_parquet(pred_path)
-        print(f"  predictions saved: {pred_path} ({len(preds)} rows)")
-
-    # ---- save meta ----
-    meta = {
-        "model": "LightGBM (classification)",
-        "horizons": HORIZONS,
-        "factor_names": factor_cols,
-        "test_start": str(TEST_START.date()),
-        "test_end": str(TEST_END.date()),
-        # fixed test-set branch trains once on [train_start, train_end) —
-        # not a TRAIN_WINDOW rolling window; train_end excludes label_buffer
-        # trading days before test_start whose labels reference test prices
-        "train_start": str(train_dates_all[0].date()),
-        "train_end": str(train_end.date()),
-        "label_buffer": LABEL_BUFFER,
-        "lgb_kwargs": LGB_KWARGS,
-        "results": {str(k): all_results[k] for k in all_results},
-        "model_path": str(model_path),
-        "predictions_path": str(pred_path),
-        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    }
-    meta_path = get_lgb_predictions_meta_path()
-    meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"  meta saved: {meta_path}")
-
-    # ---- final summary ----
     print(f"\n{'=' * 60}")
     print("=== Summary ===")
     print(f"{'=' * 60}")
-    r = all_results.get("label", {})
-    print(f"  Train accuracy: {r.get('train_acc', 0):.4f}")
-    print(f"  Test  accuracy: {r.get('test_acc', 0):.4f}")
-    ref = r.get("ref_ic_median", {})
-    print(f"  Ref IC (ret_median): ir={ref.get('ir', 0):.3f}, hit={ref.get('hit_rate', 0):.2%}")
+    for m, r in all_results.items():
+        ic = r.get("test_ic", {})
+        print(f"  {m}: test IC mean={ic.get('mean_ic', float('nan')):+.4f}  "
+              f"IR={ic.get('ir', float('nan')):.3f}  hit={ic.get('hit_rate', float('nan')):.2%}  "
+              f"MAE={r.get('test_mae', float('nan')):.4f}  "
+              f"decile_rho={r.get('decile_rho', float('nan')):.3f}")
     print("\nDone.")
 
 
