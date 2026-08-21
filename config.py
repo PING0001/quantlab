@@ -110,8 +110,9 @@ SELECTED_FACTORS = (
     # Firm age (1)
     ["LnAge"]
     +
-    # Calendar (1)：距下一个股指期货交割日（每月第三个周五）的自然日数，当日=0
-    ["DaysToDelivery"]
+    # Calendar (2)：DaysToDelivery 距下一交割日（第三个周五）自然日数，当日=0；
+    #             DaysToNextTrading 到下一交易日的休市天数（明天开市=0，周五=2，节前=假期长度）
+    ["DaysToDelivery", "DaysToNextTrading"]
     +
     # ST status (1)
     ["IsST"]

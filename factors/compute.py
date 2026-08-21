@@ -196,6 +196,25 @@ def _load_shibor(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     return pl.from_pandas(df).rename({"date": "datetime"})
 
 
+def _load_days_to_next_trading(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
+    """DaysToNextTrading：今天到下一交易日之间的休市天数（明天开市=0；普通周五=2；
+    节前最后交易日=假期长度）。trading_calendar 唯一真相源（is_open=1 序列相邻差-1）；
+    日历末位交易日无下一日 → 该日 NULL（诚实留空，待日历延展后自然补上）。"""
+    import pandas as pd
+
+    df = con.execute(
+        "SELECT date FROM trading_calendar WHERE is_open ORDER BY date"
+    ).fetchdf()
+    if len(df) < 2:
+        return pl.DataFrame()
+    dts = pd.to_datetime(df["date"]).dt.date.tolist()
+    rows = [(str(dts[i]), (dts[i + 1] - dts[i]).days - 1) for i in range(len(dts) - 1)]
+    return pl.DataFrame(
+        {"datetime": [r[0] for r in rows], "DaysToNextTrading": [r[1] for r in rows]},
+        schema={"datetime": pl.Utf8, "DaysToNextTrading": pl.Int64},
+    )
+
+
 def _load_stock_info(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     """Load list_date for LnAge computation."""
     df = con.execute(
@@ -412,6 +431,14 @@ def compute_panel(
         symbols = extra_df.select("vt_symbol").unique()
         shibor_df = symbols.join(shibor_df, how="cross")
         extra_df = extra_df.join(shibor_df, on=["datetime", "vt_symbol"], how="left")
+
+    gap_df = _load_days_to_next_trading(con)
+    if not gap_df.is_empty():
+        dates = extra_df.select("datetime").unique()
+        gap_df = dates.join(gap_df, on="datetime", how="left")
+        symbols = extra_df.select("vt_symbol").unique()
+        gap_df = symbols.join(gap_df, how="cross")
+        extra_df = extra_df.join(gap_df, on=["datetime", "vt_symbol"], how="left")
 
     isst_df = _compute_isst(con)
     if not isst_df.is_empty():
