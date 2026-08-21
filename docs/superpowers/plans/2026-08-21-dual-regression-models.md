@@ -37,11 +37,11 @@
 
 **退市语义（spec §3.2，P0-1 修订）**：部分窗口保留可得开盘价的中位数（真实可成交退出价）；窗口全缺 → NaN（由调用方 notna 过滤）；**不实现 -1.0 填充**（旧填充是死代码）。
 
-- [ ] **Step 1: 写验证脚本（先于实现）** `_check_median_open.py`：从 DB read_only 取 3 只样本股全历史 OHLC——正常股（池内行数最多）、退市股（`delist_info` 首条且 kline 有行）、停牌股（池内最大日内 gap）；脚本内含**独立朴素重算**（逐行收集 `opens[t+s..t+e]` 取 median / baseline），对 `compute_median_open` 三种 baseline 全部断言 `np.allclose(equal_nan=True)`；断言：退市股尾部行 NaN、全库无 -1.0 值、停牌股 T+k 跨复牌日时窗口用复牌后开盘价（打印人工目检）
-- [ ] **Step 2: 跑脚本确认失败**：`cd /Users/cui/Projects/quantlab-dual && /Users/cui/.workbuddy-ai/quantlab-env/bin/python _check_median_open.py` → 期望 `ImportError: cannot import name 'compute_median_open'`
-- [ ] **Step 3: 实现**（追加到 labels.py，模式照抄 `compute_median_close`，groupby("code").apply 内 `o.shift(-d)` concat + median，baseline 列选择；非法 baseline 抛 ValueError；docstring 写明退市语义）
-- [ ] **Step 4: 跑脚本通过**：期望输出三案例全部 `MISMATCH=0`、`n_neg1=0`、退市股尾部 NaN 行数与窗口几何一致
-- [ ] **Step 5: Commit**：`git add strategies/labels.py _check_median_open.py && git commit -m "feat: compute_median_open 开盘中位数收益标签（next_open 基准 + 实证退市语义）"`
+- [x] **Step 1: 写验证脚本（先于实现）** `_check_median_open.py`：从 DB read_only 取 3 只样本股全历史 OHLC——正常股（池内行数最多）、退市股（`delist_info` 首条且 kline 有行）、停牌股（池内最大日内 gap）；脚本内含**独立朴素重算**（逐行收集 `opens[t+s..t+e]` 取 median / baseline），对 `compute_median_open` 三种 baseline 全部断言 `np.allclose(equal_nan=True)`；断言：退市股尾部行 NaN、全库无 -1.0 值、停牌股 T+k 跨复牌日时窗口用复牌后开盘价（打印人工目检）
+- [x] **Step 2: 跑脚本确认失败**：`cd /Users/cui/Projects/quantlab-dual && /Users/cui/.workbuddy-ai/quantlab-env/bin/python _check_median_open.py` → 期望 `ImportError: cannot import name 'compute_median_open'`
+- [x] **Step 3: 实现**（追加到 labels.py，模式照抄 `compute_median_close`，groupby("code").apply 内 `o.shift(-d)` concat + median，baseline 列选择；非法 baseline 抛 ValueError；docstring 写明退市语义）
+- [x] **Step 4: 跑脚本通过**：期望输出三案例全部 `MISMATCH=0`、`n_neg1=0`、退市股尾部 NaN 行数与窗口几何一致
+- [x] **Step 5: Commit**：`git add strategies/labels.py _check_median_open.py && git commit -m "feat: compute_median_open 开盘中位数收益标签（next_open 基准 + 实证退市语义）"`
 
 ### Task 2: config 模型注册表 + 路径参数化
 
@@ -52,9 +52,9 @@
 - Produces: `MODEL_CONFIGS: dict`（"20d"/"6d" → label_window/label_price/baseline/label_buffer/horizon，内容 = spec §3.1 代码块逐字）；`get_lgb_model_path(model="20d", name=None) -> models/{pool}/lgb_{model}.joblib`；`get_lgb_predictions_path(model="20d", name=None)`；`get_lgb_predictions_meta_path(model="20d", name=None)`；`get_legacy_lgb_model_path(name=None) -> models/{pool}/lgb_multi.joblib`（Task 8 回退分支用）
 - 验证：`python -c` 断言四个路径函数对 "20d"/"6d"/legacy 的返回值字符串；`MODEL_CONFIGS` 两项的 label_buffer 为 20/6
 
-- [ ] **Step 1: 修改 config.py**（新增 MODEL_CONFIGS + 四个路径函数；旧无参调用默认 model="20d" 指向新路径——本分支内旧消费方在 Task 7/8 一并迁移）
-- [ ] **Step 2: 验证**：`python -c "from config import *; ..."` 打印并断言全部路径
-- [ ] **Step 3: Commit**：`feat: config 模型注册表 + 双模型产物路径参数化`
+- [x] **Step 1: 修改 config.py**（新增 MODEL_CONFIGS + 四个路径函数；旧无参调用默认 model="20d" 指向新路径——本分支内旧消费方在 Task 7/8 一并迁移）
+- [x] **Step 2: 验证**：`python -c "from config import *; ..."` 打印并断言全部路径
+- [x] **Step 3: Commit**：`feat: config 模型注册表 + 双模型产物路径参数化`
 
 ### Task 3: 8 个日内形态因子 + 表迁移 + 全历史回填
 
