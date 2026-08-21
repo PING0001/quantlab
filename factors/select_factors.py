@@ -5,11 +5,16 @@ Computes cross-sectional rank IC and pairwise factor correlation in the
 training set, then greedily selects factors with highest |IC| while capping
 pairwise correlation below a threshold.
 
+标签 = 目标模型的 compute_median_open（与训练同一构造，spec §3.4）；
+每模型一份清单，输出 selected_{pool}_{model}.json。
+
 Usage:
-    python -m factors.select_factors
+    python -m factors.select_factors --model 20d
+    python -m factors.select_factors --model 6d
 """
 from __future__ import annotations
 
+import argparse
 import sys
 import json
 import warnings
@@ -22,16 +27,16 @@ from scipy.stats import rankdata
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS
-from strategies.labels import compute_forward_returns
+from config import DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS, MODEL_CONFIGS
+from strategies.labels import compute_median_open
 
 
+# 口径说明：此 TRAIN_START(2015) 与 run_lgb 的 TRAIN_START(2020) 历史上就
+# 不一致（筛选看更长历史），不改行为，输出 json 如实记录两者
 TRAIN_START = pd.Timestamp("2015-01-01")
 TEST_START = pd.Timestamp("2025-06-01")
-HORIZONS = [5, 10, 20, 30]
 MAX_FACTORS = 60
 CORR_THRESHOLD = 0.75
-PRIMARY_HORIZON = 20
 MIN_STOCKS_PER_DATE = 30
 MUST_INCLUDE = ["CSI_return_20d"]
 
@@ -53,19 +58,10 @@ def load_kline(con):
     return con.execute(query, pool_codes).fetchdf()
 
 
-def load_delist_info(con):
-    try:
-        df = con.execute("SELECT code, delist_date FROM delist_info").fetchdf()
-        return {r["code"]: pd.Timestamp(r["delist_date"]) for _, r in df.iterrows()}
-    except Exception:
-        return {}
-
-
-def compute_labels(kline, delist_info):
-    label_dfs = {}
-    for h in HORIZONS:
-        label_dfs[h] = compute_forward_returns(kline, horizon=h, delist_info=delist_info)
-    return pd.DataFrame({h: label_dfs[h] for h in HORIZONS})
+def compute_model_label(kline, cfg: dict) -> pd.Series:
+    """Label column matching the training target construction exactly."""
+    s, e = cfg["label_window"]
+    return compute_median_open(kline, start_day=s, end_day=e, baseline=cfg["baseline"])
 
 
 def _rank_ic_np(f_vals, l_vals):
@@ -85,7 +81,15 @@ def _rank_ic_np(f_vals, l_vals):
 
 
 def main():
-    print(f"Pool: {POOL_NAME}")
+    parser = argparse.ArgumentParser(description="Factor selection via IC ranking + correlation filtering")
+    parser.add_argument("--model", choices=sorted(MODEL_CONFIGS), default="20d",
+                        help="模型（决定标签窗口/基准价，spec §3.4）")
+    args = parser.parse_args()
+    cfg = MODEL_CONFIGS[args.model]
+    horizon_name = cfg["horizon"]
+
+    print(f"Pool: {POOL_NAME} | model: {args.model} "
+          f"(label T+{cfg['label_window'][0]}..T+{cfg['label_window'][1]}, baseline={cfg['baseline']})")
     con = duckdb.connect(str(DB_PATH), read_only=True)
 
     print("Loading factors ...")
@@ -108,11 +112,10 @@ def main():
 
     print("Loading kline ...")
     kline = load_kline(con)
-    delist_info = load_delist_info(con)
     con.close()
 
     print("Computing labels ...")
-    labels = compute_labels(kline, delist_info)
+    labels = compute_model_label(kline, cfg).to_frame(horizon_name)
 
     common = factors.index.intersection(labels.index)
     factors = factors.loc[common]
@@ -123,7 +126,8 @@ def main():
     if "IsST" in factors.columns:
         st_series = factors["IsST"].reindex(labels.index, fill_value=False).astype(bool)
         exclude |= st_series
-    exclude |= (labels == -1.0).any(axis=1)
+    # 旧 (labels == -1.0) 排除已删：compute_median_open 无 -1.0 填充（spec §3.2，
+    # 旧填充是死代码）；窗口缺失行为 NaN，由上一行 notna 排除覆盖
 
     factors = factors.loc[~exclude]
     labels = labels.loc[~exclude]
@@ -139,14 +143,14 @@ def main():
     print("Preparing arrays ...")
     F_all = factors[factor_names].values.astype(np.float64)
     F_all[~np.isfinite(F_all)] = np.nan
-    label_cols = list(HORIZONS)
+    label_cols = [horizon_name]
     L_all = labels[label_cols].values.astype(np.float64)
 
     dates_arr = factors.index.get_level_values("date").values
     unique_dates, start_idx, counts = np.unique(dates_arr, return_index=True, return_counts=True)
     all_dates = pd.DatetimeIndex(unique_dates)
     n_unique = len(unique_dates)
-    print(f"  {n_unique} unique dates, {len(factor_names)} factors, {len(HORIZONS)} horizons")
+    print(f"  {n_unique} unique dates, {len(factor_names)} factors, 1 label ({horizon_name})")
 
     # ---- daily rank IC ----
     print("Computing daily rank IC ...", flush=True)
@@ -163,14 +167,13 @@ def main():
 
         for f_idx in range(n_factors):
             f_vals = f_arr[:, f_idx]
-            for h_idx in range(len(HORIZONS)):
-                l_vals = l_arr[:, h_idx]
-                ic = _rank_ic_np(f_vals, l_vals)
-                if not np.isnan(ic):
-                    ic_records.append({
-                        "date": date, "factor": factor_names[f_idx],
-                        "horizon": HORIZONS[h_idx], "ic": ic,
-                    })
+            l_vals = l_arr[:, 0]
+            ic = _rank_ic_np(f_vals, l_vals)
+            if not np.isnan(ic):
+                ic_records.append({
+                    "date": date, "factor": factor_names[f_idx],
+                    "horizon": horizon_name, "ic": ic,
+                })
 
         if (g + 1) % 200 == 0:
             elapsed = _time.time() - t_start
@@ -218,12 +221,12 @@ def main():
     print(f"  Correlation averaged over {corr_count} dates")
 
     # ---- IC summary ----
-    ic_20d = (ic_df[ic_df["horizon"] == PRIMARY_HORIZON]
-              .groupby("factor")["ic"]
-              .agg(["mean", "std", "count"])
-              .reset_index())
-    ic_20d["abs_mean_ic"] = ic_20d["mean"].abs()
-    ic_20d = ic_20d.sort_values("abs_mean_ic", ascending=False).set_index("factor")
+    ic_primary = (ic_df[ic_df["horizon"] == horizon_name]
+                  .groupby("factor")["ic"]
+                  .agg(["mean", "std", "count"])
+                  .reset_index())
+    ic_primary["abs_mean_ic"] = ic_primary["mean"].abs()
+    ic_primary = ic_primary.sort_values("abs_mean_ic", ascending=False).set_index("factor")
 
     ic_all = (ic_df.groupby("factor")["ic"]
               .agg(["mean", "std", "count"])
@@ -238,7 +241,7 @@ def main():
         print(f"  Must-include: {selected}")
     discarded_corr = []
 
-    for factor in ic_20d.index:
+    for factor in ic_primary.index:
         if factor in selected:
             continue
         if len(selected) >= MAX_FACTORS:
@@ -268,9 +271,9 @@ def main():
     print(f"  Selected: {len(selected)} factors")
     print(f"{'='*70}")
     for i, f in enumerate(selected, 1):
-        ic_val = ic_20d.loc[f, "mean"] if f in ic_20d.index else np.nan
+        ic_val = ic_primary.loc[f, "mean"] if f in ic_primary.index else np.nan
         ic_all_val = ic_all.loc[f, "mean"] if f in ic_all.index else np.nan
-        print(f"  {i:3d}. {f:35s} |IC_20d|={abs(ic_val):.4f}  IC_all={ic_all_val:+.4f}")
+        print(f"  {i:3d}. {f:35s} |IC_{args.model}|={abs(ic_val):.4f}  IC_all={ic_all_val:+.4f}")
 
     print(f"\n{'='*70}")
     print(f"  Discarded by correlation: {len(discarded_corr)}")
@@ -280,7 +283,7 @@ def main():
     if len(discarded_corr) > 30:
         print(f"  ... and {len(discarded_corr) - 30} more")
 
-    remaining = [f for f in ic_20d.index
+    remaining = [f for f in ic_primary.index
                  if f not in selected
                  and f not in {d["factor"] for d in discarded_corr}]
     if remaining:
@@ -291,22 +294,26 @@ def main():
             print(f"    ... and {len(remaining) - 15} more")
 
     # ---- save ----
-    output_path = Path(__file__).resolve().parent / f"selected_{POOL_NAME}.json"
+    output_path = Path(__file__).resolve().parent / f"selected_{POOL_NAME}_{args.model}.json"
     result = {
         "pool": POOL_NAME,
+        "model": args.model,
+        "label_fn": "compute_median_open",
+        "label_window": list(cfg["label_window"]),
+        "baseline": cfg["baseline"],
         "train_start": str(TRAIN_START.date()),
         "train_end": str(TEST_START.date()),
+        "train_start_note": "select_factors 自 2015 起算长历史；run_lgb 训练自 2020 起——历史口径差异，如实记录",
         "corr_threshold": CORR_THRESHOLD,
-        "primary_horizon": PRIMARY_HORIZON,
         "max_factors": MAX_FACTORS,
         "n_dates_corr": int(corr_count),
         "selected_factors": selected,
         "factor_metrics": {
             f: {
-                "ic_20d_mean": float(ic_20d.loc[f, "mean"]) if f in ic_20d.index else None,
-                "ic_20d_abs_mean": float(ic_20d.loc[f, "abs_mean_ic"]) if f in ic_20d.index else None,
+                "ic_primary_mean": float(ic_primary.loc[f, "mean"]) if f in ic_primary.index else None,
+                "ic_primary_abs_mean": float(ic_primary.loc[f, "abs_mean_ic"]) if f in ic_primary.index else None,
                 "ic_all_mean": float(ic_all.loc[f, "mean"]) if f in ic_all.index else None,
-                "n_ic_dates": int(ic_20d.loc[f, "count"]) if f in ic_20d.index else 0,
+                "n_ic_dates": int(ic_primary.loc[f, "count"]) if f in ic_primary.index else 0,
             }
             for f in selected
         },
