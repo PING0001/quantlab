@@ -65,11 +65,11 @@ def refresh(con: duckdb.DuckDBPyConnection, pro, start: str = CAL_START) -> str:
         "SELECT strptime(cal_date, '%Y%m%d')::DATE, is_open FROM df"
     )
     con.execute("CHECKPOINT")
-    latest = latest(con, on_or_before=today.strftime("%Y-%m-%d"))
+    boundary = latest(con, on_or_before=today.strftime("%Y-%m-%d"))
     log.info("trading_calendar refreshed: %d rows (%s ~ %s); "
              "increment boundary (latest open <= today): %s",
-             len(df), df["cal_date"].min(), df["cal_date"].max(), latest)
-    return latest
+             len(df), df["cal_date"].min(), df["cal_date"].max(), boundary)
+    return boundary
 
 
 def refresh_safe(con: duckdb.DuckDBPyConnection, pro) -> str:
