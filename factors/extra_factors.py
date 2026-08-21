@@ -186,6 +186,35 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
         (pl.col("Turnover_3d") / pl.col("Turnover_3d").rolling_mean(20, min_samples=1).over("vt_symbol")).alias("Turnover_3d_ratio"),
     ])
 
+    # ---- Intraday shape（日线 OHLCV 衍生日内形态，bench 2026-08 spec §3.8）----
+    # 一字板（high==low）的 ClosePos/OpenPos 置 NULL 而非 epsilon 兜底：
+    # 该日无日内信息，与 Price_position_252d 的 +1e-10 风格不同是有意的
+    body_max = pl.max_horizontal(os, cs)
+    body_min = pl.min_horizontal(os, cs)
+    result = result.with_columns([
+        ((hs - body_max) / cs).alias("UpperShadow"),
+        ((body_min - ls) / cs).alias("LowerShadow"),
+        pl.when(hs > ls).then((cs - ls) / (hs - ls)).otherwise(None).alias("ClosePos"),
+        pl.when(hs > ls).then((os - ls) / (hs - ls)).otherwise(None).alias("OpenPos"),
+    ])
+    result = result.with_columns(
+        pl.when((pl.col("UpperShadow") + pl.col("LowerShadow")) > 0)
+        .then(pl.col("UpperShadow") / (pl.col("UpperShadow") + pl.col("LowerShadow")))
+        .otherwise(None)
+        .alias("ShadowRatio")
+    )
+    # 单位换手的价格波动效率（零换手日置 NULL，除零由 compute 末端 cleanup 兜底）
+    result = result.with_columns(
+        pl.when(pl.col("_turnover_1d") > 0)
+        .then(pl.col("Intraday_range_pct") / pl.col("_turnover_1d"))
+        .otherwise(None)
+        .alias("RangeEfficiency")
+    )
+    result = result.with_columns([
+        pl.col("ClosePos").rolling_mean(20, min_samples=1).over("vt_symbol").alias("ClosePos_mean_20d"),
+        pl.col("ClosePos").rolling_std(20, min_samples=1).over("vt_symbol").alias("ClosePos_std_20d"),
+    ])
+
     # ---- Cross-sectional Rank factors (percentile (rank-0.5)/n minus 0.5, ∈ (-0.5, 0.5)) ----
     def _pct_rank(col: str) -> pl.Expr:
         r = pl.col(col)

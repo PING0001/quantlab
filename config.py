@@ -116,6 +116,10 @@ SELECTED_FACTORS = (
     # Chip distribution (4)
     ["WinnerRate", "CostPosition", "ChipDispersion", "ChipSkew"]
     +
+    # Intraday shape (8, bench 2026-08)
+    ["UpperShadow", "LowerShadow", "ClosePos", "OpenPos",
+     "ShadowRatio", "RangeEfficiency", "ClosePos_mean_20d", "ClosePos_std_20d"]
+    +
     # Alternative versions (old raw formulas)
     ["alpha1_v0", "alpha18_v0", "alpha50_v0", "alpha60_v0"]
 )
