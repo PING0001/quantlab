@@ -121,24 +121,56 @@ SELECTED_FACTORS = (
 )
 
 
+# ---- Model registry (dual regression bench, spec 2026-08-20 §3.1) ----
+# 模型名 = 标签窗口末端交易日（T+16~T+20 -> "20d"，T+4~T+6 -> "6d"）
+MODEL_CONFIGS = {
+    "20d": dict(
+        label_window=(16, 20),
+        label_price="open",
+        baseline="next_open",       # open[T+1]，与回测次日开盘入场对齐
+        label_buffer=20,
+        horizon="label_20d",        # 预测列: pred_label_20d
+    ),
+    "6d": dict(
+        label_window=(4, 6),
+        label_price="open",
+        baseline="next_open",
+        label_buffer=6,
+        horizon="label_6d",         # 预测列: pred_label_6d
+    ),
+}
+
+
+def get_model_config(model: str = "20d") -> dict:
+    if model not in MODEL_CONFIGS:
+        raise ValueError(f"unknown model {model!r}, expected one of {sorted(MODEL_CONFIGS)}")
+    return MODEL_CONFIGS[model]
+
+
 # ---- Model ----
 def get_model_dir(name: str = None) -> Path:
     return ROOT / "models" / (name or POOL_NAME)
 
 
-def get_lgb_model_path(name: str = None) -> Path:
+def get_lgb_model_path(model: str = "20d", name: str = None) -> Path:
+    return get_model_dir(name) / f"lgb_{model}.joblib"
+
+
+def get_legacy_lgb_model_path(name: str = None) -> Path:
+    """bench 前的单分类模型：仅供 generate_lgb 回退分支与整体回滚使用，
+    本 bench 任何代码不得写入该文件。"""
     return get_model_dir(name) / "lgb_multi.joblib"
 
 
 # ---- Predictions cache ----
-def get_lgb_predictions_path(name: str = None) -> Path:
+def get_lgb_predictions_path(model: str = "20d", name: str = None) -> Path:
     p = name or POOL_NAME
-    return ROOT / "data" / f"predictions__{p}_lgb.parquet"
+    return ROOT / "data" / f"predictions__{p}_lgb_{model}.parquet"
 
 
-def get_lgb_predictions_meta_path(name: str = None) -> Path:
+def get_lgb_predictions_meta_path(model: str = "20d", name: str = None) -> Path:
     p = name or POOL_NAME
-    return ROOT / "data" / f"predictions__{p}_lgb_meta.json"
+    return ROOT / "data" / f"predictions__{p}_lgb_{model}_meta.json"
 
 
 # ---- Backtest output ----
