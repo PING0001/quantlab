@@ -198,7 +198,7 @@ def _load_shibor(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
 
 def _load_days_to_next_trading(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     """DaysToNextTrading：今天到下一交易日之间的休市天数（明天开市=0；普通周五=2；
-    节前最后交易日=假期长度）。trading_calendar 唯一真相源（is_open=1 序列相邻差-1）；
+    节前最后交易日=假期长度）。trading_calendar 唯一真相源（is_open 序列相邻差-1）；
     日历末位交易日无下一日 → 该日 NULL（诚实留空，待日历延展后自然补上）。"""
     import pandas as pd
 
@@ -212,6 +212,47 @@ def _load_days_to_next_trading(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     return pl.DataFrame(
         {"datetime": [r[0] for r in rows], "DaysToNextTrading": [r[1] for r in rows]},
         schema={"datetime": pl.Utf8, "DaysToNextTrading": pl.Int64},
+    )
+
+
+def _load_days_to_delivery(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
+    """DaysToDelivery：距下一股指期货交割日的自然日数，交割日当天=0。
+    交割日 = 每月第三个周五，逢法定假日顺延至下一交易日（CFFEX 规则；
+    2008-2026 共 9 个月顺延，均为春节/中秋撞期）。trading_calendar 单源；
+    日历末月若交割日超出日历范围 → 这些尾部日期无映射留 NULL。"""
+    import bisect
+    from datetime import timedelta
+
+    import pandas as pd
+
+    from .extra_factors import third_friday
+
+    df = con.execute(
+        "SELECT date FROM trading_calendar WHERE is_open ORDER BY date"
+    ).fetchdf()
+    if df.empty:
+        return pl.DataFrame()
+    dts = pd.to_datetime(df["date"]).dt.date.tolist()
+    cal = set(dts)
+
+    deliveries = []
+    for y in range(dts[0].year, dts[-1].year + 1):
+        for m in range(1, 13):
+            d = third_friday(y, m)
+            while d not in cal and d <= dts[-1]:
+                d += timedelta(days=1)
+            if d in cal:
+                deliveries.append(d)
+    deliveries.sort()
+
+    rows = []
+    for d in dts:
+        i = bisect.bisect_left(deliveries, d)
+        if i < len(deliveries):
+            rows.append((str(d), (deliveries[i] - d).days))
+    return pl.DataFrame(
+        {"datetime": [r[0] for r in rows], "DaysToDelivery": [r[1] for r in rows]},
+        schema={"datetime": pl.Utf8, "DaysToDelivery": pl.Int64},
     )
 
 
@@ -439,6 +480,14 @@ def compute_panel(
         symbols = extra_df.select("vt_symbol").unique()
         gap_df = symbols.join(gap_df, how="cross")
         extra_df = extra_df.join(gap_df, on=["datetime", "vt_symbol"], how="left")
+
+    deliv_df = _load_days_to_delivery(con)
+    if not deliv_df.is_empty():
+        dates = extra_df.select("datetime").unique()
+        deliv_df = dates.join(deliv_df, on="datetime", how="left")
+        symbols = extra_df.select("vt_symbol").unique()
+        deliv_df = symbols.join(deliv_df, how="cross")
+        extra_df = extra_df.join(deliv_df, on=["datetime", "vt_symbol"], how="left")
 
     isst_df = _compute_isst(con)
     if not isst_df.is_empty():
