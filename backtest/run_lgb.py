@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-LightGBM long-only backtest — 5-day rebalancing with pred_label.
+Dual-regression combined backtest — DAILY rebalancing (bench 2026-08).
 
-Loads pre-computed LightGBM predictions from run_lgb.py output, then simulates
-a periodic rebalancing strategy:
-  - Every 5 trading days: rank stocks by pred_label, sell positions that dropped
-    out of top-N, buy top-N stocks not yet held.
-  - All trades use overnight limit orders with auction + intraday execution.
-  - Sell orders persist across non-rebalance days.
+Loads both model prediction parquets (20d / 6d), combines them into the
+rank/exec dual channel (strategies.combine), then simulates:
+  - top-N ranking by rank_score (percentile ensemble, spec §3.5)
+  - limit prices from exec_score (expected-return magnitude, P0-2)
+  - rebalance every trading day (REBALANCE_FREQ=1, 2026-08-21 用户裁定)
 
 Run from project root:
     python -m backtest.run_lgb
@@ -24,10 +23,12 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import DB_PATH, POOL_NAME, get_pool_codes, get_lgb_predictions_path, get_backtest_dir
+from config import (DB_PATH, POOL_NAME, get_pool_codes, get_backtest_dir,
+                    get_lgb_predictions_path, MODEL_CONFIGS)
 
 from strategies import rank_ic, ic_summary
-from strategies.labels import compute_median_close, compute_nextopen_limit_mask
+from strategies.labels import compute_median_open, compute_nextopen_limit_mask
+from strategies.combine import combine_scores
 from backtest.signals import run_portfolio_rebalance, compute_benchmark, run_long_short
 
 # ============================================================================
@@ -35,11 +36,11 @@ from backtest.signals import run_portfolio_rebalance, compute_benchmark, run_lon
 # ============================================================================
 TEST_START = pd.Timestamp("2025-06-01")
 
-PRED_COL = "pred_label"
-LABEL_HORIZON = "median_16_20"  # median close return T+16~T+20
+PRED_COLS = {"20d": "pred_label_20d", "6d": "pred_label_6d"}
+W20, W6 = 0.6, 0.4
 
 MAX_POSITIONS = 10
-REBALANCE_FREQ = 5          # rebalance every 5 trading days
+REBALANCE_FREQ = 1          # 每日调仓（2026-08-21 用户裁定，spec §3.6）
 AUCTION_BUFFER = 0.02
 SELL_MARKUP = 0.001
 CASH_PER_STOCK = 10000
@@ -54,7 +55,6 @@ warnings.filterwarnings("ignore")
 # ============================================================================
 # Data loading
 # ============================================================================
-
 def load_ohlcv_map(con: duckdb.DuckDBPyConnection, codes: list[str]) -> dict[str, pd.DataFrame]:
     placeholders = ",".join(["?"] * len(codes))
 
@@ -94,45 +94,78 @@ def load_ohlcv_map(con: duckdb.DuckDBPyConnection, codes: list[str]) -> dict[str
     return ohlcv_map
 
 
+def load_predictions() -> dict[str, pd.Series]:
+    preds = {}
+    for m, col in PRED_COLS.items():
+        path = get_lgb_predictions_path(m)
+        if not path.exists():
+            print(f"  ERROR: predictions for {m} not found at {path}")
+            print("  Run: python run_lgb.py --model all")
+            sys.exit(1)
+        pdf = pd.read_parquet(path)
+        if col not in pdf.columns:
+            print(f"  ERROR: column '{col}' not found in {path}")
+            sys.exit(1)
+        preds[m] = pdf[col]
+        n_dates = preds[m].index.get_level_values("date").nunique()
+        print(f"  {m}: {len(preds[m])} rows, {n_dates} dates ({col})")
+    return preds
+
+
+def holding_days(trade_df: pd.DataFrame) -> pd.Series:
+    """FIFO pairing of BUY/SELL per code -> holding days distribution."""
+    holds: list[float] = []
+    queues: dict[str, list] = {}
+    for _, t in trade_df.sort_values("date").iterrows():
+        q = queues.setdefault(t["code"], [])
+        if t["action"] == "BUY":
+            q.append((t["date"], t["shares"]))
+        elif t["action"] == "SELL":
+            remain = t["shares"]
+            while remain > 0 and q:
+                bdate, bshares = q[0]
+                take = min(remain, bshares)
+                holds.append((t["date"] - bdate).days)
+                remain -= take
+                if take == bshares:
+                    q.pop(0)
+                else:
+                    q[0] = (bdate, bshares - take)
+    return pd.Series(holds, dtype=float)
+
+
 def main():
     print("=" * 60)
-    print("  LightGBM 20d 5-Day Rebalance Backtest")
-    print(f"  Pool: {POOL_NAME}")
+    print("  Dual-Regression Combined Backtest — DAILY Rebalance")
+    print(f"  Pool: {POOL_NAME} | weights: 20d={W20}, 6d={W6}")
     print("=" * 60)
 
-    # ---- 1. Load predictions ----
-    print("\n[1/4] Loading LGBM predictions ...")
-    pred_path = get_lgb_predictions_path()
-    if not pred_path.exists():
-        print(f"  ERROR: Predictions not found at {pred_path}")
-        print("  Run: python run_lgb.py")
-        return
+    # ---- 1. Load + combine predictions ----
+    print("\n[1/5] Loading predictions ...")
+    preds = load_predictions()
+    combined = combine_scores(preds["20d"], preds["6d"], w20=W20, w6=W6)
+    rank_s, exec_s = combined["rank_score"], combined["exec_score"]
 
-    pred_df = pd.read_parquet(pred_path)
-
-    if PRED_COL not in pred_df.columns:
-        available = list(pred_df.columns)
-        print(f"  ERROR: Column '{PRED_COL}' not found. Available: {available}")
-        return
-
-    preds = pred_df[PRED_COL]
-    n_preds = len(preds)
-    n_dates = preds.index.get_level_values("date").nunique()
-    n_codes = preds.index.get_level_values("code").nunique()
-    print(f"  Predictions ({PRED_COL}): {n_preds} rows, {n_dates} dates, {n_codes} stocks")
+    n_dates = rank_s.index.get_level_values("date").nunique()
+    print(f"  combined: {len(rank_s)} rows, {n_dates} dates")
+    print(f"  exec_score quantiles: "
+          f"1%={exec_s.quantile(0.01):+.4f} 50%={exec_s.quantile(0.5):+.4f} "
+          f"99%={exec_s.quantile(0.99):+.4f} |0.999|={abs(exec_s).quantile(0.999):.4f}")
+    # 量纲 sanity（验收 5）：exec 必须是收益量纲，否则限价公式失真
+    if abs(exec_s).quantile(0.999) > 0.35:
+        print("  ERROR: exec_score magnitude exceeds plausible return range — "
+              "check combine inputs")
+        sys.exit(1)
 
     # ---- 2. Load OHLCV + metadata ----
-    print(f"\n[2/4] Loading OHLCV + metadata ...")
+    print(f"\n[2/5] Loading OHLCV + metadata ...")
     con = duckdb.connect(str(DB_PATH), read_only=True)
     pool_codes = get_pool_codes()
-
-    pred_codes = sorted(preds.index.get_level_values("code").unique())
+    pred_codes = sorted(rank_s.index.get_level_values("code").unique())
     ohlcv_map = load_ohlcv_map(con, pred_codes)
-
     full_ohlcv = load_ohlcv_map(con, pool_codes)
     print(f"  OHLCV: {len(ohlcv_map)} prediction stocks, {len(full_ohlcv)} pool stocks")
 
-    # Excluded codes (ST/退 in name)
     excluded_codes = set()
     try:
         placeholders = ",".join(["?"] * len(pred_codes))
@@ -148,7 +181,6 @@ def main():
         pass
     print(f"  Excluded (ST/退): {len(excluded_codes)} stocks")
 
-    # Delist info
     delist_info = {}
     try:
         dl_df = con.execute("SELECT code, delist_date FROM delist_info").fetchdf()
@@ -159,8 +191,8 @@ def main():
     print(f"  Delist info: {len(delist_info)} stocks")
     con.close()
 
-    # ---- 3. IC reference check (with limit-hit + ST filter, matching train eval) ----
-    print(f"\n[3/4] IC reference ({PRED_COL} vs median_16_20) ...")
+    # ---- 3. IC reference (each model vs own label + rank_score vs both) ----
+    print(f"\n[3/5] IC reference ...")
     con_r = duckdb.connect(str(DB_PATH), read_only=True)
     placeholders = ",".join(["?"] * len(pool_codes))
     kline = con_r.execute(
@@ -168,7 +200,6 @@ def main():
         pool_codes,
     ).fetchdf()
 
-    # Load ST series from factor_values
     try:
         st_df = con_r.execute(
             f"SELECT code, date, IsST FROM factor_values WHERE code IN ({placeholders})",
@@ -181,35 +212,38 @@ def main():
             st_series = None
     except Exception:
         st_series = None
-
-    limit_mask = compute_nextopen_limit_mask(kline, st_series=st_series)
-
-    labels = compute_median_close(kline, start_day=16, end_day=20, delist_info=delist_info)
     con_r.close()
 
-    common = preds.index.intersection(labels.index)
-    p_ic = preds.loc[common]
-    l_ic = labels.loc[common]
+    limit_mask = compute_nextopen_limit_mask(kline, st_series=st_series)
+    n_limit = int(limit_mask.loc[rank_s.index].sum()) if not limit_mask.empty else 0
+    n_st = int(st_series.loc[rank_s.index].sum()) if st_series is not None else 0
+    print(f"  obs with next-open limit hit: {n_limit} | ST obs: {n_st}")
 
-    safe = ~limit_mask.reindex(p_ic.index, fill_value=False)
-    if st_series is not None:
-        safe = safe & ~st_series.reindex(p_ic.index, fill_value=False)
-    ric = rank_ic(p_ic.loc[safe], l_ic.loc[safe])
-    ic_s = ic_summary(ric)
-    n_excl = (~safe).sum()
-    print(f"  Rank IC (median_16_20): mean={ic_s['mean_ic']:.4f}, IR={ic_s['ir']:.2f}, "
-          f"hit_rate={ic_s['hit_rate']:.2%}, {ic_s['n_periods']} dates, {n_excl} excluded")
+    def _safe_ic(p: pd.Series, lab: pd.Series) -> dict:
+        common = p.index.intersection(lab.index)
+        safe = ~limit_mask.reindex(common, fill_value=False)
+        if st_series is not None:
+            safe = safe & ~st_series.reindex(common, fill_value=False)
+        return ic_summary(rank_ic(p.loc[safe], lab.loc[safe]))
 
-    pred_dates = sorted(preds.index.get_level_values("date").unique())
-    test_end_date = str(pred_dates[-1].date()) if len(pred_dates) > 0 else str(TEST_START.date())
+    for m in PRED_COLS:
+        cfg = MODEL_CONFIGS[m]
+        s0, e0 = cfg["label_window"]
+        lab = compute_median_open(kline, start_day=s0, end_day=e0, baseline=cfg["baseline"])
+        s_own = _safe_ic(preds[m], lab)
+        s_comb = _safe_ic(rank_s, lab)
+        print(f"  {m:>3} label: own IC={s_own['mean_ic']:+.4f} (IR {s_own['ir']:.2f}) | "
+              f"rank_score IC={s_comb['mean_ic']:+.4f} (IR {s_comb['ir']:.2f})")
+
+    pred_dates = sorted(rank_s.index.get_level_values("date").unique())
+    test_end_date = str(pred_dates[-1].date())
     print(f"  Prediction period: {pred_dates[0].date()} ~ {pred_dates[-1].date()} ({len(pred_dates)} dates)")
-    print(f"  Backtest will stop at prediction end: {test_end_date}")
 
-    # ---- 4. Portfolio backtest ----
-    print(f"\n[4/4] Running 5-day rebalance backtest "
+    # ---- 4. Portfolio backtest (daily rebalance) ----
+    print(f"\n[4/5] Running DAILY rebalance backtest "
           f"(max_pos={MAX_POSITIONS}, rebalance_freq={REBALANCE_FREQ}) ...")
     port_stats, equity_df, trade_df = run_portfolio_rebalance(
-        preds, ohlcv_map,
+        exec_s, ohlcv_map,
         test_start=str(TEST_START.date()),
         max_positions=MAX_POSITIONS,
         rebalance_freq=REBALANCE_FREQ,
@@ -221,88 +255,77 @@ def main():
         stamp_duty=STAMP_DUTY,
         risk_free_rate=RISK_FREE_RATE,
         delist_info=delist_info,
+        rank_scores=rank_s,
     )
 
-    # Truncate equity to prediction end date
     if not equity_df.empty and test_end_date is not None:
         cutoff = pd.Timestamp(test_end_date)
         equity_df = equity_df[equity_df.index <= cutoff]
-        # Recompute stats on truncated equity
         from backtest.signals import _compute_stats
         port_stats, equity_df = _compute_stats(equity_df["Equity"], risk_free_rate=RISK_FREE_RATE)
 
     n_trades = len(trade_df)
     n_buys = int((trade_df["action"] == "BUY").sum()) if n_trades > 0 else 0
     n_sells = int((trade_df["action"] == "SELL").sum()) if n_trades > 0 else 0
-    print(f"  Trades: {n_trades} total (BUY={n_buys}, SELL={n_sells})")
+    hd = holding_days(trade_df) if n_trades > 0 else pd.Series(dtype=float)
+    print(f"  Trades: {n_trades} total (BUY={n_buys}, SELL={n_sells}, "
+          f"{n_trades / max(1, len(pred_dates)):.1f}/day)")
+    if len(hd):
+        print(f"  Holding days (FIFO): median={hd.median():.0f} mean={hd.mean():.1f} "
+              f"max={hd.max():.0f}")
 
-    test_dates = sorted(preds.index.get_level_values("date").unique())
-    # Truncate benchmark dates to prediction end
-    if test_end_date is not None:
-        cutoff = pd.Timestamp(test_end_date)
-        test_dates = [d for d in test_dates if d <= cutoff]
-    bench_df = compute_benchmark(full_ohlcv, test_dates, delist_info=delist_info, excluded_codes=excluded_codes)
+    test_dates = [d for d in pred_dates if d <= pd.Timestamp(test_end_date)]
+    bench_df = compute_benchmark(full_ohlcv, test_dates, delist_info=delist_info,
+                                 excluded_codes=excluded_codes)
 
     # ========================================================================
     # REPORT
     # ========================================================================
     print("\n" + "=" * 60)
-    print("  PORTFOLIO RESULTS")
+    print("  PORTFOLIO RESULTS (combined rank/exec, daily rebalance)")
     print("=" * 60)
 
     print(f"\n  {'Total Return:':<22} {port_stats.get('total_return', 0):>+10.2%}")
     print(f"  {'CAGR:':<22} {port_stats.get('cagr', 0):>+10.2%}")
     print(f"  {'Sharpe Ratio:':<22} {port_stats.get('sharpe', 0):>10.2f}")
     print(f"  {'Sortino Ratio:':<22} {port_stats.get('sortino', 0):>10.2f}")
-    print(f"  {'Max Drawdown:':<22} {port_stats.get('max_drawdown', 0):>10.2%}")
+    print(f"  {'Max Drawdown:':<22} {port_stats.get('max_drawdown', 0):>+10.2%}")
     print(f"  {'Calmar Ratio:':<22} {port_stats.get('calmar', 0):>10.2f}")
-    print(f"  {'Win Rate:':<22} {port_stats.get('win_rate', 0):>10.2%}")
+    print(f"  {'Win Rate:':<22} {port_stats.get('win_rate', 0):>+10.2%}")
     print(f"  {'Trading Days:':<22} {port_stats.get('n_days', 0):>10}")
     print(f"  {'Total Trades:':<22} {n_trades:>10}")
 
-    # Benchmark
     if not bench_df.empty and len(bench_df) > 0:
         bench_daily = bench_df['daily_ret'].dropna()
-        bench_total = float(bench_df['equity'].iloc[-1] - 1.0)  # buy-and-hold equity[-1] - 1
-        bench_ret = bench_df['daily_ret'].dropna()
-        b_mean = float(bench_ret.mean())
-        b_std = float(bench_ret.std())
-        bench_annual_ret = b_mean * 252.0
-        bench_annual_std = b_std * np.sqrt(252.0)
-        bench_sharpe = float((bench_annual_ret - RISK_FREE_RATE) / bench_annual_std) if bench_annual_std > 0 else 0.0
+        bench_total = float(bench_df['equity'].iloc[-1] - 1.0)
+        b_mean, b_std = float(bench_daily.mean()), float(bench_daily.std())
+        bench_sharpe = float((b_mean * 252.0 - RISK_FREE_RATE) / (b_std * np.sqrt(252.0))) if b_std > 0 else 0.0
         bench_peak = bench_df['equity'].cummax()
-        bench_dd = (bench_df['equity'] - bench_peak) / bench_peak
-        bench_maxdd = float(bench_dd.min())
+        bench_maxdd = float(((bench_df['equity'] - bench_peak) / bench_peak).min())
 
         print(f"\n  --- Benchmark (Equal-Weight All {len(full_ohlcv)} stocks) ---")
         print(f"  {'Total Return:':<22} {bench_total:>+10.2%}")
         print(f"  {'Sharpe Ratio:':<22} {bench_sharpe:>10.2f}")
-        print(f"  {'Max Drawdown:':<22} {bench_maxdd:>10.2%}")
+        print(f"  {'Max Drawdown:':<22} {bench_maxdd:>+10.2%}")
+        print(f"\n  {'Excess Return:':<22} {port_stats.get('total_return', 0) - bench_total:>+10.2%}")
 
-        excess = port_stats.get('total_return', 0) - bench_total
-        print(f"\n  {'Excess Return:':<22} {excess:>+10.2%}")
-
-    # IC consistency
-    print(f"\n  --- IC Consistency ({PRED_COL}) ---")
-    print(f"  Rank IC mean:  {ic_s['mean_ic']:.4f}")
-    print(f"  Rank IC IR:    {ic_s['ir']:.2f}")
-    print(f"  Rank IC hit:   {ic_s['hit_rate']:.2%}")
-
-    # Save equity curve
+    # ---- save outputs（独立命名，勿覆写旧文件——report_strategy 还在消费旧对照）----
     bt_dir = get_backtest_dir()
     bt_dir.mkdir(parents=True, exist_ok=True)
-    eq_path = bt_dir / "equity_lgb_20d_5d_rebalance.csv"
+    eq_path = bt_dir / "equity_lgb_combined_daily_rebalance.csv"
     equity_df.to_csv(eq_path)
     if not bench_df.empty:
-        bench_df.to_csv(bt_dir / "benchmark.csv")
+        bench_df.to_csv(bt_dir / "benchmark_combined.csv")
+    if n_trades:
+        trade_df.to_csv(bt_dir / "trades_lgb_combined_daily_rebalance.csv", index=False)
     print(f"\n  Equity curve saved to: {eq_path}")
 
     # ========================================================================
     # LONG-SHORT SIGNAL TEST
     # ========================================================================
-    print(f"\n[5/5] Running long-short signal test (n_long={MAX_POSITIONS}, n_short={MAX_POSITIONS}) ...")
+    print(f"\n[5/5] Running long-short signal test (n={MAX_POSITIONS}/{MAX_POSITIONS}) ...")
     ls_stats, ls_equity = run_long_short(
-        preds, full_ohlcv,
+        exec_s, full_ohlcv,
         n_long=MAX_POSITIONS,
         n_short=MAX_POSITIONS,
         test_start=str(TEST_START.date()),
@@ -312,24 +335,16 @@ def main():
         stamp_duty=STAMP_DUTY,
         delist_info=delist_info,
         borrow_rate=BORROW_RATE,
+        rank_scores=rank_s,
     )
 
     if ls_stats:
-        n_days = ls_stats.get("n_days", 0)
-        n_traded = ls_stats.get("n_days_traded", 0)
-        n_long_skip = ls_stats.get("n_long_limit_skipped", 0)
-        n_short_skip = ls_stats.get("n_short_limit_skipped", 0)
-        print(f"\n  --- Long-Short Results ({n_traded}/{n_days} days traded) ---")
+        print(f"\n  --- Long-Short Results ({ls_stats.get('n_days_traded', 0)}/"
+              f"{ls_stats.get('n_days', 0)} days traded) ---")
         print(f"  {'Total Return:':<22} {ls_stats.get('total_return', 0):>+10.2%}")
-        print(f"  {'Mean Daily Ret:':<22} {ls_stats.get('mean_daily_ret', 0):>+10.4%}")
-        print(f"  {'Std Daily Ret:':<22} {ls_stats.get('std_daily_ret', 0):>10.4%}")
         print(f"  {'Sharpe Ratio:':<22} {ls_stats.get('sharpe', 0):>10.2f}")
-        print(f"  {'Limit-Up Skipped:':<22} {n_long_skip:>10} (long leg)")
-        print(f"  {'Limit-Down Skipped:':<22} {n_short_skip:>10} (short leg)")
-
-        ls_path = bt_dir / "equity_lgb_20d_long_short.csv"
-        ls_equity.to_csv(ls_path)
-        print(f"\n  Long-short equity saved to: {ls_path}")
+        ls_equity.to_csv(bt_dir / "equity_lgb_combined_long_short.csv")
+        print(f"\n  Long-short equity saved")
 
     print("\n" + "=" * 60)
     print("  Done.")

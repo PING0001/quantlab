@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 """
+DEPRECATED (bench 2026-08): 本脚本读写死于 bench 前的预测列（pred_5d），
+且 get_lgb_predictions_path() 现按模型参数化——本文件在 bench 前就已损坏，
+保留仅供历史参考，勿运行；如需固定持有期验证请基于
+predictions__{pool}_lgb_{20d,6d}.parquet 重写。
+
 Fixed 5-day holding test — validates model predictions against actual returns.
 
 Buy: same overnight limit-order rules as main engine, NO entry threshold.

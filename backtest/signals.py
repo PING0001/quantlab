@@ -149,6 +149,10 @@ def run_portfolio(
 ):
     """Long-only backtest with overnight limit orders and call auction execution.
 
+    DEPRECATED（bench 2026-08）：entry_threshold 语义依赖收益量纲分数，
+    双模型 rank/exec 架构下不适配，主路径为 run_portfolio_rebalance；
+    保留仅供历史对照，勿在新代码中使用。
+
     predictions : pd.Series, MultiIndex (date, code), values = pred_5d scores
     ohlcv_map   : {code: DataFrame}, columns must include
                   Open, High, Low, Close, Volume, IsST
@@ -411,6 +415,7 @@ def run_portfolio_rebalance(
     stamp_duty=0.0005,
     risk_free_rate=0.025,
     delist_info=None,
+    rank_scores=None,
 ):
     """Long-only backtest with periodic rebalancing and overnight limit orders.
 
@@ -426,6 +431,10 @@ def run_portfolio_rebalance(
     delist_info : dict or None
         Mapping from code to delist_date (Timestamp). Stocks on or after
         their delist_date are excluded from buy candidates.
+    rank_scores : pd.Series or None（bench 2026-08，P0-2 解耦）
+        排序专用通道（如 combine_scores 的 rank 百分位）。提供时：候选集
+        仍由 predictions（exec 量纲，限价公式依赖）决定，但 top-N 排序用
+        rank_scores。缺省 None 时行为与旧版完全一致。
     """
     all_dates = sorted(set().union(*(ohlcv.index for ohlcv in ohlcv_map.values())))
     total_cash = float(max_positions * initial_cash_per_stock)
@@ -581,7 +590,17 @@ def run_portfolio_rebalance(
 
             if not today_pred.empty:
                 # --- 3a. Filter candidates ---
-                candidates = today_pred.dropna()
+                # 候选集合 = 有 exec 预测（限价可定价）；top-N 排序用 rank 通道
+                if rank_scores is not None:
+                    try:
+                        rank_vals = rank_scores.xs(date, level="date").reindex(today_pred.index)
+                    except KeyError:
+                        rank_vals = today_pred
+                    candidates = pd.DataFrame(
+                        {"rank": rank_vals, "exec": today_pred}
+                    ).dropna(subset=["exec"])["rank"]
+                else:
+                    candidates = today_pred.dropna()
                 candidates = candidates[~candidates.index.isin(excluded_codes)]
                 st_codes = {c for c in candidates.index if isst_map.get(c, 0) == 1}
                 candidates = candidates[~candidates.index.isin(st_codes)]
@@ -683,6 +702,7 @@ def run_long_short(
     stamp_duty=0.0005,
     delist_info=None,
     borrow_rate=0.08,
+    rank_scores=None,
 ):
     """Daily-rebalanced long-short portfolio: long top N, short bottom N.
 
@@ -799,6 +819,13 @@ def run_long_short(
 
         valid = set(records) & set(today_pred.index)
         valid_pred = today_pred[today_pred.index.isin(valid)]
+        # 排序用 rank 通道（bench 2026-08 P0-2 解耦；缺省同旧版）
+        if rank_scores is not None:
+            try:
+                day_rank = rank_scores.xs(date, level="date").reindex(valid_pred.index)
+                valid_pred = day_rank.sort_values(ascending=False, na_position="last")
+            except KeyError:
+                pass
         ranked = valid_pred.sort_values(ascending=False)
 
         if len(ranked) < n_long + n_short:
