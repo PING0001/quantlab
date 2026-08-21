@@ -68,13 +68,13 @@
 
 **顺序约束（spec §3.8）**：ALTER 之后、回填完成前**不得跑 `factors.update`**；回填时确认无 pull/update 进程；回填只 UPDATE 8 个新列 + 缺行 INSERT 由 write_panel 列所有权逻辑决定——不得触碰 ai_gz2000_*。
 
-- [ ] **Step 1: 读 extra_factors.py / compute.py 相关段**，确定表达式落点与列名
-- [ ] **Step 2: 实现 8 列表达式 + SELECTED_FACTORS 注册**
-- [ ] **Step 3: 写 migrate_intraday_shape.py**（幂等：列已存在则跳过 ALTER；--dry-run 打印计划）
-- [ ] **Step 4: 验证表达式正确性**：小样本（3 只股 1 年）跑 compute_panel，SQL 抽 3 个 (code,date) 手算公式比对
-- [ ] **Step 5: 全历史回填**（大计算；确认无并发后跑；预期 ~1100 股 × 全历史）
-- [ ] **Step 6: 回填后验证**：8 列非空率（应接近现有因子列水平）、ai_gz2000_* 两列逐字节不变（回填前后各 SELECT checksum）、`python -m factors.update --dry-run` 无新列告警
-- [ ] **Step 7: Commit**（分两次：表达式+工具 / 回填为数据操作不入库）
+- [x] **Step 1: 读 extra_factors.py / compute.py 相关段**，确定表达式落点与列名
+- [x] **Step 2: 实现 8 列表达式 + SELECTED_FACTORS 注册**
+- [x] **Step 3: 写 migrate_intraday_shape.py**（幂等：列已存在则跳过 ALTER；--dry-run 打印计划）
+- [x] **Step 4: 验证表达式正确性**：小样本（3 只股 1 年）跑 compute_panel，SQL 抽 3 个 (code,date) 手算公式比对
+- [x] **Step 5: 全历史回填**（大计算；确认无并发后跑；预期 ~1100 股 × 全历史）
+- [x] **Step 6: 回填后验证**：8 列非空率（应接近现有因子列水平）、ai_gz2000_* 两列逐字节不变（回填前后各 SELECT checksum）、`python -m factors.update --dry-run` 无新列告警
+- [x] **Step 7: Commit**（分两次：表达式+工具 / 回填为数据操作不入库）
 
 ### Task 4: select_factors --model 参数化
 
