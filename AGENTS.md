@@ -1,5 +1,10 @@
 # Quantlab — AI Agent Instructions
 
+> **⚠️ 本分支是双回归模型 bench（`feat/regression-dual-model`，worktree `/Users/cui/Projects/quantlab-dual`，2026-08-21 开工）**
+> 本文件主体仍描述 bench 前的三分类架构——对主工作区（fix 分支，workbuddy 生产流水线所在）仍然准确，**对本分支已过时**。
+> 本分支实际架构与全部裁定史见 `docs/superpowers/specs/2026-08-20-dual-regression-models-design.md`，任务进度见 `docs/superpowers/plans/2026-08-21-dual-regression-models.md`。
+> 本文件主体将在 Task 10（全链路验收后）整体重写。
+
 ## Project Overview
 
 Quantlab 是一个 **A股量化选股系统**，针对主板微盘股（流通市值 1-20 亿）进行收益分类预测。核心流程：
