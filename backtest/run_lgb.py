@@ -3,8 +3,8 @@
 Dual-regression combined backtest — DAILY rebalancing (bench 2026-08, v4).
 
 Loads both model prediction parquets (20d / 6d), blends them into a single
-score = 0.4*pred_20d + 0.6*pred_6d (label anchor close[T]; no percentile
-layer, 2026-08-21 用户口径 v4), then simulates daily:
+score = 0.6*pred_20d + 0.4*pred_6d (label anchor close[T]; no percentile
+layer; weights 2026-08-21 用户改回 20d 主导), then simulates daily:
   - buy: top-k of cash slots (k = max_positions - held), bargain limit
     close*(1+score-3%)
   - sell: every held position at target price close*(1+score)
@@ -38,7 +38,7 @@ from backtest.signals import run_portfolio_rebalance, compute_benchmark, run_lon
 TEST_START = pd.Timestamp("2025-06-01")
 
 PRED_COLS = {"20d": "pred_label_20d", "6d": "pred_label_6d"}
-W20, W6 = 0.4, 0.6             # v4：score = 0.4*p20 + 0.6*p6（2026-08-21 用户裁定）
+W20, W6 = 0.6, 0.4             # score = 0.6*p20 + 0.4*p6（2026-08-21 用户二次裁定改回 20d 主导，原 v4 为 0.4/0.6）
 
 MAX_POSITIONS = 10
 REBALANCE_FREQ = 1          # 每日调仓（2026-08-21 用户裁定，spec §3.6）
@@ -137,7 +137,7 @@ def holding_days(trade_df: pd.DataFrame) -> pd.Series:
 
 def main():
     print("=" * 60)
-    print("  Dual-Regression Backtest — DAILY, v4: score = 0.4*p20 + 0.6*p6")
+    print("  Dual-Regression Backtest — DAILY, score = 0.6*p20 + 0.4*p6 (w64)")
     print(f"  Pool: {POOL_NAME} | label anchor: close[T] | top-k cash slots + bargain limit")
     print("=" * 60)
 
@@ -322,7 +322,7 @@ def main():
     # ---- save outputs（独立命名，勿覆写旧文件——report_strategy 还在消费旧对照）----
     bt_dir = get_backtest_dir()
     bt_dir.mkdir(parents=True, exist_ok=True)
-    th_suffix = "_v4"
+    th_suffix = "_v4w64"
     eq_path = bt_dir / f"equity_lgb_combined_daily{th_suffix}_rebalance.csv"
     equity_df.to_csv(eq_path)
     if not bench_df.empty:

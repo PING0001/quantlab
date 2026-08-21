@@ -38,9 +38,9 @@ p6 = series({(D1, "A"): 0.03, (D1, "B"): np.nan, (D1, "C"): -0.01, (D1, "D"): 0.
 
 s = combine_scores(p20, p6)
 
-# v4 公式：0.4*20d + 0.6*6d
-check("blend A = 0.4*0.10+0.6*0.03", np.isclose(s.loc[(D1, "A")], 0.4 * 0.10 + 0.6 * 0.03))
-check("blend C = 0.4*(-0.02)+0.6*(-0.01)", np.isclose(s.loc[(D1, "C")], 0.4 * -0.02 + 0.6 * -0.01))
+# 公式：0.6*20d + 0.4*6d（2026-08-21 用户改回 20d 主导）
+check("blend A = 0.6*0.10+0.4*0.03", np.isclose(s.loc[(D1, "A")], 0.6 * 0.10 + 0.4 * 0.03))
+check("blend C = 0.6*(-0.02)+0.4*(-0.01)", np.isclose(s.loc[(D1, "C")], 0.6 * -0.02 + 0.4 * -0.01))
 # 缺 6d -> 重归一为 20d 原值；缺 20d -> 重归一为 6d 原值
 check("missing 6d -> p20 renorm", np.isclose(s.loc[(D1, "B")], 0.05))
 check("missing 20d -> p6 renorm", np.isclose(s.loc[(D1, "D")], 0.02))

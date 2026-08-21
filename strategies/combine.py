@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-Combined score for the dual-regression models (2026-08-21 用户口径 v4).
+Combined score for the dual-regression models (2026-08-21 用户口径 v4 + 权重回改).
 
 单一分数，无百分位层：
 
-    score = 0.4 * pred_20d + 0.6 * pred_6d
+    score = 0.6 * pred_20d + 0.4 * pred_6d
 
 - 预测锚 = T 日收盘价（label = median(open[T+s..T+e]) / close[T] - 1），
   与挂单公式同锚：买入限价 = 收盘×(1+score−3%)，卖出目标价 = 收盘×(1+score)
 - 排序（取前 k）与挂价共用同一分数
-- 权重重 6d（贴近日频买点）；某侧缺失时按可用权重重归一
+- 权重重 20d（2026-08-21 用户二次裁定改回，原 v4 曾为 0.4/0.6 重 6d）；某侧缺失时按可用权重重归一
 - 弃用的 rank_score/exec_score 双通道与 percentile 层见 git 历史（v3）
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ import pandas as pd
 
 
 def combine_scores(pred_20d: pd.Series, pred_6d: pd.Series,
-                   w20: float = 0.4, w6: float = 0.6) -> pd.Series:
+                   w20: float = 0.6, w6: float = 0.4) -> pd.Series:
     """Blend two model prediction Series into one score (return units).
 
     Parameters
