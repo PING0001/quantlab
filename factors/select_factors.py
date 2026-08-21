@@ -217,7 +217,11 @@ def main():
 
     corr_matrix = corr_sum / corr_count
     corr_df = pd.DataFrame(corr_matrix, index=factor_names, columns=factor_names)
-    np.fill_diagonal(corr_df.values, 1.0)
+    # pandas 2.x CoW 下 .values 为只读视图，np.fill_diagonal 原地写会抛
+    # "underlying array is read-only"——显式拷贝后再写
+    corr_vals = corr_df.to_numpy(copy=True)
+    np.fill_diagonal(corr_vals, 1.0)
+    corr_df = pd.DataFrame(corr_vals, index=factor_names, columns=factor_names)
     print(f"  Correlation averaged over {corr_count} dates")
 
     # ---- IC summary ----
