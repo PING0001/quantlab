@@ -44,6 +44,9 @@ MAX_POSITIONS = 10
 REBALANCE_FREQ = 1          # 每日调仓（2026-08-21 用户裁定，spec §3.6）
 AUCTION_BUFFER = 0.03        # 买入限价 = 收盘×(1+pred−3%)（2026-08-21 用户口径 v3）
 SELL_MARKUP = 0.0            # 卖出限价 = 收盘×(1+pred) 目标价，无上浮（v3）
+# 实验（非正式结构，2026-08-21 用户要求）：开盘市价执行，与 next_open 锚预测
+# 对齐--买=无论开盘价多少按开盘成交；卖=pred<0 开盘市价卖出（pred>=0 持有）
+EXEC_MARKET_OPEN = True
 CASH_PER_STOCK = 10000
 COMMISSION = 0.0006
 STAMP_DUTY = 0.0005
@@ -259,6 +262,7 @@ def main():
         stamp_duty=STAMP_DUTY,
         risk_free_rate=RISK_FREE_RATE,
         delist_info=delist_info,
+        market_open=EXEC_MARKET_OPEN,
     )
 
     if not equity_df.empty and test_end_date is not None:
@@ -322,7 +326,7 @@ def main():
     # ---- save outputs（独立命名，勿覆写旧文件——report_strategy 还在消费旧对照）----
     bt_dir = get_backtest_dir()
     bt_dir.mkdir(parents=True, exist_ok=True)
-    th_suffix = "_v7"  # v7 = v6 底座上单变量改标签锚 close[T]→next_open（T+1 开盘）
+    th_suffix = "_v7mo" if EXEC_MARKET_OPEN else "_v7"  # v7 = v6 底座上单变量改标签锚 close[T]→next_open（T+1 开盘）
     eq_path = bt_dir / f"equity_lgb_combined_daily{th_suffix}_rebalance.csv"
     equity_df.to_csv(eq_path)
     if not bench_df.empty:

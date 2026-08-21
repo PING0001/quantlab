@@ -424,6 +424,7 @@ def run_portfolio_rebalance(
     delist_info=None,
     rank_scores=None,
     rank_threshold=None,
+    market_open=False,
 ):
     """Long-only backtest with periodic rebalancing and overnight limit orders.
 
@@ -611,6 +612,8 @@ def run_portfolio_rebalance(
                 # 目标价 = 收盘×(1+pred)：pred>0 止盈单（价格触及即结算）；
                 # pred<0 低于市价的出货单（次日基本开盘成交）。退出路径仅两条：
                 # 预测转负 或 价格突破目标价（2026-08-21 用户口径 v3）
+                # market_open 实验模式（非正式结构）：pred<0 -> 开盘市价卖出
+                #（限价 0，任何开盘价都触发 op>=limit 分支）；pred>=0 不挂卖单
                 new_sells = {}
                 for code, pos in positions.items():
                     if code in buy_lock:
@@ -621,7 +624,11 @@ def run_portfolio_rebalance(
                     prev_cl = close_map.get(code)
                     if prev_cl is None or prev_cl <= 0:
                         continue
-                    new_sells[code] = _sell_limit(prev_cl, float(pred_val), sell_markup)
+                    if market_open:
+                        if float(pred_val) < 0:
+                            new_sells[code] = 0.0
+                    else:
+                        new_sells[code] = _sell_limit(prev_cl, float(pred_val), sell_markup)
 
                 # --- 3b. BUY：k = 空仓份数，预测排名前 k（剔除已持有）---
                 # 候选集合 = 有 exec 预测（限价可定价）；排序用 rank 通道
@@ -660,7 +667,11 @@ def run_portfolio_rebalance(
                     prev_cl = close_map.get(code)
                     if prev_cl is None or prev_cl <= 0:
                         continue
-                    new_buys[code] = _buy_limit(prev_cl, float(today_pred[code]), auction_buffer)
+                    if market_open:
+                        # 实验模式：限价无穷大 -> 无论开盘价多少都按开盘价成交
+                        new_buys[code] = float("inf")
+                    else:
+                        new_buys[code] = _buy_limit(prev_cl, float(today_pred[code]), auction_buffer)
 
                 sell_orders = new_sells
                 buy_orders = new_buys
