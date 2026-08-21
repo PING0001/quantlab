@@ -4,10 +4,13 @@
 T+1 constraint: stocks bought today cannot be sold tomorrow.
 
 Entry (buy):
-  trigger   pred > entry_threshold
+  trigger   pred > entry_threshold (threshold 模式) / top-N
   limit     prev_close * (1 + pred - auction_buffer)
+            （2026-08-21 用户二次裁定：保留此加减法口径，弃目标价×(1-3%)
+             乘法折让版——两者数值相近，此版更直观）
   fill      open <= limit -> fill at open (call auction)
             low  <= limit -> fill at limit (intraday)
+            else         -> order expires (no chase)
             sealed limit-up -> skip
 
 Exit (sell):
@@ -62,7 +65,10 @@ def _is_frozen_down(high, limit_down_price) -> bool:
 # ============================================================================
 
 def _buy_limit(prev_close, pred_score: float, auction_buffer: float = 0.025) -> float:
-    """Overnight buy limit: prev_close * (1 + pred - buffer)."""
+    """Overnight buy limit: prev_close * (1 + pred - buffer).
+
+    期望次日集合竞价或盘中低触成交，跳空高于限价则不追。
+    （2026-08-21 用户试过目标价×(1-3%) 乘法口径后选择保留本式）"""
     return prev_close * (1.0 + pred_score - auction_buffer)
 
 

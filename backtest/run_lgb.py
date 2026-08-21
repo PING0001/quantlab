@@ -42,7 +42,7 @@ W20, W6 = 0.6, 0.4
 
 MAX_POSITIONS = 10
 REBALANCE_FREQ = 1          # 每日调仓（2026-08-21 用户裁定，spec §3.6）
-AUCTION_BUFFER = 0.02
+AUCTION_BUFFER = 0.02        # 限价 = 收盘×(1+pred−2%)（加减法口径，2026-08-21 用户二次裁定保留）
 SELL_MARKUP = 0.001
 CASH_PER_STOCK = 10000
 COMMISSION = 0.0006
