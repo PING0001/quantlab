@@ -23,12 +23,14 @@ import pandas as pd
 
 
 def _percentile_per_date(s: pd.Series) -> pd.Series:
-    """Cross-sectional percentile in (0, 1] per date; NaN stays NaN.
+    """Cross-sectional percentile in (0, 1) per date; NaN stays NaN.
 
-    rank(pct=True) with default averaging: ties share a percentile, so a
-    date where every prediction is equal maps to 0.5 for all rows.
+    Project convention (extra_factors._pct_rank): (rank - 0.5) / n with
+    average-rank ties — an all-tied date maps every row to 0.5 (neutral),
+    a single-stock date also maps to 0.5.
     """
-    return s.groupby(level="date").rank(pct=True)
+    g = s.groupby(level="date")
+    return (g.rank() - 0.5) / g.transform("count")
 
 
 def combine_scores(pred_20d: pd.Series, pred_6d: pd.Series,
@@ -55,6 +57,7 @@ def combine_scores(pred_20d: pd.Series, pred_6d: pd.Series,
     p6 = pred_6d.reindex(idx).astype(float)
 
     # per-row renormalized weights: only available models count
+    # （先 fillna(0) 再乘：NaN*0=NaN 会污染重归一行）
     w20_eff = w20 * p20.notna()
     w6_eff = w6 * p6.notna()
     tot = w20_eff + w6_eff
@@ -62,7 +65,7 @@ def combine_scores(pred_20d: pd.Series, pred_6d: pd.Series,
     r20 = _percentile_per_date(p20)
     r6 = _percentile_per_date(p6)
 
-    rank_score = (r20 * w20_eff + r6 * w6_eff) / tot.where(tot > 0)
-    exec_score = (p20 * w20_eff + p6 * w6_eff) / tot.where(tot > 0)
+    rank_score = (r20.fillna(0.0) * w20_eff + r6.fillna(0.0) * w6_eff) / tot.where(tot > 0)
+    exec_score = (p20.fillna(0.0) * w20_eff + p6.fillna(0.0) * w6_eff) / tot.where(tot > 0)
 
     return pd.DataFrame({"rank_score": rank_score, "exec_score": exec_score})
