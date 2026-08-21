@@ -270,6 +270,70 @@ def compute_smoothed_forward_returns(kline_df: pd.DataFrame, horizon: int = 20,
     return fwd
 
 
+def compute_median_open(
+    kline_df: pd.DataFrame,
+    start_day: int = 4,
+    end_day: int = 6,
+    baseline: str = "next_open",
+) -> pd.Series:
+    """Median of daily opens over a forward window [T+start_day, T+end_day].
+
+    Relative return: median_open / baseline - 1, where baseline is one of:
+      - "next_open": open[T+1] — earliest executable entry after the T-close
+        signal; aligns with the backtest's next-day-open fill
+      - "open":      open[T]
+      - "close":     close[T]
+
+    Delisting semantics (spec docs/superpowers/specs/2026-08-20-... §3.2):
+    partial windows keep the median over the opens that exist (they are real
+    tradable exit prices and carry the pre-delist crash signal); a fully
+    missing window yields NaN and is dropped by the caller's notna filter.
+    No -1.0 fill is implemented — the legacy fill in compute_median_close
+    never fired (its date >= delist_date mask matches no kline rows) and
+    delisting risk is handled at the portfolio layer instead.
+
+    Parameters
+    ----------
+    kline_df : DataFrame
+        Must contain columns: date, code, open, close.
+        Sorted by (code, date).
+    start_day, end_day : int
+        Forward window (inclusive).
+    baseline : str
+        "next_open" | "open" | "close".
+
+    Returns
+    -------
+    Series with (date, code) MultiIndex.
+    """
+    if baseline not in ("next_open", "open", "close"):
+        raise ValueError(f"baseline must be next_open|open|close, got {baseline!r}")
+
+    df = kline_df[["date", "code", "open", "close"]].copy()
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values(["code", "date"])
+    df = df.set_index(["date", "code"])
+
+    def _median(group):
+        o = group["open"]
+        vals = pd.concat(
+            [o.shift(-d) for d in range(start_day, end_day + 1)],
+            axis=1,
+        )
+        med = vals.median(axis=1)
+        if baseline == "next_open":
+            base = o.shift(-1)
+        elif baseline == "open":
+            base = o
+        else:
+            base = group["close"]
+        return med / base - 1.0
+
+    fwd = df.groupby("code", group_keys=False).apply(_median)
+    fwd.name = "forward_ret"
+    return fwd
+
+
 def compute_nextopen_limit_mask(kline_df: pd.DataFrame,
                                 st_series: pd.Series | None = None) -> pd.Series:
     """Detect (date, code) pairs where the NEXT day's open is at a price limit.
