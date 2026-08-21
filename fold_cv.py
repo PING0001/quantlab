@@ -95,7 +95,7 @@ def fold_metrics(fid: str, exec_label: str) -> dict:
                 while rem > 0 and q:
                     bd, bp, bs = q[0]
                     take = min(rem, bs)
-                    trips.append((row.date - bd).days, row.price / bp - 1)
+                    trips.append(((row.date - bd).days, row.price / bp - 1))
                     q[0][2] -= take
                     rem -= take
                     if q[0][2] == 0:
