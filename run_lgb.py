@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from config import (DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS,
                     MODEL_CONFIGS, get_lgb_model_path, get_lgb_predictions_path,
-                    get_lgb_predictions_meta_path)
+                    get_lgb_predictions_meta_path, FOLDS, get_fold)
 
 from strategies import LGBStrategy, walk_forward, rank_ic, ic_summary
 from strategies.base import buffered_train_end
@@ -135,24 +135,42 @@ def train_model(
     delist_info: dict[str, pd.Timestamp],
     industry_sw_l3: pd.Series,
     sw_l3_mapping: dict[str, int],
+    fold: str | None = None,
 ) -> dict:
     cfg = MODEL_CONFIGS[model]
     h = cfg["horizon"]
     label_buffer = cfg["label_buffer"]
 
+    # 折模式：test 边界取折定义；TRAIN_START 恒 2020（折训练起点与常量一致）
+    if fold:
+        fold_start, fold_end = get_fold(fold)
+        test_start, test_end = pd.Timestamp(fold_start), pd.Timestamp(fold_end)
+    else:
+        test_start, test_end = TEST_START, TEST_END
+
     print(f"\n{'=' * 60}")
     print(f"=== Model {model}: label T+{cfg['label_window'][0]}..T+{cfg['label_window'][1]} "
-          f"open median, baseline={cfg['baseline']}, buffer={label_buffer} ===")
+          f"open median, baseline={cfg['baseline']}, buffer={label_buffer} "
+          f"{'| fold=' + fold if fold else ''} ===")
     print(f"{'=' * 60}")
 
     t0 = time.time()
 
     # ---- factor set: per-model selected list ----
-    selected_path = Path(__file__).resolve().parent / "factors" / f"selected_{POOL_NAME}_{model}.json"
+    # 折模式强制读折专属筛选清单（防筛选泄漏：折筛选不得见过折内及以后数据）
+    if fold:
+        selected_path = (Path(__file__).resolve().parent / "factors" / "folds" / fold
+                         / f"selected_{POOL_NAME}_{model}.json")
+        if not selected_path.exists():
+            raise FileNotFoundError(
+                f"fold {fold} selected list not found: {selected_path}\n"
+                f"Run first: python -m factors.select_factors --model {model} --fold {fold}")
+    else:
+        selected_path = Path(__file__).resolve().parent / "factors" / f"selected_{POOL_NAME}_{model}.json"
     if selected_path.exists():
         selected_data = json.loads(selected_path.read_text())
         use_factors = selected_data["selected_factors"]
-        print(f"  Using {len(use_factors)} pre-selected factors from {selected_path.name}")
+        print(f"  Using {len(use_factors)} pre-selected factors from {selected_path}")
     else:
         use_factors = SELECTED_FACTORS
         print(f"  WARNING: {selected_path.name} not found, falling back to full SELECTED_FACTORS")
@@ -220,9 +238,9 @@ def train_model(
 
     # ---- walk-forward (fixed test set) ----
     train_dates_all = sorted(X.index.get_level_values("date").unique())[WARMUP_DAYS:]
-    train_end = buffered_train_end(train_dates_all, TEST_START, label_buffer)
+    train_end = buffered_train_end(train_dates_all, test_start, label_buffer)
     print(f"  walk-forward: train={train_dates_all[0].date()}~{train_end.date()} "
-          f"(label_buffer={label_buffer}), test={TEST_START.date()}~{TEST_END.date()}, "
+          f"(label_buffer={label_buffer}), test={test_start.date()}~{test_end.date()}, "
           f"warmup={WARMUP_DAYS}")
     preds = walk_forward(
         strategy,
@@ -230,8 +248,8 @@ def train_model(
         train_window=TRAIN_WINDOW,
         min_train=MIN_TRAIN,
         warmup_days=WARMUP_DAYS,
-        test_start=TEST_START,
-        test_end=TEST_END,
+        test_start=test_start,
+        test_end=test_end,
         label_buffer=label_buffer,
     )
 
@@ -239,7 +257,7 @@ def train_model(
     results: dict = {}
 
     # ---- train-set reference (MAE + rank IC) ----
-    train_mask = X.index.get_level_values("date") < TEST_START
+    train_mask = X.index.get_level_values("date") < test_start
     if train_mask.any():
         preds_train = strategy.predict(X.loc[train_mask])
         tr_p = preds_train[col].values
@@ -289,11 +307,11 @@ def train_model(
         print(f"  predictions: NONE ({time.time() - t0:.1f}s)")
 
     # ---- persist ----
-    model_path = get_lgb_model_path(model)
+    model_path = get_lgb_model_path(model, fold=fold)
     strategy.save(model_path)
     print(f"  model saved: {model_path}")
 
-    pred_path = get_lgb_predictions_path(model)
+    pred_path = get_lgb_predictions_path(model, fold=fold)
     if isinstance(preds, pd.DataFrame) and not preds.empty:
         preds.to_parquet(pred_path)
         print(f"  predictions saved: {pred_path} ({len(preds)} rows)")
@@ -301,13 +319,14 @@ def train_model(
     meta = {
         "model": model,
         "model_type": "LightGBM (regression)",
+        "fold": fold,
         "label_fn": "compute_median_open",
         "label_window": list(cfg["label_window"]),
         "baseline": cfg["baseline"],
         "horizons": [h],
         "factor_names": factor_cols,
-        "test_start": str(TEST_START.date()),
-        "test_end": str(TEST_END.date()),
+        "test_start": str(test_start.date()),
+        "test_end": str(test_end.date()),
         "train_start": str(train_dates_all[0].date()),
         "train_end": str(train_end.date()),
         "label_buffer": label_buffer,
@@ -317,7 +336,7 @@ def train_model(
         "predictions_path": str(pred_path),
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
-    meta_path = get_lgb_predictions_meta_path(model)
+    meta_path = get_lgb_predictions_meta_path(model, fold=fold)
     meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"  meta saved: {meta_path}")
 
@@ -329,10 +348,14 @@ def main():
     parser.add_argument("--model", default="all",
                         choices=["all"] + sorted(MODEL_CONFIGS),
                         help="train which model (default: all)")
+    parser.add_argument("--fold", choices=sorted(FOLDS), default=None,
+                        help="滚动折 CV：test 窗=折定义，模型/预测写 fold 路径，"
+                             "selected json 强制读 factors/folds/{fid}/")
     args = parser.parse_args()
     models = sorted(MODEL_CONFIGS) if args.model == "all" else [args.model]
 
-    print(f"=== Loading data (pool: {POOL_NAME}, models: {models}) ===")
+    print(f"=== Loading data (pool: {POOL_NAME}, models: {models}"
+          f"{', fold: ' + args.fold if args.fold else ''}) ===")
     con = duckdb.connect(str(DB_PATH), read_only=True)
 
     print("  loading factors ...")
@@ -361,7 +384,7 @@ def main():
         label = compute_median_open(kline, start_day=s0, end_day=e0, baseline=cfg["baseline"])
         all_results[m] = train_model(
             m, factors_raw, label, st_series, limit_mask, delist_info,
-            industry_sw_l3, sw_l3_mapping,
+            industry_sw_l3, sw_l3_mapping, fold=args.fold,
         )
 
     print(f"\n{'=' * 60}")

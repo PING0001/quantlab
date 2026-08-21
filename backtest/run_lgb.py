@@ -25,7 +25,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from config import (DB_PATH, POOL_NAME, get_pool_codes, get_backtest_dir,
-                    get_lgb_predictions_path, MODEL_CONFIGS)
+                    get_lgb_predictions_path, MODEL_CONFIGS, FOLDS, get_fold)
 
 from strategies import rank_ic, ic_summary
 from strategies.labels import compute_median_open, compute_nextopen_limit_mask
@@ -46,6 +46,7 @@ AUCTION_BUFFER = 0.03        # 买入限价 = 收盘×(1+pred−3%)（2026-08-21
 SELL_MARKUP = 0.0            # 卖出限价 = 收盘×(1+pred) 目标价，无上浮（v3）
 # 实验（非正式结构，2026-08-21 用户要求）：开盘市价执行，与 next_open 锚预测
 # 对齐--买=无论开盘价多少按开盘成交；卖=pred<0 开盘市价卖出（pred>=0 持有）
+# CLI --exec {limit,market} 可覆盖（折测 fold_cv 用）；无 CLI 时用此默认
 EXEC_MARKET_OPEN = True
 CASH_PER_STOCK = 10000
 COMMISSION = 0.0006
@@ -98,13 +99,14 @@ def load_ohlcv_map(con: duckdb.DuckDBPyConnection, codes: list[str]) -> dict[str
     return ohlcv_map
 
 
-def load_predictions() -> dict[str, pd.Series]:
+def load_predictions(fold: str | None = None) -> dict[str, pd.Series]:
     preds = {}
     for m, col in PRED_COLS.items():
-        path = get_lgb_predictions_path(m)
+        path = get_lgb_predictions_path(m, fold=fold)
         if not path.exists():
             print(f"  ERROR: predictions for {m} not found at {path}")
-            print("  Run: python run_lgb.py --model all")
+            print(f"  Run: python run_lgb.py --model all"
+                  f"{' --fold ' + fold if fold else ''}")
             sys.exit(1)
         pdf = pd.read_parquet(path)
         if col not in pdf.columns:
@@ -139,14 +141,31 @@ def holding_days(trade_df: pd.DataFrame) -> pd.Series:
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Dual-regression combined backtest")
+    parser.add_argument("--fold", choices=sorted(FOLDS), default=None,
+                        help="滚动折 CV：预测走 fold 路径，TEST_START=折 test_start，"
+                             "输出 backtest/{pool}/folds/{fid}/")
+    parser.add_argument("--exec", choices=["limit", "market"], default=None,
+                        help="执行语义（折测用）：limit=收盘限价（v7）/ market=开盘市价（v7mo）；"
+                             "缺省用模块常量 EXEC_MARKET_OPEN")
+    args = parser.parse_args()
+
+    fold = args.fold
+    exec_market = EXEC_MARKET_OPEN if args.exec is None else (args.exec == "market")
+    exec_label = "market" if exec_market else "limit"
+    test_start = pd.Timestamp(get_fold(fold)[0]) if fold else TEST_START
+
     print("=" * 60)
-    print("  Dual-Regression Backtest — DAILY, v4: score = 0.4*p20 + 0.6*p6")
-    print(f"  Pool: {POOL_NAME} | label anchor: close[T] | top-k cash slots + bargain limit")
+    print(f"  Dual-Regression Backtest — DAILY, score = 0.4*p20 + 0.6*p6"
+          f"{f' | fold={fold}' if fold else ''} | exec={exec_label}")
+    print(f"  Pool: {POOL_NAME} | label anchor: next_open | "
+          f"{'开盘市价（买=开盘必成交，卖=pred<0）' if exec_market else '收盘限价（便宜单+目标价）'}")
     print("=" * 60)
 
     # ---- 1. Load + combine predictions ----
     print("\n[1/5] Loading predictions ...")
-    preds = load_predictions()
+    preds = load_predictions(fold)
     score = combine_scores(preds["20d"], preds["6d"], w20=W20, w6=W6)
 
     n_dates = score.index.get_level_values("date").nunique()
@@ -248,10 +267,11 @@ def main():
 
     # ---- 4. Portfolio backtest (daily rebalance) ----
     print(f"\n[4/5] Running DAILY rebalance backtest "
-          f"(max_pos={MAX_POSITIONS}, rebalance_freq={REBALANCE_FREQ}, v4 single score) ...")
+          f"(max_pos={MAX_POSITIONS}, rebalance_freq={REBALANCE_FREQ}, "
+          f"exec={exec_label}) ...")
     port_stats, equity_df, trade_df = run_portfolio_rebalance(
         score, ohlcv_map,
-        test_start=str(TEST_START.date()),
+        test_start=str(test_start.date()),
         max_positions=MAX_POSITIONS,
         rebalance_freq=REBALANCE_FREQ,
         auction_buffer=AUCTION_BUFFER,
@@ -262,7 +282,7 @@ def main():
         stamp_duty=STAMP_DUTY,
         risk_free_rate=RISK_FREE_RATE,
         delist_info=delist_info,
-        market_open=EXEC_MARKET_OPEN,
+        market_open=exec_market,
     )
 
     if not equity_df.empty and test_end_date is not None:
@@ -324,9 +344,12 @@ def main():
         print(f"\n  {'Excess Return:':<22} {port_stats.get('total_return', 0) - bench_total:>+10.2%}")
 
     # ---- save outputs（独立命名，勿覆写旧文件——report_strategy 还在消费旧对照）----
-    bt_dir = get_backtest_dir()
+    bt_dir = get_backtest_dir(fold=fold)
     bt_dir.mkdir(parents=True, exist_ok=True)
-    th_suffix = "_v7mo" if EXEC_MARKET_OPEN else "_v7"  # v7 = v6 底座上单变量改标签锚 close[T]→next_open（T+1 开盘）
+    if fold:
+        th_suffix = f"_{exec_label}"   # folds/{fid}/equity_lgb_combined_daily_{market|limit}_rebalance.csv
+    else:
+        th_suffix = "_v7mo" if exec_market else "_v7"
     eq_path = bt_dir / f"equity_lgb_combined_daily{th_suffix}_rebalance.csv"
     equity_df.to_csv(eq_path)
     if not bench_df.empty:
@@ -343,7 +366,7 @@ def main():
         score, full_ohlcv,
         n_long=MAX_POSITIONS,
         n_short=MAX_POSITIONS,
-        test_start=str(TEST_START.date()),
+        test_start=str(test_start.date()),
         excluded_codes=excluded_codes,
         risk_free_rate=RISK_FREE_RATE,
         commission=COMMISSION,

@@ -155,13 +155,35 @@ def get_model_config(model: str = "20d") -> dict:
     return MODEL_CONFIGS[model]
 
 
+# ---- Rolling fold CV（2026-08-21 用户裁定：连续 7 折半年窗，训练起点锁 2020-01，
+#      扩张窗口；F7=现测试集作不变性回归检验）----
+FOLDS = {
+    "F1": ("2022-07-01", "2022-12-31"),
+    "F2": ("2023-01-01", "2023-06-30"),
+    "F3": ("2023-07-01", "2023-12-31"),
+    "F4": ("2024-01-01", "2024-06-30"),
+    "F5": ("2024-07-01", "2024-12-31"),
+    "F6": ("2025-01-01", "2025-05-31"),
+    "F7": ("2025-06-01", "2026-06-01"),
+}
+FOLD_TRAIN_START = "2020-01-01"   # 所有折训练起点一致（用户约束：不用更老数据）
+
+
+def get_fold(fid: str) -> tuple[str, str]:
+    """折定义 -> (test_start, test_end)，均 'YYYY-MM-DD'。未知折抛错。"""
+    if fid not in FOLDS:
+        raise ValueError(f"unknown fold {fid!r}, expected one of {sorted(FOLDS)}")
+    return FOLDS[fid]
+
+
 # ---- Model ----
-def get_model_dir(name: str = None) -> Path:
-    return ROOT / "models" / (name or POOL_NAME)
+def get_model_dir(name: str = None, fold: str = None) -> Path:
+    d = ROOT / "models" / (name or POOL_NAME)
+    return d / "folds" / fold if fold else d
 
 
-def get_lgb_model_path(model: str = "20d", name: str = None) -> Path:
-    return get_model_dir(name) / f"lgb_{model}.joblib"
+def get_lgb_model_path(model: str = "20d", name: str = None, fold: str = None) -> Path:
+    return get_model_dir(name, fold) / f"lgb_{model}.joblib"
 
 
 def get_legacy_lgb_model_path(name: str = None) -> Path:
@@ -171,19 +193,24 @@ def get_legacy_lgb_model_path(name: str = None) -> Path:
 
 
 # ---- Predictions cache ----
-def get_lgb_predictions_path(model: str = "20d", name: str = None) -> Path:
+def get_lgb_predictions_path(model: str = "20d", name: str = None, fold: str = None) -> Path:
     p = name or POOL_NAME
+    if fold:
+        return ROOT / "data" / "folds" / fold / f"predictions__{p}_lgb_{model}.parquet"
     return ROOT / "data" / f"predictions__{p}_lgb_{model}.parquet"
 
 
-def get_lgb_predictions_meta_path(model: str = "20d", name: str = None) -> Path:
+def get_lgb_predictions_meta_path(model: str = "20d", name: str = None, fold: str = None) -> Path:
     p = name or POOL_NAME
+    if fold:
+        return ROOT / "data" / "folds" / fold / f"predictions__{p}_lgb_{model}_meta.json"
     return ROOT / "data" / f"predictions__{p}_lgb_{model}_meta.json"
 
 
 # ---- Backtest output ----
-def get_backtest_dir(name: str = None) -> Path:
-    return ROOT / "backtest" / (name or POOL_NAME)
+def get_backtest_dir(name: str = None, fold: str = None) -> Path:
+    d = ROOT / "backtest" / (name or POOL_NAME)
+    return d / "folds" / fold if fold else d
 
 
 # ---- Forecast HTML ----

@@ -31,7 +31,8 @@ from scipy.stats import rankdata
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS, MODEL_CONFIGS
+from config import (DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS,
+                    MODEL_CONFIGS, FOLDS, FOLD_TRAIN_START, get_fold)
 from strategies.labels import compute_median_open
 
 
@@ -89,12 +90,19 @@ def main():
     parser = argparse.ArgumentParser(description="Factor selection via IC ranking + correlation filtering")
     parser.add_argument("--model", choices=sorted(MODEL_CONFIGS), default="20d",
                         help="模型（决定标签窗口/基准价，spec §3.4）")
+    parser.add_argument("--fold", choices=sorted(FOLDS), default=None,
+                        help="滚动折 CV：筛选窗口终点=折 test_start，输出 factors/folds/{fid}/")
     args = parser.parse_args()
     cfg = MODEL_CONFIGS[args.model]
     horizon_name = cfg["horizon"]
 
+    # 折模式：窗口 [FOLD_TRAIN_START, 折 test_start)；非折模式：模块常量
+    test_start = pd.Timestamp(get_fold(args.fold)[0]) if args.fold else TEST_START
+    train_start = pd.Timestamp(FOLD_TRAIN_START) if args.fold else TRAIN_START
+
     print(f"Pool: {POOL_NAME} | model: {args.model} "
-          f"(label T+{cfg['label_window'][0]}..T+{cfg['label_window'][1]}, baseline={cfg['baseline']})")
+          f"(label T+{cfg['label_window'][0]}..T+{cfg['label_window'][1]}, baseline={cfg['baseline']})"
+          f"{' | fold=' + args.fold if args.fold else ''}")
     con = duckdb.connect(str(DB_PATH), read_only=True)
 
     print("Loading factors ...")
@@ -110,7 +118,7 @@ def main():
     print(f"  {n_factors} factors available")
 
     date_level = factors.index.get_level_values("date")
-    train_mask = (date_level >= TRAIN_START) & (date_level < TEST_START)
+    train_mask = (date_level >= train_start) & (date_level < test_start)
     factors = factors.loc[train_mask]
     print(f"  Training range: {factors.index.get_level_values('date').min().date()} ~ "
           f"{factors.index.get_level_values('date').max().date()}")
@@ -320,15 +328,21 @@ def main():
             print(f"    ... and {len(remaining) - 15} more")
 
     # ---- save ----
-    output_path = Path(__file__).resolve().parent / f"selected_{POOL_NAME}_{args.model}.json"
+    if args.fold:
+        fold_dir = Path(__file__).resolve().parent / "folds" / args.fold
+        fold_dir.mkdir(parents=True, exist_ok=True)
+        output_path = fold_dir / f"selected_{POOL_NAME}_{args.model}.json"
+    else:
+        output_path = Path(__file__).resolve().parent / f"selected_{POOL_NAME}_{args.model}.json"
     result = {
         "pool": POOL_NAME,
         "model": args.model,
+        "fold": args.fold,
         "label_fn": "compute_median_open",
         "label_window": list(cfg["label_window"]),
         "baseline": cfg["baseline"],
-        "train_start": str(TRAIN_START.date()),
-        "train_end": str(TEST_START.date()),
+        "train_start": str(train_start.date()),
+        "train_end": str(test_start.date()),
         "train_start_note": "2026-08-21 用户裁定：筛选(IC+相关度)与训练对齐，均自 2020 起（曾用 2015 长历史口径）",
         "algorithm": "cluster-first: average-linkage on 1-|corr|, best-|IC| per cluster, clusters ranked by rep |IC|",
         "cluster_corr_threshold": CLUSTER_CORR,
