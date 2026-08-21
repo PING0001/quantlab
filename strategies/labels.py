@@ -376,17 +376,25 @@ def compute_nextopen_limit_mask(kline_df: pd.DataFrame,
 
     # ±5% ST limit check
     if st_series is not None:
-        df = df.set_index(["date", "code"])
-        df["is_st"] = st_series.reindex(df.index, fill_value=False)
+        # 按列 merge 对齐（2026-08-21 修复）：此前用 MultiIndex reindex，
+        # st_series 的 ns 级日期与 kline 的 µs 级日期哈希失配 → is_st 全
+        # False → ±5% ST 子带静默失效（主库遗留缺陷）
+        st_frame = st_series.rename("_st").reset_index()
+        st_frame["date"] = pd.to_datetime(st_frame["date"])
+        df = df.merge(st_frame, on=["date", "code"], how="left")
+        df["_st"] = df["_st"].fillna(False).astype(bool)
 
         limit_up_5 = (df["close"] * 1.05).round(2)
         limit_down_5 = (df["close"] * 0.95).round(2)
         st_limit = (
             (df["next_open"] >= limit_up_5 - 0.005)
             | (df["next_open"] <= limit_down_5 + 0.005)
-        ) & df["is_st"]
-        is_limit.index = df.index
+        ) & df["_st"]
+
+        # merge 保序（键唯一），两侧同为 RangeIndex 时先 OR 再挂 MultiIndex
         is_limit = is_limit | st_limit
+        df = df.drop(columns=["_st"]).set_index(["date", "code"])
+        is_limit.index = df.index
     else:
         df = df.set_index(["date", "code"])
         is_limit.index = df.index

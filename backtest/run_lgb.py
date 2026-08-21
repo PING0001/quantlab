@@ -215,16 +215,20 @@ def main():
     con_r.close()
 
     limit_mask = compute_nextopen_limit_mask(kline, st_series=st_series)
+    # 预测帧在训练入口已排除 limit/ST/退市行，故此处计数为 0 属预期；
+    # 掩码仍用于 IC 块的 safe 过滤（防未来数据变化）
     n_limit = int(limit_mask.loc[rank_s.index].sum()) if not limit_mask.empty else 0
     n_st = int(st_series.loc[rank_s.index].sum()) if st_series is not None else 0
-    print(f"  obs with next-open limit hit: {n_limit} | ST obs: {n_st}")
+    print(f"  pred rows with limit-hit/ST (expected 0, excluded upstream): "
+          f"{n_limit} / {n_st}")
 
     def _safe_ic(p: pd.Series, lab: pd.Series) -> dict:
         common = p.index.intersection(lab.index)
+        p_c, l_c = p.loc[common], lab.loc[common]
         safe = ~limit_mask.reindex(common, fill_value=False)
         if st_series is not None:
             safe = safe & ~st_series.reindex(common, fill_value=False)
-        return ic_summary(rank_ic(p.loc[safe], lab.loc[safe]))
+        return ic_summary(rank_ic(p_c.loc[safe], l_c.loc[safe]))
 
     for m in PRED_COLS:
         cfg = MODEL_CONFIGS[m]
