@@ -135,14 +135,14 @@ MODEL_CONFIGS = {
     "20d": dict(
         label_window=(16, 20),
         label_price="open",
-        baseline="close",          # close[T]（2026-08-21 用户裁定 v4：锚=信号日收盘，
-        label_buffer=20,           # 与挂单公式 收盘×(1+score±…) 同锚；曾用 next_open）
+        baseline="next_open",     # v7 实验：锚改回 open[T+1]（v3 曾用；v4 曾裁定 close[T]）
+        label_buffer=20,          # 最远引用仍为 T+20 开盘，buffer 不变（单变量纯净）
         horizon="label_20d",        # 预测列: pred_label_20d
     ),
     "6d": dict(
         label_window=(4, 6),
         label_price="open",
-        baseline="close",
+        baseline="next_open",
         label_buffer=6,
         horizon="label_6d",         # 预测列: pred_label_6d
     ),

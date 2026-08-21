@@ -322,7 +322,7 @@ def main():
     # ---- save outputs（独立命名，勿覆写旧文件——report_strategy 还在消费旧对照）----
     bt_dir = get_backtest_dir()
     bt_dir.mkdir(parents=True, exist_ok=True)
-    th_suffix = "_v6"  # v6 = v5 基础上剔除全部 alpha 开头因子（筛选池仅剩非 alpha 因子）
+    th_suffix = "_v7"  # v7 = v6 底座上单变量改标签锚 close[T]→next_open（T+1 开盘）
     eq_path = bt_dir / f"equity_lgb_combined_daily{th_suffix}_rebalance.csv"
     equity_df.to_csv(eq_path)
     if not bench_df.empty:
