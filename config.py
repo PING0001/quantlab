@@ -146,6 +146,16 @@ MODEL_CONFIGS = {
         label_buffer=6,
         horizon="label_6d",         # 预测列: pred_label_6d
     ),
+    # 独立实验模型（2026-08-22 用户要求，暂不接入 score/回测）：
+    # 预测隔夜跳空 open[T+1]/close[T]−1（= median_open 窗口(1,1)+close 锚），
+    # 因子直接复用 6d 清单（selected_*_gap1d.json 为 6d 清单拷贝，不独立筛选）
+    "gap1d": dict(
+        label_window=(1, 1),
+        label_price="open",
+        baseline="close",
+        label_buffer=1,
+        horizon="label_gap1d",      # 预测列: pred_label_gap1d
+    ),
 }
 
 
