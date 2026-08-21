@@ -1,9 +1,11 @@
 """
-Factor selection via IC ranking + correlation filtering.
+Factor selection via cluster-first correlation dedup + IC representative pick.
 
 Computes cross-sectional rank IC and pairwise factor correlation in the
-training set, then greedily selects factors with highest |IC| while capping
-pairwise correlation below a threshold.
+training set. 在平均相关矩阵上做 average-linkage 层次聚类（距离 = 1-|corr|，
+簇内相关 >= CLUSTER_CORR），每簇选 |IC| 最高者为代表，簇按代表 |IC| 降序
+填满 MAX_FACTORS 个名额——相关度定结构（覆盖哪些信号族），IC 只在簇内
+选代表（2026-08-21 用户裁定：相关度权重 > IC 权重，取代旧 IC-贪心+0.75 闸门）。
 
 标签 = 目标模型的 compute_median_open（与训练同一构造，spec §3.4）；
 每模型一份清单，输出 selected_{pool}_{model}.json。
@@ -23,6 +25,8 @@ from pathlib import Path
 import duckdb
 import numpy as np
 import pandas as pd
+from scipy.cluster.hierarchy import fcluster, linkage
+from scipy.spatial.distance import squareform
 from scipy.stats import rankdata
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -31,12 +35,12 @@ from config import DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS, MODEL_C
 from strategies.labels import compute_median_open
 
 
-# 口径说明：此 TRAIN_START(2015) 与 run_lgb 的 TRAIN_START(2020) 历史上就
-# 不一致（筛选看更长历史），不改行为，输出 json 如实记录两者
-TRAIN_START = pd.Timestamp("2015-01-01")
+# 口径说明：2026-08-21 用户裁定筛选与训练对齐——IC 与相关度均自 2020 起
+# （此前 2015 长历史口径与 run_lgb 的 2020 训练起点不一致）
+TRAIN_START = pd.Timestamp("2020-01-01")
 TEST_START = pd.Timestamp("2025-06-01")
 MAX_FACTORS = 60
-CORR_THRESHOLD = 0.75
+CLUSTER_CORR = 0.7   # 簇优先：average-linkage 距离=1-|corr|，簇内相关 >= 此值合并
 MIN_STOCKS_PER_DATE = 30
 MUST_INCLUDE = ["CSI_return_20d"]
 
@@ -238,37 +242,53 @@ def main():
     ic_all["abs_mean_ic"] = ic_all["mean"].abs()
     ic_all = ic_all.set_index("factor")
 
-    # ---- greedy selection ----
-    print(f"\nGreedy selection: corr < {CORR_THRESHOLD}, max {MAX_FACTORS} factors")
-    selected = [f for f in MUST_INCLUDE if f in corr_df.index]
+    # ---- cluster-first selection（2026-08-21 用户裁定：相关度定结构，IC 只选簇内代表）----
+    print(f"\nCluster-first: average-linkage on 1-|corr|, intra-cluster corr >= {CLUSTER_CORR}, "
+          f"max {MAX_FACTORS} factors")
+    corr_abs = corr_df.abs().to_numpy(copy=True)
+    np.fill_diagonal(corr_abs, 0.0)
+    Z = linkage(squareform(1.0 - corr_abs, checks=False), method="average")
+    cluster_labels = fcluster(Z, t=1.0 - CLUSTER_CORR, criterion="distance")
+    cluster_of = dict(zip(corr_df.index, cluster_labels))
+    n_clusters = len(set(cluster_labels))
+    print(f"  {len(corr_df)} factors -> {n_clusters} clusters")
+
+    # MUST_INCLUDE 所在簇由保送因子占代表席（一簇一席）
+    selected = [f for f in MUST_INCLUDE if f in cluster_of]
     if selected:
         print(f"  Must-include: {selected}")
-    discarded_corr = []
+    must_clusters = {cluster_of[f] for f in selected}
 
-    for factor in ic_primary.index:
-        if factor in selected:
+    # 每簇代表 = 簇内 |IC| 最高者；按 |IC| 降序首见即代表，代表序天然按 IC 降序
+    rep_of_cluster = {}
+    for f in ic_primary.index:
+        if f not in cluster_of or cluster_of[f] in must_clusters:
             continue
+        if cluster_of[f] not in rep_of_cluster:
+            rep_of_cluster[cluster_of[f]] = f
+    reps_ordered = list(rep_of_cluster.values())
+
+    for f in reps_ordered:
         if len(selected) >= MAX_FACTORS:
             break
+        selected.append(f)
 
-        if factor not in corr_df.index:
+    # 簇内落选者记 discarded（与同簇所选代表的相关度；average-linkage 下
+    # 个别成员与代表的成对相关可低于簇阈值，属正常）
+    sel_set = set(selected)
+    sel_by_cluster = {cluster_of[f]: f for f in selected}
+    discarded_corr = []
+    for f in corr_df.index:
+        if f in sel_set:
             continue
-
-        if not selected:
-            selected.append(factor)
-            continue
-
-        max_corr = corr_df.loc[factor, selected].abs().max()
-        if max_corr < CORR_THRESHOLD:
-            selected.append(factor)
-        else:
-            corr_with_sel = corr_df.loc[factor, selected].abs()
-            max_cf = corr_with_sel.idxmax()
+        rep = sel_by_cluster.get(cluster_of[f])
+        if rep is not None:
             discarded_corr.append({
-                "factor": factor,
-                "corr_with": max_cf,
-                "corr": float(max_corr),
+                "factor": f,
+                "corr_with": rep,
+                "corr": float(corr_df.loc[f, rep]),
             })
+    discarded_corr.sort(key=lambda d: -d["corr"])
 
     # ---- print results ----
     print(f"\n{'='*70}")
@@ -280,7 +300,7 @@ def main():
         print(f"  {i:3d}. {f:35s} |IC_{args.model}|={abs(ic_val):.4f}  IC_all={ic_all_val:+.4f}")
 
     print(f"\n{'='*70}")
-    print(f"  Discarded by correlation: {len(discarded_corr)}")
+    print(f"  Discarded by cluster (representative kept): {len(discarded_corr)}")
     print(f"{'='*70}")
     for i, d in enumerate(discarded_corr[:30], 1):
         print(f"  {i:3d}. {d['factor']:35s} corr={d['corr']:.3f} with {d['corr_with']}")
@@ -307,8 +327,10 @@ def main():
         "baseline": cfg["baseline"],
         "train_start": str(TRAIN_START.date()),
         "train_end": str(TEST_START.date()),
-        "train_start_note": "select_factors 自 2015 起算长历史；run_lgb 训练自 2020 起——历史口径差异，如实记录",
-        "corr_threshold": CORR_THRESHOLD,
+        "train_start_note": "2026-08-21 用户裁定：筛选(IC+相关度)与训练对齐，均自 2020 起（曾用 2015 长历史口径）",
+        "algorithm": "cluster-first: average-linkage on 1-|corr|, best-|IC| per cluster, clusters ranked by rep |IC|",
+        "cluster_corr_threshold": CLUSTER_CORR,
+        "n_clusters": n_clusters,
         "max_factors": MAX_FACTORS,
         "n_dates_corr": int(corr_count),
         "selected_factors": selected,

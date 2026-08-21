@@ -322,7 +322,7 @@ def main():
     # ---- save outputs（独立命名，勿覆写旧文件——report_strategy 还在消费旧对照）----
     bt_dir = get_backtest_dir()
     bt_dir.mkdir(parents=True, exist_ok=True)
-    th_suffix = "_v4"
+    th_suffix = "_v5"  # v5 = 筛选对齐 2020 + 簇优先（执行语义/权重同 v4 0.4/0.6），勿覆写 v4 基线
     eq_path = bt_dir / f"equity_lgb_combined_daily{th_suffix}_rebalance.csv"
     equity_df.to_csv(eq_path)
     if not bench_df.empty:
