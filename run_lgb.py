@@ -308,10 +308,12 @@ def train_model(
 
     # ---- persist ----
     model_path = get_lgb_model_path(model, fold=fold)
+    model_path.parent.mkdir(parents=True, exist_ok=True)
     strategy.save(model_path)
     print(f"  model saved: {model_path}")
 
     pred_path = get_lgb_predictions_path(model, fold=fold)
+    pred_path.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(preds, pd.DataFrame) and not preds.empty:
         preds.to_parquet(pred_path)
         print(f"  predictions saved: {pred_path} ({len(preds)} rows)")
@@ -337,6 +339,7 @@ def train_model(
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
     meta_path = get_lgb_predictions_meta_path(model, fold=fold)
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
     meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"  meta saved: {meta_path}")
 
