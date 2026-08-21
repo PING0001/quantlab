@@ -84,9 +84,9 @@
 **Interfaces:**
 - Produces: CLI `python -m factors.select_factors --model 20d|6d`；标签 = `compute_median_open(**MODEL_CONFIGS[model] 的窗口与 baseline)`；输出 `factors/selected_{pool}_{model}.json`；删除 `(labels == -1.0)` 死条件（:126）；json meta 记录 train_start 口径（2015 vs run_lgb 2020 差异如实记录）；IC 循环缩为单标签
 
-- [ ] **Step 1: 参数化改造**（argparse；PRIMARY_HORIZON/ic_20d 命名改为按 model 命名）
-- [ ] **Step 2: 跑 20d 与 6d 各一遍**，产出两个 selected json；肉眼检查 6d 清单与 20d 差异合理（动量/反转类权重应不同）
-- [ ] **Step 3: Commit**：`feat: select_factors 按模型参数化（open 标签驱动 IC）`
+- [x] **Step 1: 参数化改造**（argparse；PRIMARY_HORIZON/ic_20d 命名改为按 model 命名）
+- [x] **Step 2: 跑 20d 与 6d 各一遍**，产出两个 selected json；肉眼检查 6d 清单与 20d 差异合理（动量/反转类权重应不同）
+- [x] **Step 3: Commit**：`feat: select_factors 按模型参数化（open 标签驱动 IC）`
 
 ### Task 5: run_lgb.py 参数化 + 训练两模型
 
@@ -97,10 +97,10 @@
 - Consumes: Task 1 `compute_median_open`、Task 2 `MODEL_CONFIGS`/路径函数、Task 4 `selected_{pool}_{model}.json`
 - Produces: `python run_lgb.py --model 20d|6d|all`；`model_type="regressor"`；删除 `_classify`/sign 准确率；评估 = rank IC/IR/hit（`rank_ic`/`ic_summary`）+ MAE + 十分位单调性；meta json 含 label_window/baseline/buffer；预测列 `pred_label_{model}`
 
-- [ ] **Step 1: 改造**（标签/评估/meta 全部由注册表驱动；LGB_KWARGS 沿用但 model_type 改 regressor，样本权重分支自然失效）
-- [ ] **Step 2: 训练 20d**：期望测试期 rank IC 显著为正、IR/hit 打印入 meta（首跑即基线）；异常塌方则停（spec 验收 3）
-- [ ] **Step 3: 训练 6d**：同上
-- [ ] **Step 4: Commit**：`feat: run_lgb 双回归模型统一入口（--model 20d|6d|all）`
+- [x] **Step 1: 改造**（标签/评估/meta 全部由注册表驱动；LGB_KWARGS 沿用但 model_type 改 regressor，样本权重分支自然失效）
+- [x] **Step 2: 训练 20d**：期望测试期 rank IC 显著为正、IR/hit 打印入 meta（首跑即基线）；异常塌方则停（spec 验收 3）
+- [x] **Step 3: 训练 6d**：同上
+- [x] **Step 4: Commit**：`feat: run_lgb 双回归模型统一入口（--model 20d|6d|all）`
 
 ### Task 6: strategies/combine.py 综合分双通道
 
@@ -111,7 +111,7 @@
 - Produces: `combine_scores(pred_20d: pd.Series, pred_6d: pd.Series, w20=0.6, w6=0.4) -> pd.DataFrame`，列 `["rank_score","exec_score"]`；rank_score = 逐日横截面 percentile 归一加权（单模型缺失按可用权重重归一，NaN 不参与 percentile）；exec_score = 原始值加权（同重归一规则）。Task 7/8 消费
 - 验证：构造含 NaN/单边缺失/平局值的合成 Series，断言值域、重归一权重和为 1、平局不炸
 
-- [ ] **Step 1: 实现 + 合成数据断言脚本**；**Step 2: 跑通**；**Step 3: Commit**：`feat: combine_scores 双通道综合分（rank/exec）`
+- [x] **Step 1: 实现 + 合成数据断言脚本**；**Step 2: 跑通**；**Step 3: Commit**：`feat: combine_scores 双通道综合分（rank/exec）`
 
 ### Task 7: signals 解耦 + 回测改造（每日调仓）
 
@@ -123,7 +123,7 @@
 
 **验证（spec 验收 5）**：全流程跑通；抽查成交记录卖单限价 ∈ 前收 ±10% 带内（断言无 ≥1.5× 永不成交单）；换手率打印（每日调仓 sanity）；旧 `equity_lgb_20d_5d_rebalance.csv`/`benchmark.csv` 未被覆写（mtime/内容比对）。
 
-- [ ] Step 1-4: 改造 → 回测跑通 → 断言脚本/抽查 → Commit `feat: 双模型综合分每日调仓回测（rank/exec 解耦）`
+- [x] Step 1-4: 改造 → 回测跑通 → 断言脚本/抽查 → Commit `feat: 双模型综合分每日调仓回测（rank/exec 解耦）`
 
 ### Task 8: generate_lgb 双模型 + 生产回退 + integrity 参数化
 
