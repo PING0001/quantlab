@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-Dual-regression combined backtest — DAILY rebalancing (bench 2026-08).
+Dual-regression combined backtest — DAILY rebalancing (bench 2026-08, v4).
 
-Loads both model prediction parquets (20d / 6d), combines them into the
-rank/exec dual channel (strategies.combine), then simulates:
-  - top-N ranking by rank_score (percentile ensemble, spec §3.5)
-  - limit prices from exec_score (expected-return magnitude, P0-2)
-  - rebalance every trading day (REBALANCE_FREQ=1, 2026-08-21 用户裁定)
+Loads both model prediction parquets (20d / 6d), blends them into a single
+score = 0.4*pred_20d + 0.6*pred_6d (label anchor close[T]; no percentile
+layer, 2026-08-21 用户口径 v4), then simulates daily:
+  - buy: top-k of cash slots (k = max_positions - held), bargain limit
+    close*(1+score-3%)
+  - sell: every held position at target price close*(1+score)
 
 Run from project root:
     python -m backtest.run_lgb
 """
 from __future__ import annotations
 
-import argparse
 import sys
 from pathlib import Path
 import warnings
@@ -29,7 +29,7 @@ from config import (DB_PATH, POOL_NAME, get_pool_codes, get_backtest_dir,
 
 from strategies import rank_ic, ic_summary
 from strategies.labels import compute_median_open, compute_nextopen_limit_mask
-from strategies.combine import combine_scores, percentile_per_date
+from strategies.combine import combine_scores
 from backtest.signals import run_portfolio_rebalance, compute_benchmark, run_long_short
 
 # ============================================================================
@@ -38,7 +38,7 @@ from backtest.signals import run_portfolio_rebalance, compute_benchmark, run_lon
 TEST_START = pd.Timestamp("2025-06-01")
 
 PRED_COLS = {"20d": "pred_label_20d", "6d": "pred_label_6d"}
-W20, W6 = 0.6, 0.4
+W20, W6 = 0.4, 0.6             # v4：score = 0.4*p20 + 0.6*p6（2026-08-21 用户裁定）
 
 MAX_POSITIONS = 10
 REBALANCE_FREQ = 1          # 每日调仓（2026-08-21 用户裁定，spec §3.6）
@@ -136,58 +136,24 @@ def holding_days(trade_df: pd.DataFrame) -> pd.Series:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Dual-regression combined backtest")
-    parser.add_argument("--entry-q", type=float, default=None,
-                        help="可选准入分位：tau = exec_score 池化分布的该分位数，"
-                             "仅 exec >= tau 的股票可买。默认 None = 无准入门槛"
-                             "（v3 口径：空仓份数取前 k + 便宜限价单，成交即纪律）")
-    parser.add_argument("--entry-exec", type=float, default=None,
-                        help="直接指定 exec 准入阈值（覆盖 --entry-q）")
-    parser.add_argument("--no-threshold", action="store_true",
-                        help="关闭准入，回退强制 top-N 满仓（对照用）")
-    args = parser.parse_args()
-
     print("=" * 60)
-    if args.no_threshold or (args.entry_q is None and args.entry_exec is None):
-        print("  Dual-Regression Backtest — DAILY, v3: top-k cash slots + bargain limit")
-    else:
-        q = args.entry_exec if args.entry_exec is not None else args.entry_q
-        print(f"  Dual-Regression Backtest — DAILY, exec entry quantile {q}")
-    print(f"  Pool: {POOL_NAME} | weights: 20d={W20}, 6d={W6}")
+    print("  Dual-Regression Backtest — DAILY, v4: score = 0.4*p20 + 0.6*p6")
+    print(f"  Pool: {POOL_NAME} | label anchor: close[T] | top-k cash slots + bargain limit")
     print("=" * 60)
 
     # ---- 1. Load + combine predictions ----
     print("\n[1/5] Loading predictions ...")
     preds = load_predictions()
-    combined = combine_scores(preds["20d"], preds["6d"], w20=W20, w6=W6)
-    rank_s, exec_s = combined["rank_score"], combined["exec_score"]
+    score = combine_scores(preds["20d"], preds["6d"], w20=W20, w6=W6)
 
-    # ---- 准入门槛（2026-08-21 用户裁定：阈值买入 + 允许空仓）----
-    # tau 在 exec（期望收益）绝对尺度上校准为其池化分布分位数；排序通道用
-    # rank 百分位，未过 exec 门槛的股票被置 NaN 剔出候选。注意：tau 用预测期
-    # 池化分布校准（未用标签，无标签泄漏；但含 2026 年段——严格前向校准
-    # 需训练期预测，记为后续改进）。
-    rank_entry = percentile_per_date(rank_s)
-    if args.no_threshold or (args.entry_q is None and args.entry_exec is None):
-        rank_pass, tau = rank_entry, None
-    else:
-        tau = (args.entry_exec if args.entry_exec is not None
-               else float(exec_s.quantile(args.entry_q)))
-        rank_pass = rank_entry.where(exec_s >= tau)
-        nq = rank_pass.groupby(level="date").count()
-        nq = nq.reindex(sorted(rank_entry.index.get_level_values("date").unique()), fill_value=0)
-        print(f"  entry: exec >= {tau:+.4f} (P{args.entry_q * 100:.0f} of pooled exec) | "
-              f"qualifying/day median={nq.median():.0f} p10={nq.quantile(0.1):.0f} "
-              f"p90={nq.quantile(0.9):.0f} zero-days={int((nq == 0).sum())}/{len(nq)}")
-
-    n_dates = rank_s.index.get_level_values("date").nunique()
-    print(f"  combined: {len(rank_s)} rows, {n_dates} dates")
-    print(f"  exec_score quantiles: "
-          f"1%={exec_s.quantile(0.01):+.4f} 50%={exec_s.quantile(0.5):+.4f} "
-          f"99%={exec_s.quantile(0.99):+.4f} |0.999|={abs(exec_s).quantile(0.999):.4f}")
-    # 量纲 sanity（验收 5）：exec 必须是收益量纲，否则限价公式失真
-    if abs(exec_s).quantile(0.999) > 0.35:
-        print("  ERROR: exec_score magnitude exceeds plausible return range — "
+    n_dates = score.index.get_level_values("date").nunique()
+    print(f"  combined: {len(score)} rows, {n_dates} dates")
+    print(f"  score quantiles: "
+          f"1%={score.quantile(0.01):+.4f} 50%={score.quantile(0.5):+.4f} "
+          f"99%={score.quantile(0.99):+.4f} |0.999|={abs(score).quantile(0.999):.4f}")
+    # 量纲 sanity：score 必须是收益量纲，否则限价公式失真
+    if abs(score).quantile(0.999) > 0.35:
+        print("  ERROR: score magnitude exceeds plausible return range — "
               "check combine inputs")
         sys.exit(1)
 
@@ -195,7 +161,7 @@ def main():
     print(f"\n[2/5] Loading OHLCV + metadata ...")
     con = duckdb.connect(str(DB_PATH), read_only=True)
     pool_codes = get_pool_codes()
-    pred_codes = sorted(rank_s.index.get_level_values("code").unique())
+    pred_codes = sorted(score.index.get_level_values("code").unique())
     ohlcv_map = load_ohlcv_map(con, pred_codes)
     full_ohlcv = load_ohlcv_map(con, pool_codes)
     print(f"  OHLCV: {len(ohlcv_map)} prediction stocks, {len(full_ohlcv)} pool stocks")
@@ -225,7 +191,7 @@ def main():
     print(f"  Delist info: {len(delist_info)} stocks")
     con.close()
 
-    # ---- 3. IC reference (each model vs own label + rank_score vs both) ----
+    # ---- 3. IC reference (each model vs own label + score vs both) ----
     print(f"\n[3/5] IC reference ...")
     con_r = duckdb.connect(str(DB_PATH), read_only=True)
     placeholders = ",".join(["?"] * len(pool_codes))
@@ -251,8 +217,8 @@ def main():
     limit_mask = compute_nextopen_limit_mask(kline, st_series=st_series)
     # 预测帧在训练入口已排除 limit/ST/退市行，故此处计数为 0 属预期；
     # 掩码仍用于 IC 块的 safe 过滤（防未来数据变化）
-    n_limit = int(limit_mask.loc[rank_s.index].sum()) if not limit_mask.empty else 0
-    n_st = int(st_series.loc[rank_s.index].sum()) if st_series is not None else 0
+    n_limit = int(limit_mask.loc[score.index].sum()) if not limit_mask.empty else 0
+    n_st = int(st_series.loc[score.index].sum()) if st_series is not None else 0
     print(f"  pred rows with limit-hit/ST (expected 0, excluded upstream): "
           f"{n_limit} / {n_st}")
 
@@ -269,20 +235,19 @@ def main():
         s0, e0 = cfg["label_window"]
         lab = compute_median_open(kline, start_day=s0, end_day=e0, baseline=cfg["baseline"])
         s_own = _safe_ic(preds[m], lab)
-        s_comb = _safe_ic(rank_s, lab)
+        s_comb = _safe_ic(score, lab)
         print(f"  {m:>3} label: own IC={s_own['mean_ic']:+.4f} (IR {s_own['ir']:.2f}) | "
-              f"rank_score IC={s_comb['mean_ic']:+.4f} (IR {s_comb['ir']:.2f})")
+              f"score IC={s_comb['mean_ic']:+.4f} (IR {s_comb['ir']:.2f})")
 
-    pred_dates = sorted(rank_s.index.get_level_values("date").unique())
+    pred_dates = sorted(score.index.get_level_values("date").unique())
     test_end_date = str(pred_dates[-1].date())
     print(f"  Prediction period: {pred_dates[0].date()} ~ {pred_dates[-1].date()} ({len(pred_dates)} dates)")
 
     # ---- 4. Portfolio backtest (daily rebalance) ----
     print(f"\n[4/5] Running DAILY rebalance backtest "
-          f"(max_pos={MAX_POSITIONS}, rebalance_freq={REBALANCE_FREQ}, "
-          f"entry={'exec>=%+.4f' % tau if tau is not None else 'topN'}) ...")
+          f"(max_pos={MAX_POSITIONS}, rebalance_freq={REBALANCE_FREQ}, v4 single score) ...")
     port_stats, equity_df, trade_df = run_portfolio_rebalance(
-        exec_s, ohlcv_map,
+        score, ohlcv_map,
         test_start=str(TEST_START.date()),
         max_positions=MAX_POSITIONS,
         rebalance_freq=REBALANCE_FREQ,
@@ -294,7 +259,6 @@ def main():
         stamp_duty=STAMP_DUTY,
         risk_free_rate=RISK_FREE_RATE,
         delist_info=delist_info,
-        rank_scores=rank_pass,
     )
 
     if not equity_df.empty and test_end_date is not None:
@@ -325,7 +289,7 @@ def main():
     # REPORT
     # ========================================================================
     print("\n" + "=" * 60)
-    print("  PORTFOLIO RESULTS (combined rank/exec, daily rebalance)")
+    print("  PORTFOLIO RESULTS (v4 single score, daily rebalance)")
     print("=" * 60)
 
     print(f"\n  {'Total Return:':<22} {port_stats.get('total_return', 0):>+10.2%}")
@@ -358,10 +322,7 @@ def main():
     # ---- save outputs（独立命名，勿覆写旧文件——report_strategy 还在消费旧对照）----
     bt_dir = get_backtest_dir()
     bt_dir.mkdir(parents=True, exist_ok=True)
-    if tau is not None:
-        th_suffix = f"_exec{tau:g}" if args.entry_exec is not None else f"_q{int(args.entry_q * 100)}"
-    else:
-        th_suffix = "_v3"
+    th_suffix = "_v4"
     eq_path = bt_dir / f"equity_lgb_combined_daily{th_suffix}_rebalance.csv"
     equity_df.to_csv(eq_path)
     if not bench_df.empty:
@@ -375,7 +336,7 @@ def main():
     # ========================================================================
     print(f"\n[5/5] Running long-short signal test (n={MAX_POSITIONS}/{MAX_POSITIONS}) ...")
     ls_stats, ls_equity = run_long_short(
-        exec_s, full_ohlcv,
+        score, full_ohlcv,
         n_long=MAX_POSITIONS,
         n_short=MAX_POSITIONS,
         test_start=str(TEST_START.date()),
@@ -385,7 +346,6 @@ def main():
         stamp_duty=STAMP_DUTY,
         delist_info=delist_info,
         borrow_rate=BORROW_RATE,
-        rank_scores=rank_s,
     )
 
     if ls_stats:
