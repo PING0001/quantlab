@@ -21,6 +21,7 @@
 - **列所有权**：compute/update 拥有全部因子列（含新增 8 列）；`ai_gz2000_*` 归 build_ai_factor——任何写入不得整行替换
 - **factor_values.date 保持 VARCHAR**；新列必须永久进 compute 计算路径（禁止表内手工列，DROP TABLE 重建会丢）
 - **提交规范**：中文 conventional commits（`feat:`/`fix:`/`docs:`/`chore:`）
+- **worktree 产物搬运策略**（2026-08-21 盘点）：输入侧仅 DB（`data/ashare.duckdb`）与 `.env` 需符号链接（已就绪，DB 不重拉、同锁域）；`models/*/lgb_multi.joblib` 是 **git 跟踪文件**随 checkout 自带；其余 gitignore 项（predictions/HTML/signals/报告/锁）均为可再生输出，不搬运。**训练产出的新模型 `lgb_{model}.joblib` 按 repo 惯例 git add 提交进分支**（lgb_multi.joblib 即 tracked 先例），合并后任意工作区可用
 - **中间态声明**：任务 2 落地后、任务 8 完成前，本分支的 generate_lgb/backtest 处于不可用中间态——仅限 worktree 内，主工作区（fix 分支）不受影响，workbuddy 照常运行
 
 ---
