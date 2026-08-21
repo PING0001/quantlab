@@ -416,13 +416,20 @@ def run_portfolio_rebalance(
     risk_free_rate=0.025,
     delist_info=None,
     rank_scores=None,
+    rank_threshold=None,
 ):
     """Long-only backtest with periodic rebalancing and overnight limit orders.
 
     On every *rebalance_freq* trading day:
-      - Rank all eligible stocks by prediction score descending → top N.
-      - Sell positions that dropped out of top N.
-      - Buy top N stocks not yet held.
+      - Rank all eligible stocks by prediction score descending.
+      - If rank_threshold is None: classic top-N — target = top max_positions.
+      - If rank_threshold is set (e.g. 0.90): threshold entry — only stocks
+        with rank score >= rank_threshold qualify (score should be a
+        per-date percentile in (0,1)); target = qualifying stocks capped
+        at max_positions, bought in rank order. NOTHING qualifies -> all
+        positions sold -> cash (空仓 allowed; max_positions is a cap,
+        not a target).
+      - Sell positions not in target; buy target stocks not yet held.
       - Sell orders persist across non-rebalance days; unfilled buy orders
         expire at end of their execution day.
 
@@ -435,6 +442,9 @@ def run_portfolio_rebalance(
         排序专用通道（如 combine_scores 的 rank 百分位）。提供时：候选集
         仍由 predictions（exec 量纲，限价公式依赖）决定，但 top-N 排序用
         rank_scores。缺省 None 时行为与旧版完全一致。
+    rank_threshold : float or None（bench 2026-08-21 用户裁定：阈值准入）
+        候选准入阈值：rank score >= 该值才可买/可留（配合按日百分位
+        score，0.90 即当日综合分前 ~10%）。
     """
     all_dates = sorted(set().union(*(ohlcv.index for ohlcv in ohlcv_map.values())))
     total_cash = float(max_positions * initial_cash_per_stock)
@@ -448,6 +458,7 @@ def run_portfolio_rebalance(
     buy_lock = set()     # T+1 sell prohibition
 
     nav_records = []
+    pos_count_records = []   # (date, n_positions, cash) —— 空仓率/仓位统计
     trades = []
     n_dates = len(all_dates)
 
@@ -609,6 +620,10 @@ def run_portfolio_rebalance(
                     delisted = {c for c in candidates.index
                                 if c in delist_info and date >= delist_info[c]}
                     candidates = candidates[~candidates.index.isin(delisted)]
+                # 阈值准入（2026-08-21 用户裁定）：低于阈值的候选一律不买；
+                # 无合格标的时 target 为空 -> 全部卖出 -> 允许空仓
+                if rank_threshold is not None:
+                    candidates = candidates[candidates >= rank_threshold]
                 candidates = candidates.sort_values(ascending=False)
 
                 target_codes = set(candidates.head(max_positions).index)
@@ -667,6 +682,7 @@ def run_portfolio_rebalance(
             nav += pos["shares"] * cl
 
         nav_records.append((date, nav))
+        pos_count_records.append((date, len(positions), cash))
 
     # ---- stats from nav ----
     nav_series = pd.Series(
@@ -683,6 +699,16 @@ def run_portfolio_rebalance(
     trade_df = pd.DataFrame(trades) if trades else pd.DataFrame(
         columns=["date", "code", "action", "price", "shares"])
     stats["n_trades"] = len(trades)
+
+    # 仓位/空仓统计（按 test_start 之后的交易日口径）
+    pos_df = pd.DataFrame(pos_count_records, columns=["date", "n_pos", "cash"]).set_index("date")
+    if test_start is not None and not pos_df.empty:
+        pos_df = pos_df[pos_df.index >= pd.Timestamp(test_start)]
+    if not pos_df.empty:
+        stats["avg_positions"] = float(pos_df["n_pos"].mean())
+        stats["n_days_empty"] = int((pos_df["n_pos"] == 0).sum())
+        stats["n_days_full"] = int((pos_df["n_pos"] >= max_positions).sum())
+        stats["n_days"] = int(len(pos_df))
     return stats, equity_df, trade_df
 
 

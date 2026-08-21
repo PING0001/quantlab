@@ -13,6 +13,7 @@ Run from project root:
 """
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 import warnings
@@ -28,7 +29,7 @@ from config import (DB_PATH, POOL_NAME, get_pool_codes, get_backtest_dir,
 
 from strategies import rank_ic, ic_summary
 from strategies.labels import compute_median_open, compute_nextopen_limit_mask
-from strategies.combine import combine_scores
+from strategies.combine import combine_scores, percentile_per_date
 from backtest.signals import run_portfolio_rebalance, compute_benchmark, run_long_short
 
 # ============================================================================
@@ -135,8 +136,18 @@ def holding_days(trade_df: pd.DataFrame) -> pd.Series:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Dual-regression combined backtest")
+    parser.add_argument("--threshold", type=float, default=0.90,
+                        help="准入阈值：当日综合分百分位 >= 该值才买入，无合格则空仓"
+                             "（默认 0.90；传 0 回退强制 top-N 满仓）")
+    args = parser.parse_args()
+    rank_threshold = args.threshold if args.threshold > 0 else None
+
     print("=" * 60)
-    print("  Dual-Regression Combined Backtest — DAILY Rebalance")
+    if rank_threshold is not None:
+        print(f"  Dual-Regression Backtest — DAILY, entry >= P{rank_threshold * 100:.0f}")
+    else:
+        print("  Dual-Regression Backtest — DAILY, forced top-N (no threshold)")
     print(f"  Pool: {POOL_NAME} | weights: 20d={W20}, 6d={W6}")
     print("=" * 60)
 
@@ -145,6 +156,15 @@ def main():
     preds = load_predictions()
     combined = combine_scores(preds["20d"], preds["6d"], w20=W20, w6=W6)
     rank_s, exec_s = combined["rank_score"], combined["exec_score"]
+
+    # 准入通道：rank_score 再按日转百分位（可解释阈值：0.90 = 当日综合分前 ~10%）
+    rank_entry = percentile_per_date(rank_s)
+    if rank_threshold is not None:
+        nq = rank_entry[rank_entry >= rank_threshold].groupby(level="date").size()
+        if not nq.empty:
+            print(f"  entry >= P{rank_threshold * 100:.0f}: qualifying/day "
+                  f"median={nq.median():.0f} p10={nq.quantile(0.1):.0f} "
+                  f"p90={nq.quantile(0.9):.0f} zero-days={int((nq == 0).sum())}")
 
     n_dates = rank_s.index.get_level_values("date").nunique()
     print(f"  combined: {len(rank_s)} rows, {n_dates} dates")
@@ -245,7 +265,8 @@ def main():
 
     # ---- 4. Portfolio backtest (daily rebalance) ----
     print(f"\n[4/5] Running DAILY rebalance backtest "
-          f"(max_pos={MAX_POSITIONS}, rebalance_freq={REBALANCE_FREQ}) ...")
+          f"(max_pos={MAX_POSITIONS}, rebalance_freq={REBALANCE_FREQ}, "
+          f"entry={'P%.0f' % (rank_threshold * 100) if rank_threshold is not None else 'topN'}) ...")
     port_stats, equity_df, trade_df = run_portfolio_rebalance(
         exec_s, ohlcv_map,
         test_start=str(TEST_START.date()),
@@ -259,7 +280,8 @@ def main():
         stamp_duty=STAMP_DUTY,
         risk_free_rate=RISK_FREE_RATE,
         delist_info=delist_info,
-        rank_scores=rank_s,
+        rank_scores=rank_entry,
+        rank_threshold=rank_threshold,
     )
 
     if not equity_df.empty and test_end_date is not None:
@@ -296,6 +318,9 @@ def main():
     print(f"  {'Max Drawdown:':<22} {port_stats.get('max_drawdown', 0):>+10.2%}")
     print(f"  {'Calmar Ratio:':<22} {port_stats.get('calmar', 0):>10.2f}")
     print(f"  {'Win Rate:':<22} {port_stats.get('win_rate', 0):>+10.2%}")
+    print(f"  {'Avg Positions:':<22} {port_stats.get('avg_positions', float('nan')):>10.1f}")
+    print(f"  {'Empty Days:':<22} {port_stats.get('n_days_empty', 0):>10}"
+          f" / {port_stats.get('n_days', 0)}")
     print(f"  {'Trading Days:':<22} {port_stats.get('n_days', 0):>10}")
     print(f"  {'Total Trades:':<22} {n_trades:>10}")
 
@@ -316,12 +341,13 @@ def main():
     # ---- save outputs（独立命名，勿覆写旧文件——report_strategy 还在消费旧对照）----
     bt_dir = get_backtest_dir()
     bt_dir.mkdir(parents=True, exist_ok=True)
-    eq_path = bt_dir / "equity_lgb_combined_daily_rebalance.csv"
+    th_suffix = f"_p{int(rank_threshold * 100)}" if rank_threshold is not None else "_topN"
+    eq_path = bt_dir / f"equity_lgb_combined_daily{th_suffix}_rebalance.csv"
     equity_df.to_csv(eq_path)
     if not bench_df.empty:
         bench_df.to_csv(bt_dir / "benchmark_combined.csv")
     if n_trades:
-        trade_df.to_csv(bt_dir / "trades_lgb_combined_daily_rebalance.csv", index=False)
+        trade_df.to_csv(bt_dir / f"trades_lgb_combined_daily{th_suffix}_rebalance.csv", index=False)
     print(f"\n  Equity curve saved to: {eq_path}")
 
     # ========================================================================

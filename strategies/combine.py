@@ -22,15 +22,19 @@ from __future__ import annotations
 import pandas as pd
 
 
-def _percentile_per_date(s: pd.Series) -> pd.Series:
+def percentile_per_date(s: pd.Series) -> pd.Series:
     """Cross-sectional percentile in (0, 1) per date; NaN stays NaN.
 
     Project convention (extra_factors._pct_rank): (rank - 0.5) / n with
     average-rank ties — an all-tied date maps every row to 0.5 (neutral),
-    a single-stock date also maps to 0.5.
+    a single-stock date also maps to 0.5. Public entry point so the
+    backtest can build interpretable threshold channels (P90/P95 entry).
     """
     g = s.groupby(level="date")
     return (g.rank() - 0.5) / g.transform("count")
+
+
+_percentile_per_date = percentile_per_date
 
 
 def combine_scores(pred_20d: pd.Series, pred_6d: pd.Series,
