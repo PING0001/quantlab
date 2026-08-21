@@ -42,8 +42,8 @@ W20, W6 = 0.6, 0.4
 
 MAX_POSITIONS = 10
 REBALANCE_FREQ = 1          # 每日调仓（2026-08-21 用户裁定，spec §3.6）
-AUCTION_BUFFER = 0.02        # 限价 = 收盘×(1+pred−2%)（加减法口径，2026-08-21 用户二次裁定保留）
-SELL_MARKUP = 0.001
+AUCTION_BUFFER = 0.03        # 买入限价 = 收盘×(1+pred−3%)（2026-08-21 用户口径 v3）
+SELL_MARKUP = 0.0            # 卖出限价 = 收盘×(1+pred) 目标价，无上浮（v3）
 CASH_PER_STOCK = 10000
 COMMISSION = 0.0006
 STAMP_DUTY = 0.0005
@@ -137,10 +137,10 @@ def holding_days(trade_df: pd.DataFrame) -> pd.Series:
 
 def main():
     parser = argparse.ArgumentParser(description="Dual-regression combined backtest")
-    parser.add_argument("--entry-q", type=float, default=0.90,
-                        help="准入分位：tau = exec_score 池化分布的该分位数（如 0.90），"
-                             "仅 exec >= tau 的股票可买——exec 是唯一有日间咬合的绝对尺度"
-                             "（按日百分位恒有 ~10% 合格，形同虚设）")
+    parser.add_argument("--entry-q", type=float, default=None,
+                        help="可选准入分位：tau = exec_score 池化分布的该分位数，"
+                             "仅 exec >= tau 的股票可买。默认 None = 无准入门槛"
+                             "（v3 口径：空仓份数取前 k + 便宜限价单，成交即纪律）")
     parser.add_argument("--entry-exec", type=float, default=None,
                         help="直接指定 exec 准入阈值（覆盖 --entry-q）")
     parser.add_argument("--no-threshold", action="store_true",
@@ -148,10 +148,11 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    if args.no_threshold:
-        print("  Dual-Regression Backtest — DAILY, forced top-N (no threshold)")
+    if args.no_threshold or (args.entry_q is None and args.entry_exec is None):
+        print("  Dual-Regression Backtest — DAILY, v3: top-k cash slots + bargain limit")
     else:
-        print(f"  Dual-Regression Backtest — DAILY, exec entry quantile P{args.entry_q * 100:.0f}")
+        q = args.entry_exec if args.entry_exec is not None else args.entry_q
+        print(f"  Dual-Regression Backtest — DAILY, exec entry quantile {q}")
     print(f"  Pool: {POOL_NAME} | weights: 20d={W20}, 6d={W6}")
     print("=" * 60)
 
@@ -167,7 +168,7 @@ def main():
     # 池化分布校准（未用标签，无标签泄漏；但含 2026 年段——严格前向校准
     # 需训练期预测，记为后续改进）。
     rank_entry = percentile_per_date(rank_s)
-    if args.no_threshold:
+    if args.no_threshold or (args.entry_q is None and args.entry_exec is None):
         rank_pass, tau = rank_entry, None
     else:
         tau = (args.entry_exec if args.entry_exec is not None
@@ -357,12 +358,10 @@ def main():
     # ---- save outputs（独立命名，勿覆写旧文件——report_strategy 还在消费旧对照）----
     bt_dir = get_backtest_dir()
     bt_dir.mkdir(parents=True, exist_ok=True)
-    if args.no_threshold:
-        th_suffix = "_topN"
-    elif args.entry_exec is not None:
-        th_suffix = f"_exec{args.entry_exec:g}"
+    if tau is not None:
+        th_suffix = f"_exec{tau:g}" if args.entry_exec is not None else f"_q{int(args.entry_q * 100)}"
     else:
-        th_suffix = f"_q{int(args.entry_q * 100)}"
+        th_suffix = "_v3"
     eq_path = bt_dir / f"equity_lgb_combined_daily{th_suffix}_rebalance.csv"
     equity_df.to_csv(eq_path)
     if not bench_df.empty:

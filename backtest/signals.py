@@ -3,23 +3,24 @@
 
 T+1 constraint: stocks bought today cannot be sold tomorrow.
 
-Entry (buy):
-  trigger   pred > entry_threshold (threshold 模式) / top-N
-  limit     prev_close * (1 + pred - auction_buffer)
-            （2026-08-21 用户二次裁定：保留此加减法口径，弃目标价×(1-3%)
-             乘法折让版——两者数值相近，此版更直观）
+Entry (buy)  [2026-08-21 用户口径 v3]：
+  slots     k = max_positions - 当前持仓数（空仓份数，等权）
+  rank      预测排名前 k（剔除已持有/名称排除/ST/退市；可选 rank_threshold）
+  limit     prev_close * (1 + pred - auction_buffer)   便宜单（默认让 3%）
   fill      open <= limit -> fill at open (call auction)
             low  <= limit -> fill at limit (intraday)
-            else         -> order expires (no chase)
-            sealed limit-up -> skip
+            else          -> order expires (no chase)
+  成交本身就是价格纪律：不肯回撤到限价的标的自然不买，现金份自然保留。
 
-Exit (sell):
+Exit (sell) [2026-08-21 用户口径 v3]：
   EVERY evening, for EVERY held position (except T+1 locked):
-    limit   prev_close * (1 + pred + sell_markup)
-    fill    open >= limit -> fill at open (call auction)
-            high >= limit -> fill at limit (intraday)
-            otherwise      -> defer (recalculated next evening)
-            sealed limit-down -> defer
+    limit   prev_close * (1 + pred)    目标价（无上浮）
+    两条且仅两条退出路径：
+      1. 预测转负 -> 挂单价低于市价 -> 次日大概率开盘/盘中成交离场
+      2. 价格上冲触及目标价 -> 止盈结算（open >= limit 以开盘价，否则
+         high >= limit 以限价）
+    未成交 -> 顺延，次日按新收盘重新挂单
+    sealed limit-down -> defer
 
 Price limits:
   regular   +/-10%
@@ -606,8 +607,24 @@ def run_portfolio_rebalance(
                 today_pred = pd.Series(dtype=float)
 
             if not today_pred.empty:
-                # --- 3a. Filter candidates ---
-                # 候选集合 = 有 exec 预测（限价可定价）；top-N 排序用 rank 通道
+                # --- 3a. SELL：每晚对全部持仓（T+1 锁定除外）按目标价挂单 ---
+                # 目标价 = 收盘×(1+pred)：pred>0 止盈单（价格触及即结算）；
+                # pred<0 低于市价的出货单（次日基本开盘成交）。退出路径仅两条：
+                # 预测转负 或 价格突破目标价（2026-08-21 用户口径 v3）
+                new_sells = {}
+                for code, pos in positions.items():
+                    if code in buy_lock:
+                        continue
+                    pred_val = today_pred.get(code)
+                    if pred_val is None or pd.isna(pred_val):
+                        continue
+                    prev_cl = close_map.get(code)
+                    if prev_cl is None or prev_cl <= 0:
+                        continue
+                    new_sells[code] = _sell_limit(prev_cl, float(pred_val), sell_markup)
+
+                # --- 3b. BUY：k = 空仓份数，预测排名前 k（剔除已持有）---
+                # 候选集合 = 有 exec 预测（限价可定价）；排序用 rank 通道
                 if rank_scores is not None:
                     try:
                         rank_vals = rank_scores.xs(date, level="date").reindex(today_pred.index)
@@ -626,39 +643,20 @@ def run_portfolio_rebalance(
                     delisted = {c for c in candidates.index
                                 if c in delist_info and date >= delist_info[c]}
                     candidates = candidates[~candidates.index.isin(delisted)]
-                # 阈值准入（2026-08-21 用户裁定）：低于阈值的候选一律不买；
-                # 无合格标的时 target 为空 -> 全部卖出 -> 允许空仓
+                # 可选阈值准入（默认关闭；低于阈值的候选不买）
                 if rank_threshold is not None:
                     candidates = candidates[candidates >= rank_threshold]
                 candidates = candidates.sort_values(ascending=False)
 
-                target_codes = set(candidates.head(max_positions).index)
-
-                # --- 3b. Sell orders: positions NOT in target (skip T+1 locked) ---
-                new_sells = {}
-                for code, pos in positions.items():
-                    if code in buy_lock:
-                        continue
-                    if code in target_codes:
-                        continue
-                    pred_val = today_pred.get(code)
-                    if pred_val is None or pd.isna(pred_val):
-                        continue
-                    prev_cl = close_map.get(code)
-                    if prev_cl is None or prev_cl <= 0:
-                        continue
-                    new_sells[code] = _sell_limit(prev_cl, float(pred_val), sell_markup)
-
-                # --- 3c. Buy orders: target stocks not yet held ---
                 held_codes = set(positions.keys())
-                available = max_positions - len(positions) + len(new_sells)
+                k = max_positions - len(positions)
 
                 new_buys = {}
                 for code in candidates.index:
-                    if code not in target_codes or code in held_codes:
-                        continue
-                    if len(new_buys) >= available:
+                    if len(new_buys) >= k:
                         break
+                    if code in held_codes:
+                        continue
                     prev_cl = close_map.get(code)
                     if prev_cl is None or prev_cl <= 0:
                         continue
