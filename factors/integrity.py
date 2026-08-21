@@ -54,10 +54,14 @@ def _dates_in(con, table: str) -> list[str]:
 
 
 def _latest_open_day(con) -> tuple[str, bool]:
-    """返回 (最新开市日, 日历是否可用)。日历缺失时降级用 daily_kline 最大日。"""
+    """返回 (最新开市日, 日历是否可用)。日历缺失时降级用 daily_kline 最大日。
+
+    日历表可含官方预公布的未来日期（日历因子需要），此处必须以今天为界，
+    否则会把未来交易日当"当日因子缺失"误报硬失败。"""
     try:
         from data import trading_calendar as cal
-        d = cal.latest(con)
+        from datetime import date as _date
+        d = cal.latest(con, on_or_before=_date.today().isoformat())
         if d:
             return d, True
     except Exception:

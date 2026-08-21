@@ -44,9 +44,17 @@ def ensure_table(con: duckdb.DuckDBPyConnection):
 
 
 def refresh(con: duckdb.DuckDBPyConnection, pro, start: str = CAL_START) -> str:
-    """全量刷新日历（幂等）。返回刷新到的最晚日期（YYYY-MM-DD）。"""
+    """全量刷新日历（幂等）。返回增量拉取边界 = 今天（含）之前最晚的开市日。
+
+    表内可包含未来日期（trade_cal 返回官方预公布的次年安排，供
+    DaysToNextTrading/DaysToDelivery 等日历因子取"下一交易日"），但**返回值
+    永远 ≤ 今天**——pull 的增量目标、integrity 的"当日应有"都以它为界，
+    绝不因表内未来日期而把未来当增量。"""
     ensure_table(con)
-    end = datetime.now().strftime("%Y%m%d")
+    today = datetime.now()
+    # 拉到次年年底：国务院每年 11~12 月预公布次年假期，API 已含官方安排；
+    # 更远的年份未公布，不拉（防臆测数据）
+    end = f"{today.year + 1}1231"
     df = retry_api(pro.trade_cal, exchange="SSE",
                    start_date=start, end_date=end,
                    fields="cal_date,is_open")
@@ -57,10 +65,11 @@ def refresh(con: duckdb.DuckDBPyConnection, pro, start: str = CAL_START) -> str:
         "SELECT strptime(cal_date, '%Y%m%d')::DATE, is_open FROM df"
     )
     con.execute("CHECKPOINT")
-    latest = str(df["cal_date"].max())
-    log.info("trading_calendar refreshed: %d rows (%s ~ %s)",
-             len(df), df["cal_date"].min(), latest)
-    return f"{latest[:4]}-{latest[4:6]}-{latest[6:]}"
+    latest = latest(con, on_or_before=today.strftime("%Y-%m-%d"))
+    log.info("trading_calendar refreshed: %d rows (%s ~ %s); "
+             "increment boundary (latest open <= today): %s",
+             len(df), df["cal_date"].min(), df["cal_date"].max(), latest)
+    return latest
 
 
 def refresh_safe(con: duckdb.DuckDBPyConnection, pro) -> str:
@@ -72,7 +81,7 @@ def refresh_safe(con: duckdb.DuckDBPyConnection, pro) -> str:
         return refresh(con, pro)
     except Exception as e:
         log.warning("trade_cal refresh failed (%s), falling back to cached calendar", e)
-        cached = latest(con)
+        cached = latest(con, on_or_before=datetime.now().strftime("%Y-%m-%d"))
         if cached is None:
             raise RuntimeError("trading_calendar is empty and refresh failed; "
                                "cannot proceed safely")
