@@ -2,8 +2,10 @@
 """
 Factor computation pipeline.
 
-Loads OHLCV + supplementary data from DuckDB, computes all 101 Alpha101 factors
-and ~34 non-alpha factors, stores results to the `factor_values` table.
+Loads OHLCV + supplementary data from DuckDB, computes the non-alpha factor
+panel (~64 columns；alpha101 全系已于 2026-08-22 移除，经典表达式仅存于
+factors/baseline_alphas.py 作评估器回归基准), stores results to the
+`factor_values` table.
 
 Usage:
     python -m factors.compute                  # full rebuild
@@ -18,16 +20,13 @@ import time
 from pathlib import Path
 
 import duckdb
-import numpy as np
 import polars as pl
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from config import DB_PATH, get_pool_codes
 
-from .alpha101 import ALPHA_EXPRESSIONS
-from .utility import calculate_by_expression
-from .extra_factors import compute_non_alpha_factors, apply_ind_neutralize
+from .extra_factors import compute_non_alpha_factors
 
 log = logging.getLogger(__name__)
 
@@ -84,20 +83,6 @@ def _load_market_cap(con: duckdb.DuckDBPyConnection, codes: list[str]) -> pl.Dat
         pl.col("circ_mv").cast(pl.Float64),
     ])
 
-    return result
-
-
-def _load_industry(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
-    """Load 申万 L3 industry classification."""
-    df = con.execute(
-        "SELECT code, sw_l3_code FROM industry WHERE sw_l3_code IS NOT NULL"
-    ).fetchdf()
-    if df.empty:
-        return pl.DataFrame(schema={"vt_symbol": pl.Utf8, "sw_l3_code": pl.Utf8})
-
-    # Filter to pool stocks later; for now load all
-    result = pl.from_pandas(df)
-    result = result.rename({"code": "vt_symbol"})
     return result
 
 
@@ -354,7 +339,7 @@ def compute_panel(
     Compute all factors for the given stock codes and date range.
 
     Returns a wide-format Polars DataFrame with columns:
-    [code, date, alpha1...alpha101, non_alpha_factors..., IsST, ...]
+    [code, date, non_alpha_factors..., IsST, ...]
     """
     t0 = time.time()
 
@@ -381,52 +366,16 @@ def compute_panel(
     if end_date:
         df = df.filter(pl.col("datetime") <= end_date)
 
-    # Sort for expression engine
+    # Sort for rolling-window operators
     df = df.sort(["vt_symbol", "datetime"])
 
     n_stocks = df["vt_symbol"].n_unique()
     n_dates = df["datetime"].n_unique()
     log.info("Data loaded: %d stocks × %d dates = %d rows", n_stocks, n_dates, len(df))
 
-    # 2. Prepare for expression engine: add cap + pre-computed returns
-    if "total_mv" in df.columns:
-        df = df.with_columns(pl.col("total_mv").alias("cap"))
-
-    # Pre-compute daily returns (used by 50+ alpha expressions via RETURNS_EXPR)
-    df = df.with_columns(
-        (pl.col("close") / pl.col("close").shift(1).over("vt_symbol") - 1).alias("ret")
-    )
-
-    # 3. Compute Alpha101 factors (sequential – IPC overhead dominates with multiprocessing)
-    log.info("Computing %d Alpha101 factors ...", len(ALPHA_EXPRESSIONS))
-    from tqdm import tqdm
-
-    alpha_results: dict[str, pl.Series] = {}
-    expressions = list(ALPHA_EXPRESSIONS.items())
-
-    for name, expr in tqdm(expressions, desc="Alpha101"):
-        _, series = _compute_one_alpha((df, name, expr))
-        alpha_results[name] = series
-
-    # 4. Build alpha factor DataFrame
-    id_cols = df[["datetime", "vt_symbol"]]
-    alpha_df = id_cols.clone()
-    for name in sorted(alpha_results.keys()):
-        alpha_df = alpha_df.with_columns(alpha_results[name].alias(name))
-    log.info("Alpha factors computed: %d columns", len(alpha_results))
-
-    # 5. Apply IndNeutralize
-    log.info("Applying IndNeutralize (申万 L3) ...")
-    industry_map = _load_industry(con)
-    if not industry_map.is_empty():
-        alpha_df = apply_ind_neutralize(alpha_df, industry_map)
-
-    # 6. Compute non-alpha factors
+    # 2. Compute non-alpha factors
     log.info("Computing non-alpha factors ...")
     extra_df = compute_non_alpha_factors(df)
-    extra_df = alpha_df[["datetime", "vt_symbol"]].join(
-        extra_df, on=["datetime", "vt_symbol"], how="left"
-    )
 
     # 7. Merge supplementary factors (chip, market state, IsST)
     log.info("Loading supplementary factors ...")
@@ -496,16 +445,12 @@ def compute_panel(
     else:
         extra_df = extra_df.with_columns(pl.lit(0).cast(pl.Int32).alias("IsST"))
 
-    # 8. Merge alpha + extra (single join, not loop)
-    log.info("Merging alpha + non-alpha factors ...")
-    extra_fact_cols = [c for c in extra_df.columns if c not in ("datetime", "vt_symbol")]
-    merged = alpha_df.join(extra_df, on=["datetime", "vt_symbol"], how="left")
-
-    # 9. Final cleanup: clip extreme values, fill remaining NaN
-    # Exclude intermediate columns (ret, cap, and any with _ prefix)
-    excluded = {"ret", "cap"}
-    factor_columns = [c for c in sorted(alpha_results.keys()) + extra_fact_cols
-                      if c not in excluded and not c.startswith("_")]
+    # 3. Final cleanup: clip extreme values
+    # Exclude intermediate columns (any with _ prefix)
+    factor_columns = [c for c in extra_df.columns
+                      if c not in ("datetime", "vt_symbol")
+                      and not c.startswith("_")]
+    merged = extra_df
     for col in factor_columns:
         if col in merged.columns:
             merged = merged.with_columns(
@@ -528,21 +473,6 @@ def compute_panel(
     return merged
 
 
-def _compute_one_alpha(args: tuple) -> tuple[str, pl.Series]:
-    """Compute a single alpha factor expression (for multiprocessing)."""
-    df, name, expr = args
-
-    import warnings
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-
-        try:
-            result_df = calculate_by_expression(df, expr)
-            return name, result_df["data"]
-        except Exception:
-            return name, pl.Series(name, [None] * len(df))
-
-
 # ---- Storage ----
 
 AI_FACTOR_COLUMNS = ["ai_gz2000_20d", "ai_gz2000_median_5d"]
@@ -551,8 +481,9 @@ AI_FACTOR_COLUMNS = ["ai_gz2000_20d", "ai_gz2000_median_5d"]
 def store_factor_values(con: duckdb.DuckDBPyConnection, panel: pl.DataFrame):
     """Store factor panel into DuckDB factor_values table (full rebuild).
 
-    factor_values 是列所有权分离的双写入方表：本函数拥有 155 个因子列，
-    build_ai_factor.py 拥有 ai_gz2000_* 两列。重建时必须：
+    factor_values 是列所有权分离的双写入方表：本函数拥有全部非 alpha
+    因子列（alpha101 已移除），build_ai_factor.py 拥有 ai_gz2000_* 两列。
+    重建时必须：
       1. 保留 ai 列结构并回填其数据（panel 不计算 ai 因子）；
       2. 重建 PRIMARY KEY (code, date)（旧实现 CREATE TABLE AS 会丢掉
          约束与 ai 列，属 schema 回归）。

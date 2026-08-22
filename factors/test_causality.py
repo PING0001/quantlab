@@ -28,12 +28,10 @@ from config import DB_PATH, get_pool_codes
 # ---------------------------------------------------------------------------
 # Factor engine imports (same as compute.py)
 # ---------------------------------------------------------------------------
-from factors.alpha101 import ALPHA_EXPRESSIONS
-from factors.utility import calculate_by_expression
-from factors.extra_factors import compute_non_alpha_factors, apply_ind_neutralize
+from factors.extra_factors import compute_non_alpha_factors
 from factors.compute import (
     _load_ohlcv, _load_market_cap, _load_stock_info,
-    _load_industry, _load_cyq, _load_index_data, _compute_isst,
+    _load_cyq, _load_index_data, _compute_isst,
 )
 
 # ---------------------------------------------------------------------------
@@ -61,30 +59,7 @@ def _prepare_factor_data(con, codes: list[str]) -> pl.DataFrame:
 
     df = df.sort(["vt_symbol", "datetime"])
 
-    if "total_mv" in df.columns:
-        df = df.with_columns(pl.col("total_mv").alias("cap"))
-
-    # Pre-compute daily return
-    df = df.with_columns(
-        (pl.col("close") / pl.col("close").shift(1).over("vt_symbol") - 1).alias("ret")
-    )
-
     return df
-
-
-def _run_alpha_factors(df: pl.DataFrame) -> pl.DataFrame:
-    """Compute all alpha factors (including _v0) on the given data."""
-    id_cols = df[["datetime", "vt_symbol"]]
-    alpha_df = id_cols.clone()
-
-    for name, expr in sorted(ALPHA_EXPRESSIONS.items()):
-        try:
-            result_df = calculate_by_expression(df, expr)
-            alpha_df = alpha_df.with_columns(result_df["data"].alias(name))
-        except Exception as e:
-            print(f"    [SKIP] {name}: {e}")
-
-    return alpha_df
 
 
 def _run_non_alpha_factors(df: pl.DataFrame, con: duckdb.DuckDBPyConnection,
@@ -123,14 +98,6 @@ def _run_non_alpha_factors(df: pl.DataFrame, con: duckdb.DuckDBPyConnection,
         extra_df = extra_df.with_columns(pl.lit(0).cast(pl.Int32).alias("IsST"))
 
     return extra_df
-
-
-def _run_ind_neutralize(alpha_df: pl.DataFrame, con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
-    """Apply industry neutralization."""
-    industry_map = _load_industry(con)
-    if industry_map.is_empty():
-        return alpha_df
-    return apply_ind_neutralize(alpha_df, industry_map)
 
 
 def _compare_factors(ref: pl.DataFrame, test: pl.DataFrame,
@@ -292,24 +259,12 @@ def main():
     print(f"\n[2/4] Computing reference factors on FULL data ...")
     t_ref = time.time()
 
-    alpha_ref = _run_alpha_factors(df)
-    alpha_ref = _run_ind_neutralize(alpha_ref, con)
-
-    extra_ref = _run_non_alpha_factors(df, con, selected)
-    extra_fact_cols = [c for c in extra_ref.columns 
-                       if c not in ("datetime", "vt_symbol", "ret", "cap")
+    ref = _run_non_alpha_factors(df, con, selected)
+    extra_fact_cols = [c for c in ref.columns
+                       if c not in ("datetime", "vt_symbol")
                        and not c.startswith("_")]
-
-    # Merge alpha + extra
-    ref = alpha_ref.join(
-        extra_ref.select(["datetime", "vt_symbol"] + extra_fact_cols),
-        on=["datetime", "vt_symbol"], how="left"
-    )
-
-    alpha_names = sorted(ALPHA_EXPRESSIONS.keys())
-    all_factor_names = alpha_names + extra_fact_cols
-    print(f"  Reference: {len(alpha_names)} alpha + {len(extra_fact_cols)} non-alpha = "
-          f"{len(all_factor_names)} factors ({time.time() - t_ref:.1f}s)")
+    all_factor_names = extra_fact_cols
+    print(f"  Reference: {len(all_factor_names)} factors ({time.time() - t_ref:.1f}s)")
 
     # ---- 3. Run truncation tests ----
     print(f"\n[3/4] Running truncation tests at {args.n_splits} points ...")
@@ -325,19 +280,10 @@ def main():
 
         df_trunc = df.filter(pl.col("datetime") <= trunc_date)
 
-        # Compute alpha factors on truncated data
-        alpha_trunc = _run_alpha_factors(df_trunc)
-        alpha_trunc = _run_ind_neutralize(alpha_trunc, con)
-
-        # Compute non-alpha on truncated data
-        extra_trunc = _run_non_alpha_factors(df_trunc, con, selected)
-        extra_trunc_cols = [c for c in extra_trunc.columns 
-                            if c in extra_fact_cols]
-
-        trunc = alpha_trunc.join(
-            extra_trunc.select(["datetime", "vt_symbol"] + extra_trunc_cols),
-            on=["datetime", "vt_symbol"], how="left"
-        )
+        # Compute non-alpha factors on truncated data
+        trunc = _run_non_alpha_factors(df_trunc, con, selected)
+        trunc_cols = [c for c in trunc.columns if c in extra_fact_cols]
+        trunc = trunc.select(["datetime", "vt_symbol"] + trunc_cols)
 
         # Compare
         result = _compare_factors(ref, trunc, all_factor_names, margin_dates=args.margin)

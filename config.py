@@ -71,10 +71,10 @@ TRACKED_INDICES = [
     ("399303.SZ",  "399303"),   # 国证2000（微盘基准）
 ]
 
+# alpha101 全系已于 2026-08-22 移除（DSL 引擎与 vnpy 参考一并删除），
+# 8 个经典表达式以原生 Polars 形式保留在 factors/baseline_alphas.py，
+# 仅作评估器回归基准（factors/baseline_check.py），不再入模。
 SELECTED_FACTORS = (
-    # Alpha101 (101 factors, from vnpy / WorldQuant formulaic alphas)
-    [f"alpha{i}" for i in range(1, 102)]
-    +
     # Momentum (3)
     ["Return_5d", "Return_20d", "Reversal_60d"]
     +
@@ -128,9 +128,6 @@ SELECTED_FACTORS = (
     # 供短 horizon 模型（open2d 等）独立筛选取用
     ["Return_3d", "Volatility_3d", "Amihud_3d", "AvgAmount_3d",
      "ClosePos_mean_3d", "Price_position_5d"]
-    +
-    # Alternative versions (old raw formulas)
-    ["alpha1_v0", "alpha18_v0", "alpha50_v0", "alpha60_v0"]
 )
 
 
@@ -209,12 +206,6 @@ def get_model_dir(name: str = None, fold: str = None) -> Path:
 
 def get_lgb_model_path(model: str = "20d", name: str = None, fold: str = None) -> Path:
     return get_model_dir(name, fold) / f"lgb_{model}.joblib"
-
-
-def get_legacy_lgb_model_path(name: str = None) -> Path:
-    """bench 前的单分类模型：仅供 generate_lgb 回退分支与整体回滚使用，
-    本 bench 任何代码不得写入该文件。"""
-    return get_model_dir(name) / "lgb_multi.joblib"
 
 
 # ---- Predictions cache ----

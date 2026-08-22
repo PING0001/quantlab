@@ -1,33 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 Non-alpha factors computed from raw OHLCV data and supplementary tables.
-Also provides IndNeutralize post-processing for alpha factors.
 """
 
 from datetime import date, timedelta
 
-import numpy as np
 import polars as pl
-
-from . import alpha101
-
-
-def apply_ind_neutralize(
-    alpha_df: pl.DataFrame,
-    industry_df: pl.DataFrame,
-) -> pl.DataFrame:
-    """Apply industry neutralization to the 18 alpha factors that require it."""
-    # Join on vt_symbol only (industry classification is time-invariant snapshot)
-    df = alpha_df.join(industry_df, on="vt_symbol", how="left")
-
-    for col in alpha101.IND_NEUTRALIZE_ALPHAS:
-        if col not in df.columns:
-            continue
-        df = df.with_columns(
-            (pl.col(col) - pl.col(col).mean().over(["datetime", "sw_l3_code"])).alias(col)
-        )
-
-    return df.select(alpha_df.columns)
 
 
 def third_friday(y: int, m: int) -> date:
