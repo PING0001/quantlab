@@ -1,9 +1,19 @@
 # Quantlab — AI Agent Instructions
 
 > **⚠️ 本分支是双回归模型 bench（`feat/regression-dual-model`，worktree `/Users/cui/Projects/quantlab-dual`，2026-08-21 开工）**
-> 本文件主体仍描述 bench 前的三分类架构——对主工作区（fix 分支，workbuddy 生产流水线所在）仍然准确，**对本分支已过时**。
-> 本分支实际架构与全部裁定史见 `docs/superpowers/specs/2026-08-20-dual-regression-models-design.md`，任务进度见 `docs/superpowers/plans/2026-08-21-dual-regression-models.md`。
-> 本文件主体将在 Task 10（全链路验收后）整体重写。
+> 本文件主体仍描述 bench 前的三分类架构——对主工作区（fix 分支，workbuddy 生产流水线所在）仍然准确，**对本分支已过时**；主体将在 Task 10（全链路验收后）整体重写。
+>
+> **本分支现役架构（2026-08-22，v8）速览**：
+> - **三模型 LightGBM 回归，全部 next_open 锚**（收益自 open[T+1] 起算，不含隔夜跳空）：open2d（open[T+2]/open[T+1]）/ 6d（T+4~6 开盘中位）/ 20d（T+16~20 开盘中位）；训练起点锁 2020-01，固定测试集 walk-forward
+> - **融合分** `score = 0.4×p2d + 0.35×p6d + 0.25×p20d`（`strategies/combine.py: combine_scores3`，缺失侧重归一）
+> - **执行语义：开盘市价**（买=次日开盘必成交取前 k；卖=仅 score 转负时开盘市价卖出，否则持有）——`backtest/run_lgb.py` 默认 `EXEC_MARKET_OPEN=True`，`--exec limit` 仅供旧限价语义对照
+> - **筛选**：训练窗 2020 起、簇优先（平均相关 average-linkage，簇内 |corr|≥0.7，每簇取 |IC| 最高代表）、**全部 alpha 开头因子已剔除**（EXCLUDE_PREFIXES）；因子库新增 6 个短窗变体（Return_3d 等）与 2 个日历因子（DaysToDelivery 顺延感知 / DaysToNextTrading）
+> - **验证框架**：`python fold_cv.py`——连续 7 折半年窗滚动 CV（2022H2~2026H1，扩张窗口），每折独立筛选+训练+双语义回测，含泄漏断言；`--skip-train` 复用折产物只重跑回测
+> - **现役战绩**：主窗口（2025-06~2026-06）market **+42.45% / 夏普 2.45 / 回撤 −5.48%**，基准 +41.02%/1.90/−13.1%，首次三项全面跑赢；7 折（v8 旧 open2d 版）平均 +24.4%/半年、最差折 −18.2%、平均夏普 1.86
+> - **躺库实验模型**：gap1d（隔夜跳空预测，7 折 IC 0.18~0.25）未接入 score
+> - **已判死（勿再提出）**：close 锚 open2d（永久废弃）；收盘限价执行语义（limit，7 折平均跑输基准）
+> - **纪律**：折套件已比 2 轮配置，后续迭代克制；F1-F6 做开发、F7/新数据终裁
+> - 裁定史与实验全记录：agent memory（dual-regression-bench-status）；spec/plan 见 `docs/superpowers/`
 
 ## Project Overview
 
