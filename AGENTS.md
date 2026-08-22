@@ -20,7 +20,7 @@
 Quantlab 是一个 **A股量化选股系统**，针对主板微盘股（流通市值 1-20 亿）进行收益分类预测。核心流程：
 
 ```
-Tushare 数据 → DuckDB 存储 → 因子计算（因子库155个，含101个 Alpha101，预筛选30个入模） → LightGBM 分类训练（单模型） → 回测 → HTML 预测报告
+Tushare 数据 → DuckDB 存储 → 因子计算（64 个非 alpha 因子列；2026-08-22 移除 Alpha101 全系与 vnpy DSL，8 个经典表达式仅存于 baseline_alphas 作评估器回归基准） → LightGBM 分类训练（单模型） → 回测 → HTML 预测报告
 ```
 
 ## Technology Stack
@@ -51,21 +51,16 @@ quantlab/
 │   ├── trading_calendar.py  # trading_calendar 表（trade_cal 唯一真相源，所有增量日期判断基于此）
 │   ├── lock.py              # flock 进程锁（防并发写 DuckDB）
 │   ├── _ts.py               # 共享 Tushare 客户端（quicksync 中转）与重试封装
-│   ├── migrate_fv_pk.py     # 一次性迁移（已执行）：factor_values 加 PK
-│   ├── build_db.py          # 薄包装 == python -m data.pull --full
+│   ├── build_db.py          # 薄包装 == python -m data.pull --full（migrate_fv_pk.py 已归档 tmp/archive/，一次性迁移已执行）
 │   ├── build_cyq.py         # 筹码分布按股补全工具（2018-至今）
 │   ├── build_index_db.py    # 补充拉取其他指数（000016/932000 等）
 │   ├── build_delist_info.py # namechange 按股全量重建工具
 │   └── ashare.duckdb        # DuckDB 数据库，所有数据唯一来源
 │
-├── factors/                 # 因子工程（基于 vnpy 表达式 DSL 引擎）
-│   ├── ops.py               # DataProxy：Polars 列的算术/比较运算符重载
-│   ├── ts_ops.py            # 22 个时序算子（ts_delay, ts_rank, ts_corr 等）
-│   ├── cs_ops.py            # 5 个横截面算子（cs_rank, cs_mean, cs_std 等）
-│   ├── math_ops.py          # 9 个数学/控制流函数（sign, pow1, quesval 等）
-│   ├── utility.py           # 表达式求值引擎 calculate_by_expression()
-│   ├── alpha101.py          # 101 个 WorldQuant alpha 表达式定义
-│   ├── extra_factors.py     # 非 alpha 因子 + IndNeutralize 行业中性化（申万 L3）
+├── factors/                 # 因子工程（原生 Polars；vnpy DSL 引擎已于 2026-08-22 移除）
+│   ├── extra_factors.py     # 非 alpha 因子（原生 Polars）
+│   ├── baseline_alphas.py   # 8 个经典 alpha 表达式的原生 Polars 重实现（评估器回归基准，不入模）
+│   ├── baseline_check.py    # 评估器回归门禁：固定窗 rank IC vs 冻结参考值（baseline_reference.json）
 │   ├── select_factors.py    # 因子预筛选：IC 排序 + 相关性去冗余 → selected_{pool}.json
 │   ├── build_ai_factor.py   # AI 因子：LightGBM 预测国证2000收益 → ai_gz2000_* 写入 factor_values
 │   ├── selected_*.json      # 各池预筛选入模因子清单（mainboard_microcap: 30 个）
@@ -109,7 +104,7 @@ quantlab/
 - **单 LGBMClassifier**：将 T+16~T+20 中位数收盘收益分类为三档——`>= +8% → +1`，`<= -4% → -1`，否则 `0`（`run_lgb.py` 的 `_classify`）
 - **打分**：`predict_proba` 输出期望收益 `p(+1)*0.08 + p(-1)*(-0.04)`，作为排序分值（`strategies/lgb.py`）
 - **+1 类 3x 样本权重**：放大看多信号权重
-- **30 个因子输入**：因子库共 155 列，经 `factors/select_factors.py` 预筛选（IC 排序 + 相关性去冗余，corr_threshold=0.75），入模清单存于 `factors/selected_{pool}.json`（mainboard_microcap 为 30 个）；若该文件不存在则退回代码内 SELECTED_FACTORS 列表
+- **因子输入**：因子库共 64 个非 alpha 列（2026-08-22 起；此前 155 列含 101 Alpha101 + 4 v0，已随 DSL 引擎一并移除），经 `factors/select_factors.py` 预筛选（IC 排序 + 相关性去冗余，corr_threshold=0.75），入模清单存于 `factors/selected_{pool}.json`；若该文件不存在则退回代码内 SELECTED_FACTORS 列表
 - 早停、L1+L2 正则、bagging 防过拟合
 
 ### 3. 固定测试集的 Walk-Forward
@@ -118,14 +113,14 @@ quantlab/
 - 计算高效，**不是**在扩展窗口上迭代重训练
 - **标签前视 buffer（2026-08-20 已修复）**：`walk_forward` 训练掩码现截到 `test_start` 前 `label_buffer`（默认 20，`run_lgb.py` 传 `LABEL_BUFFER=20`）个交易日，早停验证集取自 buffer 截断后的训练尾段，标签不再引用测试期价格。修复前训练的旧模型/旧指标在重训前不可引用（`_leak_check.py` 可复验）。
 
-### 4. 因子集（155个，预筛选30个入模）
-涵盖：Alpha101（101个 WorldQuant alpha，基于 vnpy 表达式 DSL，字符串表达式 + Polars DataProxy 延迟计算）、动量、波动率、价格位置/技术、日内形态、成交量/流动性、市值/成交额、换手率、日内、市场状态（CSI/HS300/GZ2000）、利率（SHIBOR）、横截面排名、个股年龄、ST状态、筹码分布、AI 因子等。
+### 4. 因子集（64 个非 alpha 列）
+涵盖：动量、波动率、价格位置/技术、日内形态、成交量/流动性、市值/成交额、换手率、日内、市场状态（CSI/HS300/GZ2000）、利率（SHIBOR）、横截面排名、个股年龄、ST状态、筹码分布、AI 因子等。
 
-**预筛选流程**：`factors/select_factors.py` 按 20d IC 绝对值排序、相关性 > 0.75 去冗余，选出最多 60 个候选，结果写入 `factors/selected_{pool}.json`；当前 mainboard_microcap 入模 **30 个**。新增/删除因子后需重跑筛选并重新训练。
+**2026-08-22 移除记录**：Alpha101 全系（101 标准 + 4 v0）与 vnpy DSL 引擎（ops/ts_ops/cs_ops/math_ops/utility，~890 行）已删除，DB factor_values 的 105 个 alpha 列已导出归档（`data/archive/factor_values_alpha_columns_20260822.parquet`，主区路径）后 DROP（表 173→68 列）。8 个经典表达式以原生 Polars 重实现保留在 `factors/baseline_alphas.py`，仅作评估器回归基准（`python -m factors.baseline_check`），不入模。交叉验证：同输入下与旧 DSL 引擎 8/8 因子逐位一致（max|d|=0）。
 
-关键新增：
-- **Alpha101 全量因子**：从 vnpy 端口全部 101 个 WorldQuant alpha 表达式，含 18 个行业中性化（申万 L3 IndNeutralize）+ alpha56 市值因子（total_mv → cap）
-- **表达式 DSL 引擎**：字符串表达式 → eval() → DataProxy 链式延迟计算（Polars），横截面 rank 原生正确（cross-sectional by construction）
+**预筛选流程**：`factors/select_factors.py` 按 20d IC 绝对值排序、相关性 > 0.75 去冗余，选出最多 60 个候选，结果写入 `factors/selected_{pool}.json`。新增/删除因子后需重跑筛选并重新训练。
+
+关键因子：
 - `LnMktCap`：对数总市值（Size 因子），`total_mv` from daily_basic
 - `Turnover_3d` / `Turnover_3d_ratio`：3日均换手率及其与20日均的比值。换手率由 `amount / circ_mv / 10` 实时计算（amount 千元、circ_mv 万元；2026-08-20 前错误使用 `volume × 前复权close / circ_mv`，除权股历史失真）
 - `AvgAmount_90d`：90日均成交额（`amount`，千元）
@@ -188,11 +183,10 @@ quantlab/
 - 增量计算（`compute_panel_incremental`）同样会自动合并市场特征
 - 如需切换指数，修改 `compute.py` 中 `_load_index_data()` 的 WHERE 条件与前缀映射
 
-### 12. Alpha 因子横截面排名
-- 101 个 alpha 因子中的 `cs_rank()` 调用**原生为横截面排名**（`groupby('datetime').rank()`），因为表达式求值引擎在 DataProxy 上执行，横截面算子 `cs_rank` 天然按日期分组，无需手动后处理
-- **实现方式**：`calculate_by_expression()` 将各列包装为 DataProxy，表达式中的 `cs_rank()` → 调用 `cs_function.cs_rank()` → `pl.col('data').rank().over('datetime')`
+### 12. 横截面排名
 - 横截面排名因子 `Return_1d_rank`、`Return_20d_rank`、`Turnover_3d_rank` 在 `extra_factors.py` 中通过 `(rank − 0.5)/n − 0.5` 生成（百分位 −0.5，值域 (−0.5, 0.5)，池规模无关）
-- 极端值保护：表达式引擎内 DataProxy 通过 `fill_nan(null)` + `is_infinite → null` 自动处理溢出值
+- 极端值保护：`compute.py` 末端对全部因子列做 `is_infinite | is_nan → null` 清洗（alpha 移除前 DSL 引擎亦有等价机制）
+- 评估器回归基准（`baseline_alphas.py`）的 `cs_rank` 语义：`rank().over("datetime") / count().over("datetime")`（0~1 百分位），与已删除的 DSL `cs_ops.cs_rank` 逐位一致
 
 ### 13. 数据库表清单
 | 表 / VIEW | 来源 | 说明 |
@@ -201,7 +195,7 @@ quantlab/
 | `daily_raw` | `daily` + `adj_factor` | 原始日线 OHLCV + 复权因子（2008-至今） |
 | `daily_basic` | `daily_basic` | 市值/估值指标（total_mv, circ_mv, PE, PB 等） |
 | `daily_kline` | VIEW → daily_raw + latest_adj | 前复权 OHLCV（实时计算） |
-| `factor_values` | `compute.py`/`update.py` | 因子宽表（code, date, 155 因子列 + ai_gz2000_*），**PK(code,date)**；因子列归 compute/update，ai 列归 build_ai_factor（UPDATE 写入，勿整行替换） |
+| `factor_values` | `compute.py`/`update.py` | 因子宽表（code, date, 64 非 alpha 因子列 + ai_gz2000_*），**PK(code,date)**；因子列归 compute/update，ai 列归 build_ai_factor（UPDATE 写入，勿整行替换）。2026-08-22 删除 105 个 alpha 列（先归档 `data/archive/factor_values_alpha_columns_20260822.parquet`，主区路径） |
 | `cyq_perf` | `cyq_perf` | 筹码分布（his_low/high, cost_*, winner_rate, 2018-至今） |
 | `industry` | `build_industry.py` | 行业分类（申万 SW2021 L1/L2/L3，含 Tushare 行业） |
 | `index_daily` | `index_daily` | 指数日线（000985 中证全指, 000300 沪深300, 399303 国证2000 等 6 个指数） |
@@ -293,7 +287,7 @@ python _check_pkgs.py
 
 - 类型标注按需使用（非强制）
 - 遵循各模块已有的代码风格
-- 新因子添加到 `factors/alpha101.py` 或 `factors/extra_factors.py`
+- 新因子添加到 `factors/extra_factors.py`（原生 Polars）；作评估器回归基准的经典表达式在 `factors/baseline_alphas.py`
 - 新策略继承 `strategies/base.py` 中的 `BaseStrategy`
 - 路径优先使用绝对路径或基于 `__file__` 的相对路径
 
