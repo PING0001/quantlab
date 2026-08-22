@@ -124,6 +124,11 @@ SELECTED_FACTORS = (
     ["UpperShadow", "LowerShadow", "ClosePos", "OpenPos",
      "ShadowRatio", "RangeEfficiency", "ClosePos_mean_20d", "ClosePos_std_20d"]
     +
+    # Short-window variants (6, bench 2026-08-22)：原有因子的 3/5 日短窗形式，
+    # 供短 horizon 模型（open2d 等）独立筛选取用
+    ["Return_3d", "Volatility_3d", "Amihud_3d", "AvgAmount_3d",
+     "ClosePos_mean_3d", "Price_position_5d"]
+    +
     # Alternative versions (old raw formulas)
     ["alpha1_v0", "alpha18_v0", "alpha50_v0", "alpha60_v0"]
 )

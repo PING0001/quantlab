@@ -66,6 +66,7 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
 
     # ---- momentum ----
     result = result.with_columns([
+        (cs / cs.shift(3).over("vt_symbol") - 1).alias("Return_3d"),
         (cs / cs.shift(5).over("vt_symbol") - 1).alias("Return_5d"),
         (cs / cs.shift(20).over("vt_symbol") - 1).alias("Return_20d"),
         (-(cs / cs.shift(60).over("vt_symbol") - 1)).alias("Reversal_60d"),
@@ -84,6 +85,7 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
 
     # ---- volatility ----
     result = result.with_columns([
+        (pl.col("_ret1d").rolling_std(3, min_samples=1).over("vt_symbol")).alias("Volatility_3d"),
         (pl.col("_ret1d").rolling_std(20, min_samples=1).over("vt_symbol")).alias("Volatility"),
         (pl.col("_ret1d").rolling_std(60, min_samples=1).over("vt_symbol")).alias("Volatility_60d"),
     ])
@@ -111,6 +113,13 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
     c_max_252 = cs.rolling_max(252, min_samples=1).over("vt_symbol")
     result = result.with_columns(
         ((cs - c_min_252) / (c_max_252 - c_min_252 + 1e-10)).alias("Price_position_252d")
+    )
+
+    # ---- Price Position 5d（Price_position 家族短窗形式）----
+    l_min_5 = ls.rolling_min(5, min_samples=1).over("vt_symbol")
+    h_max_5 = hs.rolling_max(5, min_samples=1).over("vt_symbol")
+    result = result.with_columns(
+        ((cs - l_min_5) / (h_max_5 - l_min_5 + 1e-10)).alias("Price_position_5d")
     )
 
     # ---- Stochastic K (14d) ----
@@ -171,14 +180,17 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
     )
 
     # ---- Amihud Illiquidity ----
-    result = result.with_columns(
-        (pl.col("_ret1d").abs() / (vs + 1e-10)).alias("Amihud_illiquidity")
-    )
+    result = result.with_columns([
+        (pl.col("_ret1d").abs() / (vs + 1e-10)).alias("Amihud_illiquidity"),
+        ((pl.col("_ret1d").abs() / (vs + 1e-10))
+         .rolling_mean(3, min_samples=1).over("vt_symbol")).alias("Amihud_3d"),
+    ])
 
     # ---- Avg Amount 90d (daily amount, Tushare unit: 千元) ----
-    result = result.with_columns(
-        pl.col("amount").rolling_mean(90, min_samples=1).over("vt_symbol").alias("AvgAmount_90d")
-    )
+    result = result.with_columns([
+        pl.col("amount").rolling_mean(3, min_samples=1).over("vt_symbol").alias("AvgAmount_3d"),
+        pl.col("amount").rolling_mean(90, min_samples=1).over("vt_symbol").alias("AvgAmount_90d"),
+    ])
 
     # ---- LnMktCap / LnFloatCap ----
     result = result.with_columns([
@@ -222,6 +234,7 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
         .alias("RangeEfficiency")
     )
     result = result.with_columns([
+        pl.col("ClosePos").rolling_mean(3, min_samples=1).over("vt_symbol").alias("ClosePos_mean_3d"),
         pl.col("ClosePos").rolling_mean(20, min_samples=1).over("vt_symbol").alias("ClosePos_mean_20d"),
         pl.col("ClosePos").rolling_std(20, min_samples=1).over("vt_symbol").alias("ClosePos_std_20d"),
     ])
