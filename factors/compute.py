@@ -475,18 +475,19 @@ def compute_panel(
 
 # ---- Storage ----
 
-AI_FACTOR_COLUMNS = ["ai_gz2000_20d", "ai_gz2000_median_5d"]
+# ai_gz2000_* 已删除（2026-08-23 用户裁定，重构思 ML 拟合因子）；
+# 保留常量与逻辑框架以便未来的模型因子复用列所有权机制
+AI_FACTOR_COLUMNS: list[str] = []
 
 
 def store_factor_values(con: duckdb.DuckDBPyConnection, panel: pl.DataFrame):
     """Store factor panel into DuckDB factor_values table (full rebuild).
 
     factor_values 是列所有权分离的双写入方表：本函数拥有全部非 alpha
-    因子列（alpha101 已移除），build_ai_factor.py 拥有 ai_gz2000_* 两列。
-    重建时必须：
-      1. 保留 ai 列结构并回填其数据（panel 不计算 ai 因子）；
-      2. 重建 PRIMARY KEY (code, date)（旧实现 CREATE TABLE AS 会丢掉
-         约束与 ai 列，属 schema 回归）。
+    因子列（alpha101 已移除）。AI_FACTOR_COLUMNS 当前为空（ai_gz2000_*
+    已删除）；若未来引入新的模型因子列，走同一备份/恢复框架。
+    重建时必须重建 PRIMARY KEY (code, date)（旧实现 CREATE TABLE AS 会
+    丢掉约束，属 schema 回归）。
     """
     if panel.is_empty():
         log.warning("Empty panel, nothing to store.")
@@ -499,7 +500,7 @@ def store_factor_values(con: duckdb.DuckDBPyConnection, panel: pl.DataFrame):
     old_cols = {r[0] for r in con.execute(
         "SELECT column_name FROM information_schema.columns WHERE table_name='factor_values'"
     ).fetchall()}
-    has_ai = all(c in old_cols for c in AI_FACTOR_COLUMNS)
+    has_ai = bool(AI_FACTOR_COLUMNS) and all(c in old_cols for c in AI_FACTOR_COLUMNS)
     if has_ai:
         con.execute(
             "CREATE OR REPLACE TEMP TABLE _ai_keep AS "
