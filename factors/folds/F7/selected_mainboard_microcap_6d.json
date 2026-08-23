@@ -51,7 +51,6 @@
     "WinnerRate",
     "UpperShadow",
     "ClosePos_mean_3d",
-    "OpenPos",
     "ClosePos_std_20d",
     "ClosePos",
     "OvernightMean_20d",
@@ -375,5 +374,15 @@
       "corr_with": "Turnover_3d_rank",
       "corr": -0.8017296435507332
     }
-  ]
+  ],
+  "cleaned": {
+    "source": "fold_cv_slim",
+    "fold": "F7",
+    "rule": "gain==0 and ic_drop==0 (rounded 1e-4)",
+    "dropped": [
+      "OpenPos"
+    ],
+    "n_before": 43,
+    "n_after": 42
+  }
 }

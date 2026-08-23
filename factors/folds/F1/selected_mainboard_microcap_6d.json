@@ -36,32 +36,23 @@
     "AvgAmount_90d",
     "Turnover_3d",
     "Turnover_3d_rank",
-    "IntradaySkew_60d",
     "Price_position_252d",
     "Return_20d",
-    "LowerShadow",
     "CloseBIAS_20d",
     "Return_5d",
     "Return_skew_20d",
     "Amihud_3d",
     "Turnover_3d_ratio",
     "Intraday_return",
-    "ClosePos_std_20d",
     "LnFloatCap",
     "VolPriceCorr_20d",
     "ClosePos_mean_3d",
     "ClosePos",
-    "UpperShadow",
     "Price_position_5d",
-    "OvernightMean_20d",
-    "OpenPos",
     "Gap_pct",
     "ChipSkew",
     "WinnerRate",
-    "ChipDispersion",
     "LnAge",
-    "ShadowRatio",
-    "ClosePos_mean_20d",
     "Trend_strength"
   ],
   "factor_metrics": {
@@ -375,5 +366,23 @@
       "corr_with": "Turnover_3d_rank",
       "corr": -0.8071274455184312
     }
-  ]
+  ],
+  "cleaned": {
+    "source": "fold_cv_slim",
+    "fold": "F1",
+    "rule": "gain==0 and ic_drop==0 (rounded 1e-4)",
+    "dropped": [
+      "IntradaySkew_60d",
+      "LowerShadow",
+      "ClosePos_std_20d",
+      "UpperShadow",
+      "OvernightMean_20d",
+      "OpenPos",
+      "ChipDispersion",
+      "ShadowRatio",
+      "ClosePos_mean_20d"
+    ],
+    "n_before": 43,
+    "n_after": 34
+  }
 }

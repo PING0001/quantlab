@@ -24,7 +24,6 @@
     "AvgAmount_3d",
     "Volatility",
     "Intraday_range_pct",
-    "Volatility_60d",
     "Volatility_3d",
     "ATR",
     "LnMktCap",
@@ -333,5 +332,15 @@
       "corr_with": "Turnover_3d_rank",
       "corr": -0.8036489429660022
     }
-  ]
+  ],
+  "cleaned": {
+    "source": "fold_cv_slim",
+    "fold": "F4",
+    "rule": "gain==0 and ic_drop==0 (rounded 1e-4)",
+    "dropped": [
+      "Volatility_60d"
+    ],
+    "n_before": 37,
+    "n_after": 36
+  }
 }

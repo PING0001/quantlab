@@ -22,7 +22,6 @@
   "selected_factors": [
     "CSI_return_20d",
     "AvgAmount_3d",
-    "Volatility",
     "Intraday_range_pct",
     "Volatility_60d",
     "Volatility_3d",
@@ -50,11 +49,9 @@
     "Gap_pct",
     "ClosePos_std_20d",
     "UpperShadow",
-    "ChipSkew",
     "ShadowRatio",
     "ChipDispersion",
     "ClosePos_mean_20d",
-    "LnAge",
     "Trend_strength"
   ],
   "factor_metrics": {
@@ -331,5 +328,17 @@
       "corr_with": "Turnover_3d_rank",
       "corr": -0.8053705046504378
     }
-  ]
+  ],
+  "cleaned": {
+    "source": "fold_cv_slim",
+    "fold": "F2",
+    "rule": "gain==0 and ic_drop==0 (rounded 1e-4)",
+    "dropped": [
+      "Volatility",
+      "ChipSkew",
+      "LnAge"
+    ],
+    "n_before": 36,
+    "n_after": 33
+  }
 }

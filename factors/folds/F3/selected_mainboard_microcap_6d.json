@@ -39,7 +39,6 @@
     "CloseBIAS_20d",
     "Turnover_3d",
     "Turnover_3d_rank",
-    "IntradaySkew_60d",
     "LowerShadow",
     "Return_skew_20d",
     "Amihud_3d",
@@ -373,5 +372,15 @@
       "corr_with": "Turnover_3d_rank",
       "corr": -0.8039300819363715
     }
-  ]
+  ],
+  "cleaned": {
+    "source": "fold_cv_slim",
+    "fold": "F3",
+    "rule": "gain==0 and ic_drop==0 (rounded 1e-4)",
+    "dropped": [
+      "IntradaySkew_60d"
+    ],
+    "n_before": 42,
+    "n_after": 41
+  }
 }

@@ -43,7 +43,6 @@
     "VolPriceCorr_20d",
     "IntradaySkew_60d",
     "Return_skew_20d",
-    "LowerShadow",
     "LnFloatCap",
     "ChipDispersion",
     "Turnover_3d_ratio",
@@ -52,7 +51,6 @@
     "Return_5d",
     "ChipSkew",
     "ClosePos_std_20d",
-    "UpperShadow",
     "ClosePos_mean_20d",
     "Gap_pct",
     "Intraday_return",
@@ -60,7 +58,6 @@
     "Stochastic_K",
     "ClosePos_mean_3d",
     "ClosePos",
-    "ShadowRatio",
     "Trend_strength"
   ],
   "factor_metrics": {
@@ -373,5 +370,17 @@
       "corr_with": "Turnover_3d_rank",
       "corr": -0.8053705046504378
     }
-  ]
+  ],
+  "cleaned": {
+    "source": "fold_cv_slim",
+    "fold": "F2",
+    "rule": "gain==0 and ic_drop==0 (rounded 1e-4)",
+    "dropped": [
+      "LowerShadow",
+      "UpperShadow",
+      "ShadowRatio"
+    ],
+    "n_before": 42,
+    "n_after": 39
+  }
 }

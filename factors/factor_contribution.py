@@ -31,6 +31,7 @@ from factors.select_factors import load_factors as _sf_load_factors
 from run_lgb import load_kline, load_industry_sw_l3
 from strategies.lgb import LGBStrategy
 from strategies.labels import compute_median_open
+from config import DB_PATH, POOL_NAME, FOLDS, get_fold, get_lgb_model_path
 
 MODELS = ["20d", "6d", "open2d"]
 TEST_START = pd.Timestamp("2025-06-01")
@@ -49,6 +50,19 @@ def daily_ic(pred: pd.Series, y: pd.Series) -> float:
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="因子贡献分析（gain + 日内截面 permutation ΔIC）")
+    parser.add_argument("--fold", choices=sorted(FOLDS), default=None,
+                        help="折模式：读折模型与折测试窗，报告写 data/folds/{fid}/")
+    args = parser.parse_args()
+
+    if args.fold:
+        ts, te = (pd.Timestamp(x) for x in get_fold(args.fold))
+    else:
+        ts, te = TEST_START, TEST_END
+    tag = f" | fold={args.fold}" if args.fold else ""
+
     con = duckdb.connect(str(DB_PATH), read_only=True)
     factors_raw = _sf_load_factors(con)
     kline = load_kline(con)
@@ -61,7 +75,7 @@ def main():
 
     report = {}
     for m in MODELS:
-        model_path = Path(__file__).resolve().parents[1] / "models" / POOL_NAME / f"lgb_{m}.joblib"
+        model_path = get_lgb_model_path(m, fold=args.fold)
         strategy = LGBStrategy.load(model_path)
         fnames = list(strategy.factor_names)
         cols = [f for f in fnames if f != "sw_l3"]
@@ -70,15 +84,15 @@ def main():
             idx_codes = X.index.get_level_values("code")
             X["sw_l3"] = idx_codes.map(sw_l3).fillna(-1).astype(int)
 
-        mask = (X.index.get_level_values("date") >= pd.Timestamp(TEST_START)) & \
-               (X.index.get_level_values("date") <= pd.Timestamp(TEST_END))
+        mask = (X.index.get_level_values("date") >= ts) & \
+               (X.index.get_level_values("date") <= te)
         Xt = X.loc[mask]
         yt = y_all[m].reindex(Xt.index)
 
         base_pred = strategy.predict(Xt)
         pcol = [c for c in base_pred.columns if c.startswith("pred_")][0]
         base_ic = daily_ic(base_pred[pcol], yt)
-        print(f"\n===== {m}: {len(fnames)} factors, base test IC {base_ic:.4f} =====")
+        print(f"\n===== {m}{tag}: {len(fnames)} factors, base test IC {base_ic:.4f} =====")
 
         # gain importance
         booster = strategy._models[list(strategy._models)[0]].booster_
@@ -113,9 +127,15 @@ def main():
         report[m] = {"base_ic": round(base_ic, 4),
                      "rows": rep.drop(columns=["abs_drop"]).to_dict(orient="records")}
 
-    out = Path(__file__).resolve().parents[1] / "data" / "factor_contribution_report.json"
-    out.write_text(json.dumps({"generated": str(date.today()), **report},
-                              ensure_ascii=False, indent=2), encoding="utf-8")
+    if args.fold:
+        out = Path(__file__).resolve().parents[1] / "data" / "folds" / args.fold / \
+            "factor_contribution_report.json"
+    else:
+        out = Path(__file__).resolve().parents[1] / "data" / "factor_contribution_report.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(
+        {"generated": str(date.today()), "fold": args.fold, **report},
+        ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n报告: {out}")
 
 

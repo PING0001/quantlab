@@ -56,7 +56,6 @@
     "ShadowRatio",
     "ChipDispersion",
     "Return_1d_rank",
-    "LnAge",
     "Trend_strength"
   ],
   "factor_metrics": {
@@ -335,5 +334,15 @@
       "corr_with": "Turnover_3d_rank",
       "corr": -0.8022965568823883
     }
-  ]
+  ],
+  "cleaned": {
+    "source": "fold_cv_slim",
+    "fold": "F6",
+    "rule": "gain==0 and ic_drop==0 (rounded 1e-4)",
+    "dropped": [
+      "LnAge"
+    ],
+    "n_before": 38,
+    "n_after": 37
+  }
 }

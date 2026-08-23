@@ -24,13 +24,9 @@
     "AvgAmount_3d",
     "Intraday_range_pct",
     "Volatility",
-    "Volatility_3d",
-    "Volatility_60d",
-    "ATR",
     "Return_20d",
     "LnMktCap",
     "Volume_ratio",
-    "RangeEfficiency",
     "Return_5d",
     "Reversal_60d",
     "Intraday_return",
@@ -40,23 +36,14 @@
     "MACD_signal",
     "Return_skew_20d",
     "Stochastic_K",
-    "AvgAmount_90d",
-    "Turnover_3d",
-    "Turnover_3d_rank",
-    "Amihud_3d",
     "WinnerRate",
-    "OpenPos",
     "ClosePos",
     "ClosePos_mean_3d",
     "UpperShadow",
-    "Gap_pct",
     "ClosePos_std_20d",
-    "ChipSkew",
     "ClosePos_mean_20d",
-    "ChipDispersion",
     "Return_1d_rank",
     "ShadowRatio",
-    "LnAge",
     "Trend_strength"
   ],
   "factor_metrics": {
@@ -335,5 +322,27 @@
       "corr_with": "Turnover_3d_rank",
       "corr": -0.8017296435507332
     }
-  ]
+  ],
+  "cleaned": {
+    "source": "fold_cv_slim",
+    "fold": "F7",
+    "rule": "gain==0 and ic_drop==0 (rounded 1e-4)",
+    "dropped": [
+      "Volatility_3d",
+      "Volatility_60d",
+      "ATR",
+      "RangeEfficiency",
+      "AvgAmount_90d",
+      "Turnover_3d",
+      "Turnover_3d_rank",
+      "Amihud_3d",
+      "OpenPos",
+      "Gap_pct",
+      "ChipSkew",
+      "ChipDispersion",
+      "LnAge"
+    ],
+    "n_before": 38,
+    "n_after": 25
+  }
 }
