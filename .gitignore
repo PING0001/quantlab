@@ -28,6 +28,7 @@ trade_signals/output/
 .zcode/
 .mimocode/
 .workbuddy/
+.workbuddy-ai/
 
 # macOS metadata
 .DS_Store

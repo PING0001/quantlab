@@ -212,10 +212,13 @@ def _trigger_industry(con):
 
     以 industry 缺失为准而非 stock_info 新 code：新股通常半年后才进池定义，
     彼时 stock_info 已收录，按 new_codes 触发会漏。
+
+    DuckDB 文件锁跨进程互斥：父进程必须先释放连接子进程才能写库，跑完重连。
+    返回（可能重连过的）连接，调用方需接住返回值。
     """
     pool_codes = sorted(sources._pool_union_codes())
     if not pool_codes:
-        return
+        return con
     ph = ",".join(["?"] * len(pool_codes))
     missing = con.execute(
         f"""SELECT count(*) FROM stock_info
@@ -223,8 +226,10 @@ def _trigger_industry(con):
         pool_codes,
     ).fetchone()[0]
     if not missing:
-        return
-    log.info("%d pool stocks missing industry coverage -> build_industry", missing)
+        return con
+    log.info("%d pool stocks missing industry coverage -> build_industry "
+             "(parent releases DB connection for the subprocess)", missing)
+    con.close()
     try:
         # 用 -m 模块方式运行（cwd=项目根）：脚本直跑会把 data/ 顶到 sys.path[0]，
         # data/ 下的模块名可能遮蔽 stdlib（calendar 事故的教训）
@@ -235,6 +240,11 @@ def _trigger_industry(con):
     except Exception as e:
         log.error("industry refresh failed (run `python -m data.build_industry` "
                   "manually): %s", e)
+    finally:
+        con = duckdb.connect(str(DB_PATH))
+        con.execute("SET memory_limit='2GB'")
+        con.execute("SET threads=4")
+    return con
 
 
 def run(full: bool = False, reconcile: bool = False, dry_run: bool = False) -> int:
@@ -287,7 +297,7 @@ def run(full: bool = False, reconcile: bool = False, dry_run: bool = False) -> i
             con.execute("CHECKPOINT")
 
             # 3. 池内行业覆盖缺口 -> 触发增量
-            _trigger_industry(con)
+            con = _trigger_industry(con)
 
             # 4. 收尾对账报告（软警告记录，不阻断）
             from factors import integrity
