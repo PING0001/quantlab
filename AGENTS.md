@@ -1,7 +1,7 @@
 # Quantlab — AI Agent Instructions
 
-> **⚠️ 本分支是双回归模型 bench（`dev`，worktree `/Users/cui/Projects/quantlab-dual`，2026-08-21 开工）**
-> 本文件主体已于 2026-08-23（Task 10）重写为双回归体系；主工作区（fix 分支，workbuddy 生产流水线所在）的三分类架构文档见主区 AGENTS.md。
+> **⚠️ 本工作树是双回归模型体系主线（worktree `/Users/cui/Projects/quantlab-dual`，2026-08-21 开工于 dev 分支，2026-08-24 经用户裁定合并入 `main` 并切换——此后在本工作树的 `main` 上工作；dev 分支指针保留于同提交）**
+> 本文件主体已于 2026-08-23（Task 10）重写为双回归体系；主工作区 `/Users/cui/Projects/quantlab`（fix 分支，workbuddy 生产流水线所在，含另一 session 未提交改动）的三分类架构文档见主区 AGENTS.md，本工作树不碰。
 >
 > **本分支现役架构（2026-08-23，v8 正式版）速览**：
 > - **三模型 LightGBM 回归（objective=regression_l1，条件中位数），全部 next_open 锚**：open2d / 6d / 20d；训练起点锁 2020-01，固定测试集 walk-forward
