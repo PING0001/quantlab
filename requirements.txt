@@ -9,3 +9,4 @@ scikit-learn>=1.3.0
 python-dotenv>=1.0.0
 pyarrow>=14.0.0
 https://run.quicksync.cn/whl/tushare-1.4.24+instruct-py3-none-any.whl
+xgboost>=3.0.0

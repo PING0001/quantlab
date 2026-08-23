@@ -5,14 +5,14 @@
 >
 > **本分支现役架构（2026-08-23，v8 正式版）速览**：
 > - **三模型 LightGBM 回归（objective=regression_l1，条件中位数），全部 next_open 锚**：open2d / 6d / 20d；训练起点锁 2020-01，固定测试集 walk-forward
-> - **v8 正式版清单（2026-08-23 用户裁定）：20d 广谱 34 因子 / 6d 极简 4（AvgAmount_3d+StockIndexCorr_20d+LnMktCap+CSI 门控）/ open2d 极简 3**——6d/open2d 是"少而精"体质、20d 是"广谱"体质（清单尺寸实验实证）；三 IC 0.0942/0.0890/0.0621 各自历史最优，主窗口 +30.19%/1.64/−10.26（单窗口证据；v8 版官方折验证经用户裁定跳过，44 因子版干净 7 折见 Key Decisions #6）
+> - **定稿清单（2026-08-23 用户裁定，折存活投票）：20d 广谱 32 因子（剔低票 Return_1d_rank 3/7、UpperShadow 3/7；Volatility 保留）/ 6d 极简 4（AvgAmount_3d+StockIndexCorr_20d+LnMktCap+CSI 门控）/ open2d 极简 3**——6d/open2d 是"少而精"体质、20d 是"广谱"体质（清单尺寸实验实证）；无候补名单制度，后续只经六关考核换人（批测→画像→贡献→边际贡献门→泛化缺口→折存活投票）。三 IC 0.0942/0.0890/0.0621（34 清单时代实测），主窗口 +30.19%/1.64/−10.26（单窗口证据；**模型尚未按 32 清单重训**，引用主窗口数字注意清单不同步；v8 版官方折验证经用户裁定跳过，清洗版/44 因子版折见 Key Decisions #6）
 > - **输出校准（根治幅度事故）**：训练窗留出尾段 60 交易日测 L1 收缩斜率与横截面中位数，输出×斜率还原为"模型真实相信的到期涨幅"；卖出零点平移 `score < Σwᵢ×calib_medianᵢ`（排序与 parquet 原始值不变）。教训：原始幅度加权融合对训练幅度漂移敏感（纯缩放 open2d 预测即可摆动主窗口 12.6pp）
 > - **融合分** `score = 0.4×p2d + 0.35×p6d + 0.25×p20d`（手工权重，用户按幅度特性亲自配比；权重调优留到实盘前最后做）
 > - **执行语义：开盘市价**（买=次日开盘必成交取前 k；卖=score 低于平移零点时开盘市价卖出）；`--exec limit` 仅供旧语义对照
-> - **因子分层范式**：第1层**公式因子**（确定性公式，宽读法含市值/筹码源表）→ 第2层**模型因子**（`factors/build_model_factors.py` walk-forward OOF，只吃公式因子+后复权 OHLCV，`mf_` 前缀列，`factors/registry.py` 白名单+血缘+反向依赖）；禁环、OHLCV 一律后复权（永不重绘）、模型因子无结构特权。**分层不混同**：模型因子不参与公式因子的簇竞争，准入走独立门=对整个在任集合的边际贡献 A/B（与单一公式的相关度只是背景信息）。首批 mf_vol20/mf_volsurp5 已删（2026-08-23 用户裁定重新指导编写；DB 列归档 data/archive/ 后 DROP，注册表已清空，机制保留）。ai_gz2000_* 已审查删除（in-sample 泄漏）
+> - **因子分层范式**：第1层**公式因子**（确定性公式，宽读法含市值/筹码源表）→ 第2层**模型因子**（`factors/build_model_factors.py` walk-forward OOF，只吃公式因子+后复权 OHLCV，`mf_` 前缀列，`factors/registry.py` 白名单+血缘+反向依赖）；禁环、OHLCV 一律后复权（永不重绘）、模型因子无结构特权。**分层不混同**：模型因子不参与公式因子的簇竞争，准入走独立门=对整个在任集合的边际贡献 A/B（与单一公式的相关度只是背景信息）。首批 mf_vol20/mf_volsurp5 已删（2026-08-23 用户裁定重新指导编写；DB 列归档 data/archive/ 后 DROP，注册表已清空，机制保留）。**新一代（2026-08-23 深夜，独立脚本不走注册表）**：`gb_gap1d`（XGBoost 预测 T+1 隔夜跳空，11 公式因子输入，OOS rank IC 0.198，盘上候审）；`mf_volchg3`（XGBoost 波动率变化率，rank IC 0.128，用户裁定暂放）。**命名惯例**：前缀区分模型家族——gb_=梯度提升、nn_=神经网络（预留）、mf_=旧前缀遗留；任务后缀（gap1d 等）跨模型保持一致可比。ai_gz2000_* 已审查删除（in-sample 泄漏）
 > - **审查三件套**：`factor_audit.py`（画像：四标签 IC/衰减/全池 max 相关/血缘）、`factor_contribution.py`（gain+日内截面 permutation）、`test_new_factors.py`（候选批测）。纪律：加因子看 train-test 泛化缺口；冗余判定对全池取 max（<0.75 增量/>0.95 冗余，用户标准）；强因子替换弱因子优先于堆加
 > - **验证框架**：`python fold_cv.py`（7 折半年窗，每折独立筛选+训练+双语义回测，含泄漏断言）；修复后干净折：market 平均 +23.4% vs 基准 +9.4%、6/7 折超额为正、最差折 −17.5%
-> - **已判死（勿再提出）**：close 锚 open2d；limit 执行语义；qfq 水平因子（latest_adj 未来信息）
+> - **已判死（勿再提出）**：close 锚 open2d；limit 执行语义；qfq 水平因子（latest_adj 未来信息）；显式门控逻辑（门控类非线性关系由模型自学，2026-08-23 裁定）
 > - **纪律**：F1-F6 做开发、F7/新数据终裁；收益判定看折超额/alpha（主窗口 ≈ 0.53×池 beta + 年化 ~13% alpha）
 > - 裁定史与实验全记录：agent memory（dual-regression-bench-status）；spec/plan 见 `docs/superpowers/`
 
@@ -65,7 +65,9 @@ quantlab-dual/
 │   ├── factor_audit.py      # 审查 A：因子画像（四标签 IC/ICIR/衰减/全池 max 相关）
 │   ├── factor_contribution.py # 审查 B1：gain + 测试窗日内截面 permutation ΔIC
 │   ├── test_new_factors.py  # ★ 挖矿批测：候选因子 IC + 全池相关（新因子入口）
-│   ├── selected_*_{model}.json # 各模型入模清单（20d 34 / 6d 4 / open2d 3 / gap1d 35）
+│   ├── selected_*_{model}.json # 各模型入模清单（定稿 20d 32 / 6d 4 / open2d 3 / gap1d 35）
+│   ├── build_mf_volchg3.py    # XGBoost 波动率变化率因子（用户裁定暂放）
+│   └── build_gb_gap1d.py      # XGBoost 隔夜跳空因子（11 公式因子，rank IC 0.198）
 │   ├── folds/{F1..F7}/      # 折专属筛选清单（防筛选泄漏，fold_cv 消费）
 │   └── migrate_*.py         # 历史回填工具（short/mined/delivery/calendar_gap/intraday_shape）
 │
@@ -134,7 +136,7 @@ quantlab-dual/
 折产物由 `fold_cv.py` 内置 `leak_checks` 覆盖。重训/改标签/改 buffer 后必跑。
 
 ### 6. 折 CV 验证框架（`fold_cv.py`）
-连续 7 折半年窗（F1=2022H2 … F7=2025-06~2026-06），训练起点锁 2020 扩张窗口，每折**独立重跑筛选+训练+双语义回测**（折清单强制读 `factors/folds/{fid}/`，防筛选泄漏）。44 因子版干净折（全修复语义）：market 平均 +23.4%/半年 vs 基准 +9.4%、6/7 折超额为正、最差折 −17.5%（F4 崩盘折超额 +6.8pp）、平均夏普 1.93。**搭便车清洗版折验证（`fold_cv_slim.py`，2026-08-23 用户裁定"精简版"）**：每折重演 v8 配方的机械段——贡献分析（`factor_contribution --fold`）→ 零增益且零边际贡献因子剔除 → 重训 → market 回测；结果 平均 +23.9%/最差折 −7.9%（崩盘折 F4 防御大幅优于胖版）/平均夏普 1.82/超额 5/7（F2 失守）。诚实边界：清洗在折自己的测试窗上度量（配方复现，非纯 OOS）；未做 6d/open2d 极限瘦身（4/3 清单含人工裁定，不重演）；规则清洗幅度折间差异大（0~31 个）——对模型形态敏感，非处处温和。**v8 正式版（34/4/3）官方折验证经用户裁定跳过**（2026-08-23，省时）——引用折数字时注意区分版本。纪律：F1-F6 开发迭代、F7/新数据终裁；`--skip-train` 复用折产物只重跑回测。
+连续 7 折半年窗（F1=2022H2 … F7=2025-06~2026-06），训练起点锁 2020 扩张窗口，每折**独立重跑筛选+训练+双语义回测**（折清单强制读 `factors/folds/{fid}/`，防筛选泄漏）。44 因子版干净折（全修复语义）：market 平均 +23.4%/半年 vs 基准 +9.4%、6/7 折超额为正、最差折 −17.5%（F4 崩盘折超额 +6.8pp）、平均夏普 1.93。**搭便车清洗版折验证（`fold_cv_slim.py`，2026-08-23 用户裁定"精简版"）**：每折重演 v8 配方的机械段——贡献分析（`factor_contribution --fold`）→ 零增益且零边际贡献因子剔除 → 重训 → market 回测；结果 平均 +23.9%/最差折 −7.9%（崩盘折 F4 防御大幅优于胖版）/平均夏普 1.82/超额 5/7（F2 失守）。诚实边界：清洗在折自己的测试窗上度量（配方复现，非纯 OOS）；未做 6d/open2d 极限瘦身（4/3 清单含人工裁定，不重演）；规则清洗幅度折间差异大（0~31 个）——对模型形态敏感，非处处温和。**v8 正式版（34/4/3）官方折验证经用户裁定跳过**（2026-08-23，省时）——引用折数字时注意区分版本；同日清单经折存活投票**定稿为 32/4/3**（见横幅），折内清洗产物已入库。纪律：F1-F6 开发迭代、F7/新数据终裁；`--skip-train` 复用折产物只重跑回测。
 
 ### 7. ST/退市三层防御（训练排除 + 回测过滤 + 报告过滤同款）
 1. `excluded_codes`：名称快照含 "ST"/"退"（兜底）
@@ -158,7 +160,7 @@ quantlab-dual/
 - `total_mv`/`circ_mv` 来自 `daily_basic`（单位万元；`daily_raw` 同名字段全 NULL）
 
 ### 12. 已判死清单（勿再提出）
-close 锚 open2d ｜ limit 执行语义 ｜ qfq 水平因子（latest_adj 未来信息）｜ 模型因子入簇竞争 ｜ ai_gz2000_*（in-sample 泄漏已删）
+close 锚 open2d ｜ limit 执行语义 ｜ qfq 水平因子（latest_adj 未来信息）｜ 显式门控逻辑（非线性关系由模型自学）｜ 模型因子入簇竞争 ｜ ai_gz2000_*（in-sample 泄漏已删）
 
 ### 13. 数据库表清单
 与主区同构（stock_info/daily_raw/daily_basic/daily_kline/cyq_perf/industry/index_daily/namechange/delist_info/trading_calendar/pending_pulls），差异仅在 `factor_values`：本分支额外写入挖矿因子、短窗因子（Return_3d 等 6 个）、水平替换（ATR_pct/MACD_hist_pct/CloseBIAS_20d）、模型因子（mf_*，所有权归 build_model_factors）。表结构详情见主区 AGENTS.md。
