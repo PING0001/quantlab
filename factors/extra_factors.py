@@ -76,8 +76,10 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
     )
     result = result.with_columns(tr.alias("_tr"))
     # Exponential smoothing for ATR (Wilder's method approximation)
+    # 2026-08-22 审计修复：绝对水平 ATR 建在 qfq 上，分母含 latest_adj 未来
+    # 信息；改比值形式 ATR_pct（True Range 均值 / close），尺度无关且时点干净
     atr = pl.col("_tr").rolling_mean(14, min_samples=1).over("vt_symbol")
-    result = result.with_columns(atr.alias("ATR"))
+    result = result.with_columns((atr / cs).alias("ATR_pct"))
 
     # ---- Bollinger Band width ----
     ma20 = cs.rolling_mean(20, min_samples=1).over("vt_symbol")
@@ -107,15 +109,18 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
         ((cs - min_low_14) / (max_high_14 - min_low_14 + 1e-10)).alias("Stochastic_K")
     )
 
-    # ---- SMA (20d) ----
-    result = result.with_columns(ma20.alias("SMA"))
+    # ---- SMA (20d) → CloseBIAS_20d（2026-08-22 审计修复）----
+    # 绝对水平 SMA 同样带 qfq latest_adj 未来信息；换乖离率 close/ma20 − 1
+    result = result.with_columns((cs / ma20 - 1).alias("CloseBIAS_20d"))
 
-    # ---- MACD Signal (12, 26, 9) ----
+    # ---- MACD histogram (12, 26, 9) ----
+    # 2026-08-22 审计修复：MACD_signal 为价格水平差（qfq 未来信息），
+    # 改归一化柱 (DIF − DEA)/close
     ema12 = cs.ewm_mean(span=12, min_periods=1).over("vt_symbol")
     ema26 = cs.ewm_mean(span=26, min_periods=1).over("vt_symbol")
     macd_line = ema12 - ema26
     signal_line = macd_line.ewm_mean(span=9, min_periods=1).over("vt_symbol")
-    result = result.with_columns((macd_line - signal_line).alias("MACD_signal"))
+    result = result.with_columns(((macd_line - signal_line) / cs).alias("MACD_hist_pct"))
 
     # ---- Return Skew (20d) ----
     result = result.with_columns(
@@ -242,12 +247,90 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
         .alias("LnAge")
     )
 
+    # ---- LLM 挖矿第一批幸存因子（2026-08-22，document/llm_factor_mining/ 假设库
+    # 首测 16 取 7；IC/相关性实证见 factors/test_new_factors.py，口径 2020~2025-06）----
+    # 涨停次数：近似口径 _ret1d>=9.5%（前复权收益率，与 labels.py 的 limit 检测同族近似）
+    up_flag = (pl.col("_ret1d") >= 0.095).cast(pl.Float64)
+    # 近 10 日自 5 日高点的最大回撤（深度为正→回撤浅→未来跑赢）
+    hi5_now = hs.rolling_max(5, min_samples=1).over("vt_symbol")
+    dd5 = cs / hi5_now - 1
+    # 量价相关（20d 滚动 Pearson，rolling_sum 手动展开；分母 0 → NULL）
+    _n_vp = 20
+    vol_ret_xy = vs * pl.col("_ret1d")
+    vp_mean_x = vs.rolling_mean(_n_vp, min_samples=_n_vp).over("vt_symbol")
+    vp_mean_y = pl.col("_ret1d").rolling_mean(_n_vp, min_samples=_n_vp).over("vt_symbol")
+    vp_mean_xy = vol_ret_xy.rolling_mean(_n_vp, min_samples=_n_vp).over("vt_symbol")
+    vp_var_x = vs.rolling_var(_n_vp, min_samples=_n_vp).over("vt_symbol")
+    vp_var_y = pl.col("_ret1d").rolling_var(_n_vp, min_samples=_n_vp).over("vt_symbol")
+    vp_cov = vp_mean_xy - vp_mean_x * vp_mean_y
+    vp_denom = (vp_var_x * vp_var_y).sqrt()
+    result = result.with_columns([
+        up_flag.rolling_sum(20, min_samples=1).over("vt_symbol").alias("LimitUpCnt_20d"),
+        dd5.rolling_min(10, min_samples=1).over("vt_symbol").alias("PostHighDrawdown_10d"),
+        pl.col("_ret1d").rolling_min(5, min_samples=1).over("vt_symbol").alias("MIN_5d"),
+        pl.col("Intraday_return").rolling_skew(60, min_samples=5).over("vt_symbol").alias("IntradaySkew_60d"),
+        pl.when(vp_denom > 0)
+        .then(vp_cov / vp_denom)
+        .otherwise(None)
+        .alias("VolPriceCorr_20d"),
+        pl.col("Gap_pct").rolling_mean(20, min_samples=1).over("vt_symbol").alias("OvernightMean_20d"),
+    ])
+    # ---- LLM 挖矿第二批幸存因子（2026-08-22 深夜，因子优先战略：IC 为唯一
+    # 迭代指标；实证见 factors/test_new_factors.py 批次二，全池 max 相关 <0.75）----
+    # 中间列先物化（polars 禁止 over 嵌套 over）：
+    #   _pool_ret   池等权日收益（横截面均值广播）
+    #   _lup_streak 当前连续涨停 streak（段内行号差 +1，非涨停段乘 0 置 0）
+    _si_n = 20
+    _chg = (up_flag != up_flag.shift(1).over("vt_symbol").fill_null(False))
+    _idx = pl.int_range(pl.len())
+    result = result.with_columns(
+        pl.col("_ret1d").mean().over("datetime").alias("_pool_ret")
+    ).with_columns(
+        _chg.cum_sum().over("vt_symbol").alias("_lup_grp")
+    ).with_columns(
+        ((_idx - _idx.first().over(["vt_symbol", "_lup_grp"])) + 1).cast(pl.Float64).alias("_lup_streak_raw")
+    ).with_columns(
+        (up_flag * pl.col("_lup_streak_raw")).alias("_lup_streak")
+    )
+    _si_x = pl.col("_ret1d")
+    _si_y = pl.col("_pool_ret")
+    _si_mxy = (_si_x * _si_y).rolling_mean(_si_n, min_periods=_si_n).over("vt_symbol")
+    _si_mx = _si_x.rolling_mean(_si_n, min_periods=_si_n).over("vt_symbol")
+    _si_my = _si_y.rolling_mean(_si_n, min_periods=_si_n).over("vt_symbol")
+    _si_vx = _si_x.rolling_var(_si_n, min_periods=_si_n).over("vt_symbol")
+    _si_vy = _si_y.rolling_var(_si_n, min_periods=_si_n).over("vt_symbol")
+    _si_den = (_si_vx * _si_vy).sqrt()
+    a2_sum = (pl.col("amount") ** 2).rolling_sum(20, min_periods=1).over("vt_symbol")
+    a_sum = pl.col("amount").rolling_sum(20, min_periods=1).over("vt_symbol")
+    # 首次放量：量 > 2×20日均量 且近 5 日（含当日）放量日数 <=1
+    vol_ma20 = vs.rolling_mean(20, min_periods=1).over("vt_symbol")
+    spike = (vs > 2.0 * vol_ma20).cast(pl.Float64)
+    spike5 = spike.rolling_sum(5, min_periods=1).over("vt_symbol")
+    neg_ret = pl.when(pl.col("_ret1d") < 0).then(pl.col("_ret1d")).otherwise(None)
+    op_ratio = pl.when(hs > ls).then((os - ls) / (hs - ls)).otherwise(None)
+    result = result.with_columns([
+        pl.when(_si_den > 0)
+        .then((_si_mxy - _si_mx * _si_my) / _si_den)
+        .otherwise(None).alias("StockIndexCorr_20d"),
+        (pl.col("amount").rolling_mean(5, min_periods=1).over("vt_symbol")
+         / pl.col("amount").rolling_mean(60, min_periods=1).over("vt_symbol")).alias("AmountShrink_5_60"),
+        pl.when((spike == 1) & (spike5 <= 1)).then(spike).otherwise(None).alias("FirstVolumeSpike_5d"),
+        (a2_sum / (a_sum * a_sum)).alias("AmountConc_20d"),
+        op_ratio.rolling_mean(20, min_periods=10).over("vt_symbol").alias("OpenPos_mean_20d"),
+        pl.col("_lup_streak").rolling_max(60, min_periods=1).over("vt_symbol").alias("LimitUpStreakMax_60d"),
+        neg_ret.rolling_std(20, min_periods=5).over("vt_symbol").alias("DownsideVol_20d"),
+    ])
+
+    # LogClose 已删（2026-08-22 审计）：qfq 水平因子带 latest_adj 未来信息，
+    # 且与 SMA 相关 0.93 准冗余；DB 旧列成孤儿不再计算
+
     # DaysToDelivery / DaysToNextTrading 不在此计算：日历感知版在
     # compute.py 的 _load_days_to_delivery / _load_days_to_next_trading，
     # 与市场特征同路径按日期合并（compute_panel 全量/增量共路径）
 
     # ---- drop intermediate columns and keep only factor columns ----
-    intermediate_cols = ["_ret1d", "_tr", "_turnover_1d", "_list_dt", "_age_days"]
+    intermediate_cols = ["_ret1d", "_tr", "_turnover_1d", "_list_dt", "_age_days",
+                         "_pool_ret", "_lup_grp", "_lup_streak_raw", "_lup_streak"]
     source_cols = ["open", "high", "low", "close", "volume", "amount", "vwap",
                    "total_mv", "circ_mv", "cap", "list_date", "pct_chg"]
 

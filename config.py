@@ -79,11 +79,13 @@ SELECTED_FACTORS = (
     ["Return_5d", "Return_20d", "Reversal_60d"]
     +
     # Volatility (4)
-    ["ATR", "Volatility", "Volatility_60d", "Bollinger_width"]
+    # 2026-08-22 审计修复：ATR/MACD_signal/SMA 为 qfq 绝对水平（含 latest_adj
+    # 未来信息），换比值形式 ATR_pct / MACD_hist_pct / CloseBIAS_20d
+    ["ATR_pct", "Volatility", "Volatility_60d", "Bollinger_width"]
     +
     # Price position / technical (6)
     ["Price_position_252d", "Stochastic_K", "Return_skew_20d",
-     "Trend_strength", "SMA", "MACD_signal"]
+     "Trend_strength", "CloseBIAS_20d", "MACD_hist_pct"]
     +
     # Intraday pattern (3) -> (2) after removing Body_pct (dup of Intraday_return)
     ["Gap_pct", "Intraday_range_pct"]
@@ -128,6 +130,17 @@ SELECTED_FACTORS = (
     # 供短 horizon 模型（open2d 等）独立筛选取用
     ["Return_3d", "Volatility_3d", "Amihud_3d", "AvgAmount_3d",
      "ClosePos_mean_3d", "Price_position_5d"]
+    +
+    # LLM 挖矿第一批幸存因子 (6, bench 2026-08-22)：300 假设库首测 16 取 7 后
+    # 又删 LogClose（qfq 水平因子带 latest_adj 未来信息且与 SMA 冗余 0.93），
+    # 实证见 factors/test_new_factors.py；涨停次数为 |ret|>=9.5% 近似口径
+    ["LimitUpCnt_20d", "PostHighDrawdown_10d", "MIN_5d",
+     "IntradaySkew_60d", "VolPriceCorr_20d", "OvernightMean_20d"]
+    +
+    # LLM 挖矿第二批幸存因子 (7, bench 2026-08-22 深夜)：批次二 16 测 7 幸存，
+    # 全池 max 相关 <0.75；StockIndexCorr 需池等权日收益（compute 内横截面广播）
+    ["StockIndexCorr_20d", "AmountShrink_5_60", "FirstVolumeSpike_5d",
+     "AmountConc_20d", "OpenPos_mean_20d", "LimitUpStreakMax_60d", "DownsideVol_20d"]
 )
 
 
