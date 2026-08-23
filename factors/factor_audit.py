@@ -188,10 +188,14 @@ def main():
 
     show_cols = ["factor", "layer", "ic_20d", "ic_6d", "ic_open2d", "ic_gap1d",
                  "icir_20d", "decay_20d", "max_corr", "corr_vs", "caveat"]
+    # 控制台截断 layer（模型因子全名单很长），JSON 报告保留全文
+    show = rep_out[show_cols].copy()
+    show["layer"] = show["layer"].where(
+        show["layer"].str.len() <= 40, show["layer"].str.slice(0, 39) + "…")
     print(f"\n按健康度排序（前 25 / 共 {len(rep)}）：")
-    print(rep_out.head(25)[show_cols].to_string(index=False))
+    print(show.head(25).to_string(index=False))
     print(f"\n最弱 15 个：")
-    print(rep_out.tail(15)[show_cols].to_string(index=False))
+    print(show.tail(15).to_string(index=False))
     print(f"\n报告: {out}")
 
 

@@ -101,10 +101,17 @@ def reverse_dependencies(factor_name: str) -> list[str]:
 
 
 def lineage(factor_name: str) -> str:
-    """审查工具用：返回因子的层级描述。"""
+    """审查工具用：返回因子的层级与完整依赖名单。
+
+    模型因子列出全部输入（公式因子 + OHLCV 白名单特征），报告自解释，
+    无需回读注册表源码；公式因子恒返回 "公式"（第1层无下游依赖声明）。
+    """
     if factor_name.startswith(MODEL_FACTOR_PREFIX):
         e = MODEL_FACTORS.get(factor_name)
         if e is None:
             return "模型(未注册)"
-        return f"模型(依赖{len(e['inputs']['factors'])}公式因子+{len(e['inputs']['ohlcv'])}OHLCV)"
+        fs = e["inputs"]["factors"]
+        oh = e["inputs"]["ohlcv"]
+        return (f"模型(公式因子{len(fs)}: {', '.join(fs)}; "
+                f"OHLCV{len(oh)}: {', '.join(oh)})")
     return "公式"
