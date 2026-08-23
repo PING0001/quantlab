@@ -34,45 +34,11 @@ OHLCV_HFQ_FEATURES = [
 # ---- 模型因子注册表 ----
 # 每个条目：inputs（白名单声明）、target_key（build_model_factors 的目标构造器）、
 # label_buffer（目标最远引用的交易日数）、cadence（重训间隔交易日）、params 指纹
-MODEL_FACTORS: dict[str, dict] = {
-    "mf_vol20": {
-        "desc": "预测未来 20 日已实现波动（hfq 日收益 std，T+1..T+20）",
-        "target_key": "realized_vol_20d",
-        "label_buffer": 25,
-        "cadence": 120,
-        "inputs": {
-            "factors": [
-                "Return_5d", "Return_20d", "Reversal_60d",
-                "Volatility", "Volatility_60d", "ATR_pct", "Bollinger_width",
-                "Intraday_range_pct", "Turnover_3d", "AvgAmount_90d",
-                "LnMktCap", "Price_position_252d", "GZ2000_vol_10d",
-            ],
-            "ohlcv": ["ret_1d", "ret_5d", "ret_20d", "range_pct",
-                      "range_mean_20d", "volume_ratio_20d", "amount_ratio_20d"],
-        },
-        "params": dict(num_leaves=31, learning_rate=0.06, n_estimators=200,
-                       min_child_samples=200, objective="regression_l1",
-                       random_state=42),
-    },
-    "mf_volsurp5": {
-        "desc": "预测未来 5 日量 surprise（T+1..T+5 总额 / 5×近20日均额 − 1）",
-        "target_key": "volume_surprise_5d",
-        "label_buffer": 8,
-        "cadence": 120,
-        "inputs": {
-            "factors": [
-                "Turnover_3d", "Turnover_3d_ratio", "Volume_ratio",
-                "AvgAmount_3d", "AvgAmount_90d", "LnFloatCap",
-                "Return_5d", "Volatility", "GZ2000_return_5d",
-            ],
-            "ohlcv": ["volume_ratio_20d", "amount_ratio_20d", "ret_1d",
-                      "ret_5d", "range_pct"],
-        },
-        "params": dict(num_leaves=31, learning_rate=0.06, n_estimators=200,
-                       min_child_samples=200, objective="regression_l1",
-                       random_state=42),
-    },
-}
+#
+# 2026-08-23 用户裁定：删除首批全部两个模型因子（mf_vol20 / mf_volsurp5，
+# DB 列已归档 data/archive/mf_columns_20260823.parquet 后 DROP），由用户
+# 重新指导编写。机制（白名单/血缘/构建管道）保留待用。
+MODEL_FACTORS: dict[str, dict] = {}
 
 
 def validate_entry(name: str, entry: dict, factor_columns: set[str]) -> list[str]:

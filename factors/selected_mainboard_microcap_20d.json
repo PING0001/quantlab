@@ -44,14 +44,12 @@
     "Return_skew_20d",
     "Stochastic_K",
     "OvernightMean_20d",
-    "UpperShadow",
     "WinnerRate",
     "ChipDispersion",
     "ClosePos_mean_20d",
     "ClosePos_std_20d",
     "LnAge",
     "ClosePos",
-    "Return_1d_rank",
     "Trend_strength",
     "StockIndexCorr_20d"
   ],
@@ -402,5 +400,11 @@
       "corr_with": "Turnover_3d_rank",
       "corr": -0.8017296435507332
     }
-  ]
+  ],
+  "finalized": {
+    "date": "2026-08-23",
+    "rule": "折存活投票定稿：剔除 <6/7 票的 Return_1d_rank(3/7)/UpperShadow(3/7)；Volatility 保留(6d 满票)",
+    "n_before": 34,
+    "n_after": 32
+  }
 }

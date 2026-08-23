@@ -10,7 +10,7 @@
 
 Usage:
     python -m factors.build_model_factors            # 构建全部已注册模型因子
-    python -m factors.build_model_factors --only mf_vol20
+    python -m factors.build_model_factors --only <mf_name>
 """
 from __future__ import annotations
 
