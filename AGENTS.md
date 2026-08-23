@@ -3,16 +3,17 @@
 > **⚠️ 本分支是双回归模型 bench（`feat/regression-dual-model`，worktree `/Users/cui/Projects/quantlab-dual`，2026-08-21 开工）**
 > 本文件主体仍描述 bench 前的三分类架构——对主工作区（fix 分支，workbuddy 生产流水线所在）仍然准确，**对本分支已过时**；主体将在 Task 10（全链路验收后）整体重写。
 >
-> **本分支现役架构（2026-08-22，v8）速览**：
-> - **三模型 LightGBM 回归，全部 next_open 锚**（收益自 open[T+1] 起算，不含隔夜跳空）：open2d（open[T+2]/open[T+1]）/ 6d（T+4~6 开盘中位）/ 20d（T+16~20 开盘中位）；训练起点锁 2020-01，固定测试集 walk-forward
-> - **融合分** `score = 0.4×p2d + 0.35×p6d + 0.25×p20d`（`strategies/combine.py: combine_scores3`，缺失侧重归一）
-> - **执行语义：开盘市价**（买=次日开盘必成交取前 k；卖=仅 score 转负时开盘市价卖出，否则持有）——`backtest/run_lgb.py` 默认 `EXEC_MARKET_OPEN=True`，`--exec limit` 仅供旧限价语义对照
-> - **筛选**：训练窗 2020 起、簇优先（平均相关 average-linkage，簇内 |corr|≥0.7，每簇取 |IC| 最高代表）、**全部 alpha 开头因子已剔除**（EXCLUDE_PREFIXES）；因子库新增 6 个短窗变体（Return_3d 等）与 2 个日历因子（DaysToDelivery 顺延感知 / DaysToNextTrading）
-> - **验证框架**：`python fold_cv.py`——连续 7 折半年窗滚动 CV（2022H2~2026H1，扩张窗口），每折独立筛选+训练+双语义回测，含泄漏断言；`--skip-train` 复用折产物只重跑回测
-> - **现役战绩**：主窗口（2025-06~2026-06）market **+42.45% / 夏普 2.45 / 回撤 −5.48%**，基准 +41.02%/1.90/−13.1%，首次三项全面跑赢；7 折（v8 旧 open2d 版）平均 +24.4%/半年、最差折 −18.2%、平均夏普 1.86
-> - **躺库实验模型**：gap1d（隔夜跳空预测，7 折 IC 0.18~0.25）未接入 score
-> - **已判死（勿再提出）**：close 锚 open2d（永久废弃）；收盘限价执行语义（limit，7 折平均跑输基准）
-> - **纪律**：折套件已比 2 轮配置，后续迭代克制；F1-F6 做开发、F7/新数据终裁
+> **本分支现役架构（2026-08-23，v8 正式版）速览**：
+> - **三模型 LightGBM 回归（objective=regression_l1，条件中位数），全部 next_open 锚**：open2d / 6d / 20d；训练起点锁 2020-01，固定测试集 walk-forward
+> - **v8 正式版清单（2026-08-23 用户裁定）：20d 广谱 34 因子 / 6d 极简 4（AvgAmount_3d+StockIndexCorr_20d+LnMktCap+CSI 门控）/ open2d 极简 3**——6d/open2d 是"少而精"体质、20d 是"广谱"体质（清单尺寸实验实证）；三 IC 0.0942/0.0890/0.0621 各自历史最优，主窗口 +30.19%/1.64/−10.26（单窗口，官方版折验证待跑）
+> - **输出校准（根治幅度事故）**：训练窗留出尾段 60 交易日测 L1 收缩斜率与横截面中位数，输出×斜率还原为"模型真实相信的到期涨幅"；卖出零点平移 `score < Σwᵢ×calib_medianᵢ`（排序与 parquet 原始值不变）。教训：原始幅度加权融合对训练幅度漂移敏感（纯缩放 open2d 预测即可摆动主窗口 12.6pp）
+> - **融合分** `score = 0.4×p2d + 0.35×p6d + 0.25×p20d`（手工权重，用户按幅度特性亲自配比；权重调优留到实盘前最后做）
+> - **执行语义：开盘市价**（买=次日开盘必成交取前 k；卖=score 低于平移零点时开盘市价卖出）；`--exec limit` 仅供旧语义对照
+> - **因子分层范式**：第1层**公式因子**（确定性公式，宽读法含市值/筹码源表）→ 第2层**模型因子**（`factors/build_model_factors.py` walk-forward OOF，只吃公式因子+后复权 OHLCV，`mf_` 前缀列，`factors/registry.py` 白名单+血缘+反向依赖）；禁环、OHLCV 一律后复权（永不重绘）、模型因子无结构特权。首批 mf_vol20 IC −0.137 全池第 2。ai_gz2000_* 已审查删除（in-sample 泄漏）
+> - **审查三件套**：`factor_audit.py`（画像：四标签 IC/衰减/全池 max 相关/血缘）、`factor_contribution.py`（gain+日内截面 permutation）、`test_new_factors.py`（候选批测）。纪律：加因子看 train-test 泛化缺口；冗余判定对全池取 max（<0.75 增量/>0.95 冗余，用户标准）；强因子替换弱因子优先于堆加
+> - **验证框架**：`python fold_cv.py`（7 折半年窗，每折独立筛选+训练+双语义回测，含泄漏断言）；修复后干净折：market 平均 +23.4% vs 基准 +9.4%、6/7 折超额为正、最差折 −17.5%
+> - **已判死（勿再提出）**：close 锚 open2d；limit 执行语义；qfq 水平因子（latest_adj 未来信息）
+> - **纪律**：F1-F6 做开发、F7/新数据终裁；收益判定看折超额/alpha（主窗口 ≈ 0.53×池 beta + 年化 ~13% alpha）
 > - 裁定史与实验全记录：agent memory（dual-regression-bench-status）；spec/plan 见 `docs/superpowers/`
 
 ## Project Overview
