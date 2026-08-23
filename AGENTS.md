@@ -1,11 +1,11 @@
 # Quantlab — AI Agent Instructions
 
-> **⚠️ 本分支是双回归模型 bench（`feat/regression-dual-model`，worktree `/Users/cui/Projects/quantlab-dual`，2026-08-21 开工）**
-> 本文件主体仍描述 bench 前的三分类架构——对主工作区（fix 分支，workbuddy 生产流水线所在）仍然准确，**对本分支已过时**；主体将在 Task 10（全链路验收后）整体重写。
+> **⚠️ 本分支是双回归模型 bench（`dev`，worktree `/Users/cui/Projects/quantlab-dual`，2026-08-21 开工）**
+> 本文件主体已于 2026-08-23（Task 10）重写为双回归体系；主工作区（fix 分支，workbuddy 生产流水线所在）的三分类架构文档见主区 AGENTS.md。
 >
 > **本分支现役架构（2026-08-23，v8 正式版）速览**：
 > - **三模型 LightGBM 回归（objective=regression_l1，条件中位数），全部 next_open 锚**：open2d / 6d / 20d；训练起点锁 2020-01，固定测试集 walk-forward
-> - **v8 正式版清单（2026-08-23 用户裁定）：20d 广谱 34 因子 / 6d 极简 4（AvgAmount_3d+StockIndexCorr_20d+LnMktCap+CSI 门控）/ open2d 极简 3**——6d/open2d 是"少而精"体质、20d 是"广谱"体质（清单尺寸实验实证）；三 IC 0.0942/0.0890/0.0621 各自历史最优，主窗口 +30.19%/1.64/−10.26（单窗口，官方版折验证待跑）
+> - **v8 正式版清单（2026-08-23 用户裁定）：20d 广谱 34 因子 / 6d 极简 4（AvgAmount_3d+StockIndexCorr_20d+LnMktCap+CSI 门控）/ open2d 极简 3**——6d/open2d 是"少而精"体质、20d 是"广谱"体质（清单尺寸实验实证）；三 IC 0.0942/0.0890/0.0621 各自历史最优，主窗口 +30.19%/1.64/−10.26（单窗口证据；v8 版官方折验证经用户裁定跳过，44 因子版干净 7 折见 Key Decisions #6）
 > - **输出校准（根治幅度事故）**：训练窗留出尾段 60 交易日测 L1 收缩斜率与横截面中位数，输出×斜率还原为"模型真实相信的到期涨幅"；卖出零点平移 `score < Σwᵢ×calib_medianᵢ`（排序与 parquet 原始值不变）。教训：原始幅度加权融合对训练幅度漂移敏感（纯缩放 open2d 预测即可摆动主窗口 12.6pp）
 > - **融合分** `score = 0.4×p2d + 0.35×p6d + 0.25×p20d`（手工权重，用户按幅度特性亲自配比；权重调优留到实盘前最后做）
 > - **执行语义：开盘市价**（买=次日开盘必成交取前 k；卖=score 低于平移零点时开盘市价卖出）；`--exec limit` 仅供旧语义对照
@@ -18,279 +18,211 @@
 
 ## Project Overview
 
-Quantlab 是一个 **A股量化选股系统**，针对主板微盘股（流通市值 1-20 亿）进行收益分类预测。核心流程：
+Quantlab 是一个 **A股主板微盘股量化选股系统**（流通市值 1-20 亿，池 ~1112 只）。本 worktree 是**双回归模型 bench**：三个 LightGBM 回归模型分别预测 open2d / 6d / 20d 前向开盘收益（next_open 锚，条件中位数），手工权重融合成单一 score 驱动每日开盘市价组合。核心流程：
 
 ```
-Tushare 数据 → DuckDB 存储 → 因子计算（64 个非 alpha 因子列；2026-08-22 移除 Alpha101 全系与 vnpy DSL，8 个经典表达式仅存于 baseline_alphas 作评估器回归基准） → LightGBM 分类训练（单模型） → 回测 → HTML 预测报告
+Tushare 数据 → DuckDB 存储
+  → 因子分层：公式因子（Polars，compute/update）+ 模型因子（mf_*，OOF 管道）
+  → 因子筛选（簇优先，相关度>IC，每模型一份清单）
+  → 三回归模型训练（run_lgb.py，L1 目标 + 输出校准）
+  → 融合分 → 回测（backtest/run_lgb.py）→ HTML 预测报告（三级降级）
+  → 泄漏断言（_leak_check.py）+ 折 CV（fold_cv.py）
 ```
+
+**与主工作区的关系**：主区（`/Users/cui/Projects/quantlab`，fix 分支）是三分类生产流水线（workbuddy 每晚跑）；本 worktree 做双回归主线，重大重构先进 dual 再合并。`data/ashare.duckdb` 与 `.env` 是指向主区的**符号链接**（DB 共享）——主区 compute/update 不产的列（mf_*、挖矿因子等）由本分支写入，两区**共享 DuckDB 单写者锁**，勿同时跑写库任务。
 
 ## Technology Stack
 
 | 层 | 技术 |
 |------|-----------|
 | 数据源 | Tushare（通过 quicksync.cn 中继） |
-| 数据库 | **DuckDB**（嵌入式 OLAP，所有数据单一来源） |
+| 数据库 | **DuckDB**（嵌入式 OLAP，所有数据单一来源，与主区共享） |
 | 数值计算 | numpy, pandas, scipy, polars |
-| 机器学习 | **LightGBM**（主模型，单 LGBMClassifier，收益三分类） |
-| 序列化 | joblib（LightGBM）、parquet（预测缓存）、JSON（meta） |
-| 配置 | python-dotenv（.env 中的 Tushare token）、config.py（中心配置） |
+| 机器学习 | **LightGBM ×3**（LGBMRegressor，objective=regression_l1） |
+| 序列化 | joblib（模型）、parquet（预测）、JSON（meta/清单） |
+| 配置 | python-dotenv（.env）、config.py（中心配置） |
 
 ## Project Structure
 
 ```
-quantlab/
-├── config.py                # ★ 中心配置：DB 路径、股票池加载、各模块输出路径
-├── pools/                   # 股票池定义（JSON，多池机制；当前仅维护 mainboard_microcap）
-│   ├── mainboard_microcap.json   # ★ 唯一维护的池，~1112只主板微盘股（1e < circ_mv < 20e）
-│   ├── smallcap_on_mainboard.json # 已停止维护（历史遗留，勿用于新任务）
-│   ├── mainboard_commodity_mega.json # 已停止维护（历史遗留，勿用于新任务）
-│   └── build_microcap.py    # 微盘池构建：半年度 circ_mv 通胀调整筛选
+quantlab-dual/
+├── config.py                # ★ 中心配置：DB 路径、MODEL_CONFIGS（四模型标签窗/锚/buffer）、FOLDS、输出路径
+├── run_lgb.py               # ★ 训练入口：三回归模型（+gap1d 实验），L1 目标 + 输出校准（calib_slope/median 入 meta）
+├── fold_cv.py               # 滚动 7 折 CV 驱动：每折独立筛选+训练+双语义回测+泄漏断言
+├── _leak_check.py           # ★ 主窗口泄漏断言（C1 训练掩码/C2 校准尾段/C3 样本排除/C4 标签方向，52 项）
+├── _check_pkgs.py           # 依赖检查
 │
-├── data/                    # 数据摄入
-│   ├── pull.py              # ★ 统一拉取入口：默认增量（滚动重拉+pending+cyq当日延迟重试）；--reconcile 深对账；--full 全量；--dry-run
-│   ├── sources.py           # 数据源注册表（函数式）：daily/cyq/index/shibor/namechange/stock_info + 行级后验
-│   ├── trading_calendar.py  # trading_calendar 表（trade_cal 唯一真相源，所有增量日期判断基于此）
-│   ├── lock.py              # flock 进程锁（防并发写 DuckDB）
-│   ├── _ts.py               # 共享 Tushare 客户端（quicksync 中转）与重试封装
-│   ├── build_db.py          # 薄包装 == python -m data.pull --full（migrate_fv_pk.py 已归档 tmp/archive/，一次性迁移已执行）
-│   ├── build_cyq.py         # 筹码分布按股补全工具（2018-至今）
-│   ├── build_index_db.py    # 补充拉取其他指数（000016/932000 等）
-│   ├── build_delist_info.py # namechange 按股全量重建工具
-│   └── ashare.duckdb        # DuckDB 数据库，所有数据唯一来源
+├── factors/                 # 因子工程（分层范式，五铁律见 registry.py 头注释）
+│   ├── registry.py          # ★ 模型因子注册表：白名单输入/血缘/反向依赖/超参指纹；范式约束单源
+│   ├── extra_factors.py     # 公式因子主载体（原生 Polars）；新公式因子加这里
+│   ├── compute.py           # 全量计算流水线：DuckDB → Polars → factor_values
+│   ├── update.py            # 增量因子更新（日期+股票级对账，lookback 锚点=最晚目标日）
+│   ├── integrity.py         # 完整性校验（硬失败 exit 1 / 软警告）
+│   ├── select_factors.py    # ★ 筛选：簇优先（average-linkage，相关度>IC），每模型 selected_{pool}_{model}.json
+│   ├── baseline_alphas.py   # 8 个经典 alpha 原生 Polars 重实现（评估器回归基准，不入模）
+│   ├── baseline_check.py    # ★ 门禁：固定窗 rank IC vs 冻结参考值（改评估器/标签必跑）
+│   ├── build_model_factors.py # 模型因子 OOF 管道（mf_ 前缀列所有权，walk-forward + label_buffer）
+│   ├── factor_audit.py      # 审查 A：因子画像（四标签 IC/ICIR/衰减/全池 max 相关）
+│   ├── factor_contribution.py # 审查 B1：gain + 测试窗日内截面 permutation ΔIC
+│   ├── test_new_factors.py  # ★ 挖矿批测：候选因子 IC + 全池相关（新因子入口）
+│   ├── selected_*_{model}.json # 各模型入模清单（20d 34 / 6d 4 / open2d 3 / gap1d 35）
+│   ├── folds/{F1..F7}/      # 折专属筛选清单（防筛选泄漏，fold_cv 消费）
+│   └── migrate_*.py         # 历史回填工具（short/mined/delivery/calendar_gap/intraday_shape）
 │
-├── factors/                 # 因子工程（原生 Polars；vnpy DSL 引擎已于 2026-08-22 移除）
-│   ├── extra_factors.py     # 非 alpha 因子（原生 Polars）
-│   ├── baseline_alphas.py   # 8 个经典 alpha 表达式的原生 Polars 重实现（评估器回归基准，不入模）
-│   ├── baseline_check.py    # 评估器回归门禁：固定窗 rank IC vs 冻结参考值（baseline_reference.json）
-│   ├── select_factors.py    # 因子预筛选：IC 排序 + 相关性去冗余 → selected_{pool}.json
-│   ├── build_ai_factor.py   # AI 因子：LightGBM 预测国证2000收益 → ai_gz2000_* 写入 factor_values
-│   ├── selected_*.json      # 各池预筛选入模因子清单（mainboard_microcap: 30 个）
-│   ├── compute.py           # 主计算流水线：DuckDB → Polars → 并行计算 → factor_values
-│   ├── update.py            # 增量因子更新：日期+股票级对账（--backfill-stocks 回补池内缺口）+ 列所有权写入（(code,date) 行级 INSERT/UPDATE）
-│   ├── integrity.py         # 数据完整性校验：硬失败(当日因子缺失,exit 1)/软警告(缺口/漂移)
-│   └── __init__.py
+├── strategies/
+│   ├── base.py              # BaseStrategy + walk_forward() + buffered_train_end()（排他上界）
+│   ├── labels.py            # ★ compute_median_open（回归标签）+ compute_nextopen_limit_mask（比率口径）
+│   ├── combine.py           # combine_scores3（v8 三模型融合，缺失侧重归一）
+│   ├── lgb.py               # LGBStrategy（回归版）
+│   └── evaluation.py        # rank IC / IC 汇总
 │
-├── strategies/              # 策略与模型
-│   ├── base.py              # BaseStrategy 抽象基类 + walk_forward() 滚动框架
-│   ├── labels.py            # 前向收益标签 + 退市感知 + 涨跌停 mask
-│   ├── evaluation.py        # rank IC, Pearson IC, IC 汇总统计
-│   └── lgb.py               # LightGBM 分类策略（★ 主模型，LGBMClassifier + 期望收益打分）
+├── backtest/
+│   ├── run_lgb.py           # ★ 主回测：融合分 + 开盘市价执行 + 卖出零点平移；权重/列名单源
+│   ├── signals.py           # 组合模拟器（market_open 语义/ST/退市/费用/长空诊断件）
+│   └── mainboard_microcap/  # 输出（equity_lgb_combined_daily_v8mo_* 等 + folds/）
 │
-├── backtest/                # 回测
-│   ├── run_lgb.py           # LightGBM 回测：5日调仓 long-only（★ 主用）
-│   ├── signals.py           # 组合模拟器，含跳空过滤 + ST 过滤 + 退市处理
-│   └── {pool_name}/         # 输出按股票池分子目录
-│       ├── equity.csv       # 权益曲线
-│       └── benchmark.csv    # 基准权益曲线
+├── forecast_display/
+│   ├── generate_lgb.py      # ★ v8 报告：读三 parquet+meta 融合出榜；三级降级永不 exit 1
+│   └── html_lgb/{pool}/     # HTML 报告
 │
-├── forecast_display/        # 预测展示
-│   ├── generate_lgb.py      # LightGBM 预测 HTML（★ 主用），自动过滤 ST/退市股
-│   └── html_lgb/{pool_name}/ # LightGBM HTML 报告
-│
-├── models/                  # 训练好的模型权重
-│   └── {pool_name}/         # 按股票池分子目录
-│       └── lgb_multi.joblib     # LightGBM 模型（★ 主模型）
-│
-├── run_lgb.py               # ★ 主训练入口：LightGBM 分类（label: +1/0/-1）
-├── _check_pkgs.py           # 依赖检查工具
-└── .env                     # Tushare API token
+├── models/{pool}/           # lgb_{model}.joblib ×4 + folds/（旧 lgb_multi.joblib 为泄漏三分类，勿用）
+├── data/                    # 摄入层与主区同构（pull/sources/trading_calendar/lock）；ashare.duckdb → 主区符号链接
+├── document/llm_factor_mining/  # LLM 挖矿假设库（300 条）
+└── docs/superpowers/        # spec 与 plan（dual-regression-models）
 ```
 
 ## Key Architectural Decisions
 
-### 1. DuckDB 单一数据源
-所有行情数据和因子值均存储在 `data/ashare.duckdb` 这一个嵌入式数据库中。前复权价格通过 SQL VIEW `daily_kline` 实时计算（`raw × adj_factor / latest_adj`，2026-08-20 修复了公式分子分母写反的严重 bug——旧公式 `raw × latest_adj / adj_factor` 在除权日产生巨大假收益，如 002594@2025-07-29 官方 +0.37% 被算成 −89.11%；`ensure_view()` 现为无条件 `CREATE OR REPLACE`，存量库跑一次 `python -m data.pull` 即自愈），原始数据保持不变。**切勿引入其他数据库或文件格式来存储市场数据。**
+### 1. 因子分层范式与五铁律（单源：`factors/registry.py` 头注释）
 
-### 2. LightGBM 分类架构（★ 主模型）
-- **单 LGBMClassifier**：将 T+16~T+20 中位数收盘收益分类为三档——`>= +8% → +1`，`<= -4% → -1`，否则 `0`（`run_lgb.py` 的 `_classify`）
-- **打分**：`predict_proba` 输出期望收益 `p(+1)*0.08 + p(-1)*(-0.04)`，作为排序分值（`strategies/lgb.py`）
-- **+1 类 3x 样本权重**：放大看多信号权重
-- **因子输入**：因子库共 64 个非 alpha 列（2026-08-22 起；此前 155 列含 101 Alpha101 + 4 v0，已随 DSL 引擎一并移除），经 `factors/select_factors.py` 预筛选（IC 排序 + 相关性去冗余，corr_threshold=0.75），入模清单存于 `factors/selected_{pool}.json`；若该文件不存在则退回代码内 SELECTED_FACTORS 列表
-- 早停、L1+L2 正则、bagging 防过拟合
+```
+第0层数据表 → 第1层公式因子（确定性公式）→ 第2层模型因子（OOF）→ 第3层主模型 → 第4层 combiner（手工权重）
+```
 
-### 3. 固定测试集的 Walk-Forward
-- 在 2025-06-01 之前的所有数据上一次性训练
-- 使用该冻结模型预测整个测试期（2025-06-01 至 2026-06-01，约 242 个交易日）
-- 计算高效，**不是**在扩展窗口上迭代重训练
-- **标签前视 buffer（2026-08-20 已修复）**：`walk_forward` 训练掩码现截到 `test_start` 前 `label_buffer`（默认 20，`run_lgb.py` 传 `LABEL_BUFFER=20`）个交易日，早停验证集取自 buffer 截断后的训练尾段，标签不再引用测试期价格。修复前训练的旧模型/旧指标在重训前不可引用（`_leak_check.py` 可复验）。
+- **DAG 无环**（构造性保证：模型因子输入只允许公式因子与 OHLCV，永不引用任何模型输出）
+- **OHLCV 一律后复权**（hfq 水平时点诚实、永不重绘；水平型因子禁用 qfq——LogClose 教训）
+- **删除公式因子前必须查反向依赖**（registry 血缘）
+- **模型因子无结构特权**（不是门控、不进模型结构）
+- **分层不混同**：模型因子不参与公式因子簇竞争；准入走独立门=对整个在任集合的边际贡献 A/B
 
-### 4. 因子集（64 个非 alpha 列）
-涵盖：动量、波动率、价格位置/技术、日内形态、成交量/流动性、市值/成交额、换手率、日内、市场状态（CSI/HS300/GZ2000）、利率（SHIBOR）、横截面排名、个股年龄、ST状态、筹码分布、AI 因子等。
+裁定史与实验全记录在 agent memory（dual-regression-bench-status），勿在代码注释外重复堆细节。
 
-**2026-08-22 移除记录**：Alpha101 全系（101 标准 + 4 v0）与 vnpy DSL 引擎（ops/ts_ops/cs_ops/math_ops/utility，~890 行）已删除，DB factor_values 的 105 个 alpha 列已导出归档（`data/archive/factor_values_alpha_columns_20260822.parquet`，主区路径）后 DROP（表 173→68 列）。8 个经典表达式以原生 Polars 重实现保留在 `factors/baseline_alphas.py`，仅作评估器回归基准（`python -m factors.baseline_check`），不入模。交叉验证：同输入下与旧 DSL 引擎 8/8 因子逐位一致（max|d|=0）。
+### 2. 三模型 + 融合 + 输出校准
+- **模型**（`config.py MODEL_CONFIGS`）：open2d（T+2 开盘/open[T+1]，buffer 2）、6d（T+4~6 中位开盘，buffer 6）、20d（T+16~20，buffer 20）；均 `objective=regression_l1`、固定测试集 walk-forward（训练 2020 起，测试 2025-06-01~2026-06-01）
+- **融合**：`score = 0.4×p2d + 0.35×p6d + 0.25×p20d`（`strategies/combine.py combine_scores3`，缺失侧重归一）；权重是用户手工配比，**勿改**；调优留到实盘前
+- **输出校准**（run_lgb.py 训练尾部）：训练窗留出尾段 60 交易日训校准模型测 OOS 收缩斜率 k（L1 过原点=|x| 加权中位数），输出×k；meta 存 `calib_slope`/`calib_median`。parquet 里的预测**已乘 k**（诚实幅度）；模型 joblib 的裸输出**未乘**（如手动推理需自行套用 meta 斜率）
+- **卖出零点**：回测侧 `sell_threshold = Σwᵢ×calib_medianᵢ`（L1 中位数输出的典型水平为负）；仅平移卖出判定，排序与 parquet 不变
 
-**预筛选流程**：`factors/select_factors.py` 按 20d IC 绝对值排序、相关性 > 0.75 去冗余，选出最多 60 个候选，结果写入 `factors/selected_{pool}.json`。新增/删除因子后需重跑筛选并重新训练。
+### 3. 标签体系（`strategies/labels.py`）
+- 回归标签 `compute_median_open(kline, start_day, end_day, baseline)`：前向窗口开盘价中位数 / baseline − 1；`baseline="next_open"`（open[T+1]，与回测开盘市价成交对齐）
+- **锚裁定史**：close 锚曾在 v4/v6 使用、next_open 在 v3/v7/v8 使用，最终 v8 全系 next_open（分母=可成交入场价）；close 锚 open2d 永久废弃（不可交易的隔夜跳空污染）
+- `label_buffer`（排他上界，`buffered_train_end`）：训练掩码截到 test_start 前 buffer 个交易日；**buffer ≥ 标签窗末日**（20d=20/6d=6/open2d=2/gap1d=1）
+- 标签只做**部分窗口中位数**（退市前真实可成交价携带崩盘信号），全缺窗口 NaN 丢弃；无 -1.0 归零填充（死代码已证不触发，退市风险在组合层处理）
 
-关键因子：
-- `LnMktCap`：对数总市值（Size 因子），`total_mv` from daily_basic
-- `Turnover_3d` / `Turnover_3d_ratio`：3日均换手率及其与20日均的比值。换手率由 `amount / circ_mv / 10` 实时计算（amount 千元、circ_mv 万元；2026-08-20 前错误使用 `volume × 前复权close / circ_mv`，除权股历史失真）
-- `AvgAmount_90d`：90日均成交额（`amount`，千元）
-- `Intraday_return`：日内收益 `(close-open)/open`
-- `CSI_*`（000985）、`HS300_*`（000300）、`GZ2000_*`（399303 国证2000）：市场状态特征，横截面广播（同一日期所有股票共享相同值）；当前入模的是 GZ2000_return_20d / GZ2000_vol_10d / GZ2000_reversal_60d
-- `shibor_on` / `shibor_1m`：SHIBOR 利率（日频广播）
-- `ai_gz2000_20d` / `ai_gz2000_median_5d`：AI 因子，`factors/build_ai_factor.py` 用 LightGBM 预测国证2000前向收益生成
-- `Return_1d_rank` / `Return_20d_rank` / `Turnover_3d_rank`：对现有因子做横截面排名（同日期所有股票百分位 − 0.5），捕捉相对强弱信号
-- `IsST`：当日是否处于 ST/*ST 状态（从 namechange 表解析，0/1 二值因子）
-- `LnAge`：上市日至今日的自然对数天数
-- `WinnerRate`、`CostPosition`、`ChipDispersion`、`ChipSkew`：筹码分布因子（2018-至今）
+### 4. 执行语义（开盘市价）
+- 买=次日开盘必成交（取分数前 k 填空仓位）；卖=score 低于平移零点时开盘市价卖出，否则持有（无目标价止盈）
+- `backtest/run_lgb.py` 的 `PRED_COLS`/`W2D/W6D/W20D` 是融合列名与权重的**单源**（forecast_display 直接 import）
+- **limit 执行语义已判死**（7 折平均 +3.9% 跑输基准；`--exec limit` 仅对照）
+- 多空信号（`run_long_short`）是纯诊断件，历史极不稳定，勿当版本优劣依据
 
-### 5. ST/退市处理机制
-- **namechange 表**：通过 Tushare `namechange` API 拉取全池股票的名称变更历史
-  - `change_reason` 识别：`'ST'` / `'*ST'` / `'撤销ST'` / `'终止上市'`
-  - `start_date` / `end_date` 定义状态区间
-- **delist_info 表**：从 namechange 中提取 `change_reason='终止上市'` 记录，存储退市日期
-  - **不使用名称匹配**（不查 name 含"退"字），避免误匹配正常股票名
-- **IsST 因子**：`compute.py` 的 `_compute_isst()` 解析 namechange 生成 (code, date, IsST)。区间终止语义（2026-08-20 修复）：`end_date` 为 NULL 时截断到该股下一条 namechange 记录的 `start_date`（LEAD 排他上界），撤销类记录（撤销ST/撤销*ST/摘星/摘帽）作为 ST 区间终止信号且自身不开新区间；不再用 9999-12-31 兜底（旧实现曾过度标记 7,628 行/71 只）
-- **退市感知 Forward Return**：`compute_forward_returns()` 对退市股在 `delist_date` 之后、forward horizon 跨过最后交易日时，填充 `-1.0`（价值归零）
-- **训练排除**：训练集中剔除 IsST=1 和退市后的观测（`run_lgb.py` 中实现）
-- **回测过滤**（3 层防御）：
-  1. `excluded_codes`（名称快照）：兜底，当前名称含 "ST"/"退"
-  2. `isst_map`（`factor_values.IsST`）：主力，每日 ST 状态，来自 namechange 表
-  3. `delist_info`（`delist_date`）：排除已退市股票（当前日期 >= delist_date）
-  - 适用于 `run_portfolio`、`run_portfolio_rebalance`、`run_long_short`、`run_holding_test`
-- **增量更新**：`data/pull.py` 的 namechange 源（event 粒度）按公告日（`ann_date`）锚定 -90d 窗口拉近期记录（退市/ST 公告可能远晚于生效日，旧的按生效日锚定 -7d 窗口会系统性漏事件）；**写入与 delist_info 重派生均过滤所有池的并集**（`load_all_pool_stocks()`），避免旧版全市场增量造成的表污染。stale 检测：`pending_pulls` 表记录拉取失败/为空的 (source, date)，下次运行优先补拉，attempts≥5 转 dead 状态告警
+### 5. 泄漏断言（`_leak_check.py`，2026-08-23 重写）
+对主窗口盘上产物四类断言（52 项，当前全过，exit 1=有失败）：
+- **C1** 训练掩码终点=重算 `buffered_train_end`；末训练日标签最远引用 < 测试窗首日
+- **C2** 输出校准尾段全部 < train_end 且不触测试期
+- **C3** 预测行集与复刻过滤链（IsST/退市/次日封板排除）逐行一致，行数=meta.n_pred
+- **C4** 标签函数源码只含 `shift(-d)` + 合成面板对拍
+折产物由 `fold_cv.py` 内置 `leak_checks` 覆盖。重训/改标签/改 buffer 后必跑。
 
-### 6. 测试集 IC 过滤
-为保证 IC 反映实盘可复现的预测能力，测试集 IC 计算时排除以下观测：
-- **涨跌停过滤**：`compute_nextopen_limit_mask()` 检测 T+1 日 open 是否在涨跌停价（±10% 普通股 / ±5% ST 股），如封板则剔除该预测——因为买不到/卖不出
-- **ST 过滤**：测试 IC 计算时剔除当日 IsST=1 的所有观测——ST 股流动性差且涨跌停频繁，IC 不可复现
-- 过滤后 IC 不降反升（20d: 0.2564 → 0.2600），说明 ST 在稀释信号而非虚增 IC
+### 6. 折 CV 验证框架（`fold_cv.py`）
+连续 7 折半年窗（F1=2022H2 … F7=2025-06~2026-06），训练起点锁 2020 扩张窗口，每折**独立重跑筛选+训练+双语义回测**（折清单强制读 `factors/folds/{fid}/`，防筛选泄漏）。44 因子版干净折（全修复语义）：market 平均 +23.4%/半年 vs 基准 +9.4%、6/7 折超额为正、最差折 −17.5%（F4 崩盘折超额 +6.8pp）、平均夏普 1.93。**v8 正式版（34/4/3）官方折验证经用户裁定跳过**（2026-08-23，省时）——引用折数字时注意区分版本。纪律：F1-F6 开发迭代、F7/新数据终裁；`--skip-train` 复用折产物只重跑回测。
 
-### 7. 预测目标（分类标签）
-- **标签 `label`**：T+16~T+20 中位数收盘收益分类——`>= +8% → +1`，`<= -4% → -1`，否则 `0`
-- **单 horizon**：`HORIZONS = ['label']`，`WEIGHTS = {'label': 1.0}`（不再是多 horizon 回归）
-- **打分列 `pred_label`**：期望收益 `p(+1)*0.08 + p(-1)*(-0.04)`，按此降序排名
-- **参考 IC**：用连续值 `ret_median` / `ret_20d` 算 Rank IC 参考；分类准确率为 `train_acc` / `test_acc`
-- 回测建仓用 `pred_label` 列（`backtest/run_lgb.py` `PRED_COL`）
+### 7. ST/退市三层防御（训练排除 + 回测过滤 + 报告过滤同款）
+1. `excluded_codes`：名称快照含 "ST"/"退"（兜底）
+2. `IsST` 因子（namechange 解析，当日时点，主力）
+3. `delist_info`（date >= delist_date）
 
-### 8. 多股票池配置
-- **中心配置**：所有模块通过 `config.py` 获取路径和股票池，不再硬编码
-- **当前仅维护 `mainboard_microcap`**（~1112只，1e < circ_mv < 20e）；`smallcap_on_mainboard`、`mainboard_commodity_mega` 已停止维护且模型效果不佳，勿用于新任务
-- **股票池文件**：每个池一个 JSON 文件，放在 `pools/` 下
-- **切换机制**：环境变量 `QUANTLAB_POOL`（默认 `mainboard_microcap`，日常无需设置）
-- **输出隔离**：模型、预测缓存、回测、HTML 报告均按 `{pool_name}/` 分子目录存储
-- **数据拉取**：`data/pull.py` / `data/sources.py` 中 namechange、industry 触发等使用 `load_all_pool_stocks()` 加载所有池的并集，确保数据库覆盖所有股票；行情/筹码/指数按日全市场拉取
+预测 parquet 在训练入口已排除三类观测（故下游计数为 0 属预期）。
 
-### 9. 换手率实时计算
-`daily_kline` VIEW 继承的 `turn` 字段为 NULL（Tushare `daily` 接口不返回换手率）。计算因子时通过 `amount / NULLIF(circ_mv, 0) / 10` 在 `load_all_stocks` SQL 中实时算得换手率（单位换算见上）。
+### 8. IC 口径
+测试集 IC 剔除：① 次日开盘封板观测（`compute_nextopen_limit_mask`，纯比率判断 ±0.05% 容差——qfq 价格网格判断已修）② 当日 IsST=1。训练集同样排除三类（见 #7）。
 
-### 10. 市值数据来源
-总市值 `total_mv` 和流通市值 `circ_mv` 来自 `daily_basic` 表（Tushare `daily_basic` 接口），单位为**万元**。`daily_raw` 中的同名字段全为 NULL（Tushare `daily` 接口不返回市值）。因子计算时通过 LEFT JOIN `daily_basic` 获取，注意 `daily_basic.code` 不含后缀（`.SH`/`.SZ`）。
+### 9. gap1d / open2d 实验模型
+- **gap1d**（隔夜跳空，close 锚窗口(1,1)）：独立实验，IC ~0.19（隔夜信息最浓、跨风格稳），**不入 score/回测**；清单为历史拷贝（不随 6d 自动同步）
+- **open2d**：已转正入融合（2026-08-22）。锚对照实验定论：T 时点可预测性浓缩在 T→T+1 隔夜段，第二夜跳空基本不可预测
 
-### 11. 市场状态特征（多指数）
-- 指数日线数据存储在 `index_daily` 表（通过 `data/build_index_db.py` 拉取，含 000985 / 000300 / 399303 / 000016 / 000001 / 932000）
-- `compute.py` 的 `_load_index_data()` 对 **中证全指（000985→CSI）、沪深300（000300→HS300）、国证2000（399303→GZ2000）** 计算收益/波动/回撤等特征，横截面广播到每个股票-日期行；CSI 从 2008 年起全程覆盖
-- 当前入模的市场特征为国证2000系列（GZ2000_return_20d / GZ2000_vol_10d / GZ2000_reversal_60d），与微盘股风格更匹配
-- 增量计算（`compute_panel_incremental`）同样会自动合并市场特征
-- 如需切换指数，修改 `compute.py` 中 `_load_index_data()` 的 WHERE 条件与前缀映射
+### 10. DuckDB 单一数据源（与主区共享）
+所有行情/因子在 `data/ashare.duckdb`（符号链接→主区）。前复权价格通过 VIEW `daily_kline`（`raw × adj_factor / latest_adj`，2026-08-20 修复分子分母写反）。**factor_values 双写入方分列所有权**：主区 compute/update 拥有 ~52 列基础因子；本分支拥有挖矿/短窗/mf_* 列。`(code,date)` 行级 INSERT/UPDATE，**勿整行替换**，date 保持 VARCHAR。**单写者锁跨进程互斥**：写库前 `ps aux | grep -E 'data\.pull|factors\.update'`，避开工作日 21:05 前后。
 
-### 12. 横截面排名
-- 横截面排名因子 `Return_1d_rank`、`Return_20d_rank`、`Turnover_3d_rank` 在 `extra_factors.py` 中通过 `(rank − 0.5)/n − 0.5` 生成（百分位 −0.5，值域 (−0.5, 0.5)，池规模无关）
-- 极端值保护：`compute.py` 末端对全部因子列做 `is_infinite | is_nan → null` 清洗（alpha 移除前 DSL 引擎亦有等价机制）
-- 评估器回归基准（`baseline_alphas.py`）的 `cs_rank` 语义：`rank().over("datetime") / count().over("datetime")`（0~1 百分位），与已删除的 DSL `cs_ops.cs_rank` 逐位一致
+### 11. 换手率/市值来源（与主区同）
+- 换手率实时算：`amount / NULLIF(circ_mv, 0) / 10`（`daily_kline.turn` 为 NULL）
+- `total_mv`/`circ_mv` 来自 `daily_basic`（单位万元；`daily_raw` 同名字段全 NULL）
+
+### 12. 已判死清单（勿再提出）
+close 锚 open2d ｜ limit 执行语义 ｜ qfq 水平因子（latest_adj 未来信息）｜ 模型因子入簇竞争 ｜ ai_gz2000_*（in-sample 泄漏已删）
 
 ### 13. 数据库表清单
-| 表 / VIEW | 来源 | 说明 |
-|-----------|------|------|
-| `stock_info` | `stock_basic(list_status='L'+'D')` | 股票信息（code, name, market, full_code, list_date, list_status, delist_date）；含退市股（2026-08-20 前仅 'L' 快照，漏 99% 退市股 → 池构建幸存者偏差） |
-| `daily_raw` | `daily` + `adj_factor` | 原始日线 OHLCV + 复权因子（2008-至今） |
-| `daily_basic` | `daily_basic` | 市值/估值指标（total_mv, circ_mv, PE, PB 等） |
-| `daily_kline` | VIEW → daily_raw + latest_adj | 前复权 OHLCV（实时计算） |
-| `factor_values` | `compute.py`/`update.py` | 因子宽表（code, date, 64 非 alpha 因子列 + ai_gz2000_*），**PK(code,date)**；因子列归 compute/update，ai 列归 build_ai_factor（UPDATE 写入，勿整行替换）。2026-08-22 删除 105 个 alpha 列（先归档 `data/archive/factor_values_alpha_columns_20260822.parquet`，主区路径） |
-| `cyq_perf` | `cyq_perf` | 筹码分布（his_low/high, cost_*, winner_rate, 2018-至今） |
-| `industry` | `build_industry.py` | 行业分类（申万 SW2021 L1/L2/L3，含 Tushare 行业） |
-| `index_daily` | `index_daily` | 指数日线（000985 中证全指, 000300 沪深300, 399303 国证2000 等 6 个指数） |
-| `namechange` | `namechange` | 股票名称变更历史（ST/*ST/终止上市/改名，池并集过滤） |
-| `delist_info` | 主源 `stock_basic(list_status='D').delist_date`，namechange '终止上市' 补充去重 | 退市日期（code, delist_date）；2026-08-20 前仅从 namechange 提取，仅 5 行 |
-| `trading_calendar` | `trade_cal(SSE)` | 交易日历唯一真相源（date, is_open，2008-至今） |
-| `pending_pulls` | `pull.py` | 拉取失败/为空的 (source, date) 暂存（attempts≥5 转 dead） |
+与主区同构（stock_info/daily_raw/daily_basic/daily_kline/cyq_perf/industry/index_daily/namechange/delist_info/trading_calendar/pending_pulls），差异仅在 `factor_values`：本分支额外写入挖矿因子、短窗因子（Return_3d 等 6 个）、水平替换（ATR_pct/MACD_hist_pct/CloseBIAS_20d）、模型因子（mf_*，所有权归 build_model_factors）。表结构详情见主区 AGENTS.md。
 
 ## Common Workflows
 
-所有命令默认使用 `mainboard_microcap` 股票池（当前唯一维护的池），无需设置环境变量；`QUANTLAB_POOL` 可切换到 `pools/` 下其他池（已停止维护，仅兼容保留）。
+所有命令默认 `mainboard_microcap` 池；解释器用主区 `.venv`（`/Users/cui/Projects/quantlab/.venv/bin/python`，系统 python3 无 duckdb）。
 
-### 更新数据（每日运行，workbuddy 自动化每工作日 19:30 触发）
-
+### 数据更新（与主区同构）
 ```bash
-python -m data.pull          # ★ 统一增量拉取：pending 补拉 + 滚动重拉近5开市日(幂等) + 新增日
-                             #   当日 cyq 拉空时每30分钟自动重试至 21:00（官方标称18~19点更新，
-                             #   经 quicksync 中转实测约 20:52 才就绪）
-python -m factors.update     # 增量计算因子（日期+股票级对账，历史空洞自动回补，末尾跑完整性校验）
-python -m factors.update --dry-run            # 只打印待计算日期与股票级缺口（不计算不写库）
-python -m factors.update --backfill-stocks    # 显式触发池内缺口股票的全历史回补（大计算）
+python -m data.pull            # 增量拉取（勿用 --full，2-4 小时）
+python -m factors.update       # 增量因子（本分支新列在此写入）
+python -m factors.integrity    # 独立完整性校验
 ```
 
-其他数据命令：
-
+### 训练与评估
 ```bash
-python -m data.pull --dry-run     # 只打印各源目标日期，不调 API 不写库
-python -m data.pull --reconcile   # 深对账：全历史 vs 交易日历，缺口入 pending 并补拉（建议月度）
-python -m factors.integrity       # 独立完整性校验（报告 data/integrity_report.json，硬失败 exit 1）
+python run_lgb.py                    # ★ 训练三模型+gap1d（约 5 分钟），写 models/ + predictions parquet + meta
+python _leak_check.py                # ★ 泄漏断言（52 项，重训后必跑）
+python -m backtest.run_lgb           # ★ 主回测（开盘市价，融合分+卖出零点）
+python fold_cv.py                    # 7 折全链（~35 分钟）；--skip-train 只重跑回测
 ```
 
-### 拉取指数数据（首次/补充）
+### 预测报告（三级降级，永不 exit 1）
 ```bash
-python data/build_index_db.py   # 拉取指数日线（中证全指等）入库
+python forecast_display/generate_lgb.py   # L1 完整 / L2 DOWNGRADED（缺成分重归一）/ L3 红色占位
 ```
+报告读三 parquet+meta 融合出榜；**刻意不回退旧 lgb_multi.joblib**（2026-08-13 泄漏模型）。注意 parquet 止于 TEST_END，报告日期=产物最新可用日。
 
-### 拉取筹码分布数据（首次/补充）
+### 挖矿工作流（新因子主路径）
 ```bash
-python data/build_cyq.py        # 全量拉取当前池的 cyq_perf（2018-至今）
-python data/build_cyq.py --incr # 增量拉取最近缺失交易日
+# 1. 候选批测（原生 pandas 实现，IC + 全池 max 相关）
+python factors/test_new_factors.py
+# 2. 画像审计（衰减/冗余对/口径）与模型内贡献（gain/permutation）
+python factors/factor_audit.py
+python factors/factor_contribution.py
+# 3. 入池重筛（簇优先，每模型一份清单）→ 重训 → 回测
+python -m factors.select_factors --model 20d
+python run_lgb.py && python -m backtest.run_lgb
 ```
+纪律：加因子看 train-test 泛化缺口（20d 当前正则下事实容量 ~44 因子，靠替换不靠堆加）；相关性判定对全池取 max（<0.75 增量 / >0.95 冗余）；强因子替换弱因子优先。模型因子走 `build_model_factors.py` + registry 注册，独立准入门。
 
-### 拉取退市/ST 数据（首次/补充）
+### 门禁与审查
 ```bash
-python data/build_delist_info.py   # 重建退市表：主源 stock_basic(list_status='D') + namechange '终止上市' 补充
-```
-
-### 训练模型
-```bash
-python run_lgb.py      # ★ 训练 LightGBM（主模型），打印 IC 统计
-```
-
-### 运行完整回测
-```bash
-python -m backtest.run_lgb   # LightGBM 回测：5日调仓 long-only（★ 主用）
-```
-
-### 生成预测报告
-```bash
-python forecast_display/generate_lgb.py   # 输出 LightGBM HTML 到 forecast_display/html_lgb/
-```
-
-### 导出交易信号
-```bash
-python trade_signals/export.py
-```
-
-### 运行测试
-```bash
-# No tests configured yet
-```
-
-### 检查依赖
-```bash
-python _check_pkgs.py
+python -m factors.baseline_check     # 评估器回归门禁（改标签/评估器必跑）
+python _leak_check.py                # 泄漏断言
 ```
 
 ## Important Constraints
 
-- **不要启动全量构建**（`python -m data.pull --full`，等价旧 `build_db.py`）：该模式拉取 2008-至今全市场日线、复权因子、估值、筹码、指数，按日拉取约 4600 个交易日 × 3~4 次 API ≈ 13800+ 次 API 调用，预计耗时 **2-4 小时**。频繁重跑不仅浪费时间，还会加重中转站负担。**除非用户明确要求，否则不要启动 `--full`。**日常增量请用 `python -m data.pull`（空库时日常模式会明确报错要求 --full）
-- **不要提交 DuckDB 文件**：`.gitignore` 已排除 `*.duckdb`，数据库文件较大且包含敏感配置
-- **不要提交 .env 文件**：包含 Tushare token
-- **Tushare 中继限流**：quicksync 中继稳定速率 200次/分钟，上限 600次/分钟。`build_db.py` 按日拉取全市场数据，每交易日 3 次 API（daily + adj_factor + daily_basic），无主动 sleep，由 relay 响应天然限速（实际 ~80-160 次/分钟）。修改数据拉取代码时注意保持此限制
-- **无 notebook**：本项目不使用 Jupyter notebook，所有分析均通过 Python 脚本完成
-- **依赖文件**：`requirements.txt` 列出主要依赖（duckdb / lightgbm / polars / scikit-learn 等）；`_check_pkgs.py` 可自检已安装版本
-- **仅支持 A 股主板**：股票池定义在 `pools/` 目录下的 JSON 文件中，聚焦主板小市值股票（默认微盘池流通市值 1-20 亿）
+- **勿启动 `--full` 全量构建**（2-4 小时，13800+ 次 API）；日常增量 `python -m data.pull`
+- **DB 单写者锁**（与主区共享）：写库前确认无 `data.pull`/`factors.update` 在跑；避开工作日 21:05 前后（流水线窗口，当前暂停但勿赌）；从持库进程 spawn 写库子进程前先 `con.close()`
+- **勿提交 DuckDB/.env**（.env 为符号链接）
+- **Tushare 中继限流** 200 次/分钟（上限 600）
+- **无 notebook**；分析一律 Python 脚本
+- **权重/列名单源**：改融合相关代码从 `backtest/run_lgb.py` import，勿复制常量
+- **主区未提交改动不是本分支的事**：主工作区 fix 分支由另一 session/流水线维护，本分支只动 worktree 内文件
 
 ## Coding Conventions
 
-- 类型标注按需使用（非强制）
-- 遵循各模块已有的代码风格
-- 新因子添加到 `factors/extra_factors.py`（原生 Polars）；作评估器回归基准的经典表达式在 `factors/baseline_alphas.py`
-- 新策略继承 `strategies/base.py` 中的 `BaseStrategy`
-- 路径优先使用绝对路径或基于 `__file__` 的相对路径
+- 新公式因子加 `factors/extra_factors.py`（原生 Polars）；候选批测用 `factors/test_new_factors.py` 范式（pandas，口径对齐筛选）
+- 模型因子注册进 `factors/registry.py`（白名单输入+超参指纹），构建走 `build_model_factors.py`
+- 新策略继承 `strategies/base.py`；时序窗口只用向后 shift
+- 类型标注按需；遵循各模块已有风格；路径基于 `__file__`
 
 ## 八荣八耻
 以瞎猜接口为耻，以认真查询为荣；
