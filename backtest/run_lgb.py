@@ -15,6 +15,7 @@ Run from project root:
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 import warnings
@@ -167,6 +168,28 @@ def main():
     # ---- 1. Load + combine predictions ----
     print("\n[1/5] Loading predictions ...")
     preds = load_predictions(fold)
+
+    # ---- 卖出零点平移（2026-08-22 审计 F8）----
+    # L1 中位数输出下三成分典型水平为负（池内典型股票远期中位收益为负），
+    # score<0 会常态触发卖出。融合排序不变，卖出阈值 = Σ w_i × calib_median_i
+    # （训练尾段横截面中位数，来自各模型 meta；缺失时回退 0 = 旧行为）。
+    # parquet 里的预测保持原始诚实涨幅，不平移。
+    sell_zero = 0.0
+    med_parts = []
+    for m, w in (("open2d", W2D), ("6d", W6D), ("20d", W20D)):
+        p = get_lgb_predictions_path(m, fold=fold)
+        meta_path = p.with_name(p.name.replace(".parquet", "_meta.json"))
+        if meta_path.exists():
+            try:
+                med = json.loads(meta_path.read_text())["results"].get("calib_median")
+            except Exception:
+                med = None
+            if med is not None:
+                sell_zero += w * float(med)
+                med_parts.append(f"{m}={float(med):+.5f}")
+    print(f"  sell zero-point: {sell_zero:+.5f} "
+          f"({'; '.join(med_parts) if med_parts else 'meta 缺 calib_median，回退 0'})")
+
     score = combine_scores3(preds["open2d"], preds["6d"], preds["20d"],
                             w2d=W2D, w6=W6D, w20=W20D)
 
@@ -285,6 +308,7 @@ def main():
         risk_free_rate=RISK_FREE_RATE,
         delist_info=delist_info,
         market_open=exec_market,
+        sell_threshold=sell_zero,
     )
 
     if not equity_df.empty and test_end_date is not None:

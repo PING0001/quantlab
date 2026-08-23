@@ -425,6 +425,7 @@ def run_portfolio_rebalance(
     rank_scores=None,
     rank_threshold=None,
     market_open=False,
+    sell_threshold=0.0,
 ):
     """Long-only backtest with periodic rebalancing and overnight limit orders.
 
@@ -625,7 +626,10 @@ def run_portfolio_rebalance(
                     if prev_cl is None or prev_cl <= 0:
                         continue
                     if market_open:
-                        if float(pred_val) < 0:
+                        # 2026-08-22 审计 F8：卖出阈值可平移（默认 0 = 旧行为）。
+                        # L1 中位数输出的典型水平为负，绝对零点会让 score<0
+                        # 常态触发；阈值 = 融合权重加权的成分 calib_median
+                        if float(pred_val) < sell_threshold:
                             new_sells[code] = 0.0
                     else:
                         new_sells[code] = _sell_limit(prev_cl, float(pred_val), sell_markup)

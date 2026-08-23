@@ -44,3 +44,6 @@ data/.pull.lock
 # Runtime-generated reports (regenerated daily)
 data/integrity_report.json
 data/alpha_test_report.json
+
+# fold predictions cache (regenerable via fold_cv.py)
+data/folds/

@@ -367,12 +367,16 @@ def compute_nextopen_limit_mask(kline_df: pd.DataFrame,
     df["next_open"] = df.groupby("code")["open"].shift(-1)
 
     # ±10% limit check (all stocks)
-    limit_up_10 = (df["close"] * 1.10).round(2)
-    limit_down_10 = (df["close"] * 0.90).round(2)
+    # 2026-08-22 审计 F1 修复：改纯比率判断（0.05% 容差）。原实现对 qfq 价做
+    # round(2)±0.005 的价格网格判断——qfq 不在原始价 0.01 网格上，adj≠1 的
+    # 股票近板开盘会误分类。比率口径下 adj 因子分子分母相消，与真实涨跌幅
+    # 一致（除权日为复权收益，仍是最接近"真实可交易回报"的口径）
+    _tol = 0.0005
+    _close_ok = df["close"].notna() & (df["close"] > 0)
+    _ratio = df["next_open"] / df["close"]
     is_limit = (
-        (df["next_open"] >= limit_up_10 - 0.005)
-        | (df["next_open"] <= limit_down_10 + 0.005)
-    )
+        (_ratio >= 1.10 - _tol) | (_ratio <= 0.90 + _tol)
+    ) & _close_ok & df["next_open"].notna()
 
     # ±5% ST limit check
     if st_series is not None:
@@ -384,11 +388,8 @@ def compute_nextopen_limit_mask(kline_df: pd.DataFrame,
         df = df.merge(st_frame, on=["date", "code"], how="left")
         df["_st"] = df["_st"].fillna(False).astype(bool)
 
-        limit_up_5 = (df["close"] * 1.05).round(2)
-        limit_down_5 = (df["close"] * 0.95).round(2)
         st_limit = (
-            (df["next_open"] >= limit_up_5 - 0.005)
-            | (df["next_open"] <= limit_down_5 + 0.005)
+            (_ratio >= 1.05 - _tol) | (_ratio <= 0.95 + _tol)
         ) & df["_st"]
 
         # merge 保序（键唯一），两侧同为 RangeIndex 时先 OR 再挂 MultiIndex

@@ -42,12 +42,18 @@ TRAIN_START = pd.Timestamp("2020-01-01")
 TEST_START = pd.Timestamp("2025-06-01")
 TEST_END = pd.Timestamp("2026-06-01")
 WARMUP_DAYS = 90
+# 输出校准：训练窗内留出尾段（交易日数）估计 out-of-sample 收缩斜率，见下方 calibration 注释
+CALIB_TAIL_DAYS = 60
 TRAIN_WINDOW = 252
 MIN_TRAIN = 252
 
 # 超参沿用分类时代调参（num_leaves/min_child/colsample 均为分类调出），
 # 回归首跑结果即基线，之后按回归目标重调（spec §3.3 超参注意）
 LGB_KWARGS = dict(
+    # 2026-08-22 用户裁定：L1 损失（条件中位数估计器）——与输出校准的 L1 斜率
+    # 同口径自洽（L2 均值模型 × L1 中位数校准会因右偏标签系统性压小斜率），
+    # 且对肥尾标签更稳（早停 eval 同步变为 l1）
+    objective="regression_l1",
     num_leaves=8,
     max_depth=4,
     learning_rate=0.05,
@@ -255,6 +261,48 @@ def train_model(
 
     col = f"pred_{h}"
     results: dict = {}
+
+    # ---- output calibration（2026-08-22 用户裁定：模型输出语义 = 真实相信的到期涨幅）----
+    # LGBM 回归 + 正则 + 早停的输出幅度是训练偶然产物（系统性收缩，程度随特征集
+    # 漂移），会在 combine 的原始幅度加权里暗中改变有效权重。此处用训练窗内部
+    # 留出尾段（不碰测试窗；尾段标签最远只到 buffered train_end 之后、test_start
+    # 之前，label_buffer 语义保证）测 out-of-sample 收缩斜率 k（L1 过原点加权
+    # 中位数，抗标签肥尾），把输出乘回 k 还原为诚实幅度。k<=0 或无效时退回 1
+    # （绝不翻符号）；只缩放本模型输出，融合权重不动。
+    calib_dates = [d for d in train_dates_all if d < train_end][-CALIB_TAIL_DAYS:]
+    k = 1.0
+    if len(calib_dates) >= 20:
+        calib_strategy = LGBStrategy(
+            factor_names=factor_cols, horizons=(h,), **LGB_KWARGS)
+        if sw_l3_mapping:
+            calib_strategy._category_mappings["sw_l3"] = sw_l3_mapping
+        idx_dates_cal = X.index.get_level_values("date")
+        fit_mask = idx_dates_cal < calib_dates[0]
+        calib_strategy.fit(X.loc[fit_mask], y.loc[fit_mask])
+        tail_mask = idx_dates_cal.isin(calib_dates)
+        x_cal = calib_strategy.predict(X.loc[tail_mask])[col].values
+        y_cal = y.loc[tail_mask, h].values
+        v = np.isfinite(x_cal) & np.isfinite(y_cal) & (np.abs(x_cal) > 1e-12)
+        x_cal, y_cal = x_cal[v], y_cal[v]
+        # L1 过原点斜率（用户裁定 2026-08-22）：min_k Σ|y − k·x| 的解是
+        # {y/x} 以 |x| 为权的加权中位数；中位数型估计天然抗标签肥尾，不需 winsorize
+        ratios = y_cal / x_cal
+        wts = np.abs(x_cal)
+        order = np.argsort(ratios)
+        cw = np.cumsum(wts[order])
+        k_raw = float(ratios[order][np.searchsorted(cw, cw[-1] / 2.0)])
+        if np.isfinite(k_raw) and k_raw > 0:
+            k = k_raw
+        if isinstance(preds, pd.DataFrame) and not preds.empty and col in preds.columns:
+            preds[col] = preds[col] * k
+        # 尾段横截面中位数（校准模型口径）：L1 中位数输出的典型水平为负（池内
+        # 典型股票的远期中位收益即为负），回测融合侧用它平移卖出零点——
+        # 排序不变，仅把 score<0 的语义从"绝对预期亏损"改为"低于典型预期"
+        results["calib_median"] = float(np.median(x_cal * k))
+        print(f"  calibration: tail={len(calib_dates)}d "
+              f"[{calib_dates[0].date()}~{calib_dates[-1].date()}] slope={k:.3f} "
+              f"median={results['calib_median']:+.5f}")
+    results["calib_slope"] = k
 
     # ---- train-set reference (MAE + rank IC) ----
     train_mask = X.index.get_level_values("date") < test_start
