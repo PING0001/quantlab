@@ -213,7 +213,14 @@ def train_model(
     print(f"  aligned samples: {len(X)}")
     print(f"  date range: {date_level.min().date()} ~ {date_level.max().date()}")
 
-    # ---- exclude ST + delisted + next-open-limit observations ----
+    # ---- 训练集排斥（2026-08-24 语义修复：仅从训练剔除，预测行集保持全量）----
+    # ① ST/退市/次日开盘封板观测不进训练（原实现整行删除，预测 parquet 连带
+    #    缺这些行——回测候选集被 T+1 信息条件化、回避次日开盘跌停的崩盘股，
+    #    收益乐观偏）；现在预测照常输出，下游（回测执行层/报告/IC）各自过滤。
+    # ② 标签远引用越界：标签按个股自身交易行前移，而 label_buffer 按池轴
+    #    回退——停牌股的 T+e0 可落到测试窗内（实测 2025-04-29 有 25 只）。
+    #    按"标签窗口内最远实际引用日 < test_start"精确判定（在 X 的行序上
+    #    近似 kline 行序，逐股同源）。
     if st_series is not None:
         st_mask = st_series.reindex(X.index, fill_value=False)
     else:
@@ -222,16 +229,25 @@ def train_model(
     idx_code = X.index.get_level_values("code")
     delist_series = pd.Series(delist_info)
     delist_dates = idx_code.map(delist_series)
-    delist_mask = (idx_date >= delist_dates.values)
-    delist_mask = pd.Series(delist_mask, index=X.index).fillna(False)
+    delist_mask = pd.Series(idx_date >= delist_dates.values, index=X.index).fillna(False)
 
     lm = limit_mask.reindex(X.index, fill_value=False)
-    print(f"  limit-hit predictions (next-open): {lm.sum()}")
 
-    exclude = st_mask | delist_mask | lm
-    if exclude.any():
-        X, y = X.loc[~exclude], y.loc[~exclude]
-        print(f"  excluded from training: {exclude.sum()} ST/delist/limit observations")
+    date_s = pd.Series(idx_date, index=X.index)
+    e0 = cfg["label_window"][1]
+    far_max = pd.concat(
+        [date_s.groupby(level="code", sort=False).shift(-lag) for lag in range(1, e0 + 1)],
+        axis=1).max(axis=1)
+    far_cross = (far_max >= test_start).fillna(False)
+
+    train_exclude = (st_mask | delist_mask | lm | far_cross).fillna(False)
+    # 计数只统计训练侧（date < test_start）——far_cross 对测试窗行恒真但
+    # 对训练无意义（walk_forward 只在 < train_end 上训练），全额计数会虚高
+    train_side = pd.Series(idx_date, index=X.index) < test_start
+    far_cross_n = int((far_cross & train_side).sum())
+    print(f"  train-only exclusions: ST={int(st_mask.sum())} delist={int(delist_mask.sum())} "
+          f"limit-next-open={int(lm.sum())} label-far-cross(train-side)={far_cross_n} "
+          f"(预测行集不再删行，共 {len(X):,})")
 
     # ---- strategy ----
     strategy = LGBStrategy(
@@ -257,6 +273,7 @@ def train_model(
         test_start=test_start,
         test_end=test_end,
         label_buffer=label_buffer,
+        train_exclude=train_exclude,
     )
 
     col = f"pred_{h}"
@@ -277,7 +294,7 @@ def train_model(
         if sw_l3_mapping:
             calib_strategy._category_mappings["sw_l3"] = sw_l3_mapping
         idx_dates_cal = X.index.get_level_values("date")
-        fit_mask = idx_dates_cal < calib_dates[0]
+        fit_mask = np.asarray(idx_dates_cal < calib_dates[0]) & ~train_exclude.to_numpy()
         calib_strategy.fit(X.loc[fit_mask], y.loc[fit_mask])
         tail_mask = idx_dates_cal.isin(calib_dates)
         x_cal = calib_strategy.predict(X.loc[tail_mask])[col].values
@@ -380,6 +397,10 @@ def train_model(
         "train_start": str(train_dates_all[0].date()),
         "train_end": str(train_end.date()),
         "label_buffer": label_buffer,
+        "train_exclude_counts": {
+            "st": int(st_mask.sum()), "delist": int(delist_mask.sum()),
+            "limit_next_open": int(lm.sum()), "label_far_cross": far_cross_n,
+        },
         "lgb_kwargs": LGB_KWARGS,
         "results": results,
         "model_path": str(model_path),

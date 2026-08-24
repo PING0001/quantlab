@@ -28,15 +28,18 @@
 纯 20d OHLCV 版 0.178。注意本版 OOS 起点 ≈2021 年末，对比须用共同窗口。
 
 Usage:
-    python -m factors.build_nn_gap1d
+    python -m factors.build_nn_gap1d               # 全量重建（训练 OOF + 存模型状态）
+    python -m factors.build_nn_gap1d --infer-only  # 前沿补值：冻结模型只推理不重训
 """
 from __future__ import annotations
 
+import argparse
 import sys
 import time
 from pathlib import Path
 
 import duckdb
+import joblib
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
@@ -44,7 +47,10 @@ from sklearn.neural_network import MLPRegressor
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config import DB_PATH, get_pool_codes
+from config import DB_PATH, POOL_NAME, get_pool_codes
+
+STATE_PATH = (Path(__file__).resolve().parents[1] / "models" / POOL_NAME
+              / "nn_gap1d_state.joblib")
 
 MIN_TRAIN_DAYS = 960           # 从筹码起点起算（约 4 年）
 CADENCE = 120
@@ -169,10 +175,98 @@ def walk_forward_oof(X: pd.DataFrame, y: pd.Series) -> pd.Series:
     return pd.concat(preds_parts) if preds_parts else pd.Series(dtype=float)
 
 
+def _last_segment_model(X: pd.DataFrame, y: pd.Series) -> MLPRegressor:
+    """复现 walk-forward 最后一个训练段的模型（同数据同种子，确定性）。
+
+    无保存状态时的推理兜底：与全量 OOF 的末段模型同构，用于前沿补值。"""
+    dates = X.index.get_level_values("date")
+    uniq = dates.unique().sort_values()
+    n = len(uniq)
+    i = MIN_TRAIN_DAYS
+    last_i = None
+    while i < n:
+        last_i = i
+        i += CADENCE
+    if last_i is None:
+        raise SystemExit("面板不足 MIN_TRAIN_DAYS，请先全量构建")
+    cut_ts = uniq[max(last_i - LABEL_BUFFER, 0)]
+    feat_ok = X.notna().all(axis=1).to_numpy()
+    yt = y.reindex(X.index)
+    ok = np.asarray(dates < cut_ts) & feat_ok & yt.notna().to_numpy()
+    m = MLPRegressor(**MLP_PARAMS)
+    m.fit(X.loc[ok].values, yt[ok].values * 100.0)
+    return m
+
+
+def infer_frontier(X: pd.DataFrame, y: pd.Series) -> None:
+    """前沿补值：冻结模型只推理（2026-08-24 用户裁定：nn_gap1d 不需要每日重训）。
+
+    只填覆盖之后日期的空行，不 DROP 不重建列；缺失输入的样本保持缺失。"""
+    t0 = time.time()
+    con = duckdb.connect(str(DB_PATH), read_only=True)
+    last_cov = con.execute(
+        f"SELECT max(date) FROM factor_values WHERE {COL} IS NOT NULL").fetchone()[0]
+    con.close()
+    if last_cov is None:
+        raise SystemExit("列无历史覆盖，请先全量构建（不带 --infer-only）")
+
+    dates = X.index.get_level_values("date")
+    uniq = dates.unique().sort_values()
+    target_dates = {d for d in uniq if d > pd.Timestamp(last_cov)}
+    feat_ok = X.notna().all(axis=1).to_numpy()
+    mask = np.asarray(dates.isin(target_dates)) & feat_ok
+    if not mask.any():
+        print(f"[{COL}] 无待推理日期（覆盖已至 {last_cov}）")
+        return
+
+    if STATE_PATH.exists():
+        payload = joblib.load(STATE_PATH)
+        m, cols = payload["model"], payload["cols"]
+        if list(X.columns) != cols:
+            raise SystemExit("特征列序与保存状态不一致，请全量重建刷新状态")
+        print(f"  载入冻结模型（训练截至 {payload['trained_cut']}）")
+    else:
+        m = _last_segment_model(X, y)
+        STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        joblib.dump({"model": m, "cols": list(X.columns),
+                     "trained_cut": str(uniq[-1].date())}, STATE_PATH)
+        print(f"  无保存状态：复现末段模型并保存 -> {STATE_PATH}")
+
+    Xs = X.loc[mask]
+    preds = pd.Series(m.predict(Xs.values) / 100.0, index=Xs.index).dropna()
+    preds.name = "value"
+    pdf = preds.reset_index()
+    pdf["date"] = pdf["date"].astype(str).str[:10]
+    con_w = duckdb.connect(str(DB_PATH))
+    con_w.execute("CREATE OR REPLACE TEMP TABLE _mf_upd AS SELECT * FROM pdf")
+    n_match = con_w.execute("""
+        SELECT COUNT(*) FROM _mf_upd p JOIN factor_values f
+          ON f.code = p.code AND f.date = p.date""").fetchone()[0]
+    con_w.execute(f"""
+        UPDATE factor_values f SET {COL} = p.value
+        FROM _mf_upd p WHERE f.code = p.code AND f.date = p.date
+        AND f.{COL} IS NULL""")
+    con_w.execute("CHECKPOINT")
+    con_w.close()
+    print(f"  前沿推理 {len(preds):,} 行（>{last_cov}），匹配写入 {n_match:,}，"
+          f"耗时 {(time.time() - t0) / 60:.1f} 分钟")
+
+
 def main():
+    parser = argparse.ArgumentParser(description="nn_gap1d 构建/前沿推理")
+    parser.add_argument("--infer-only", action="store_true",
+                        help="只对覆盖之后的日期做冻结模型推理（不重训不重建）")
+    args = parser.parse_args()
+
     t0 = time.time()
     print(f"[{COL}] 加载面板（{N_LAGS}d OHLCV 比值 + 12 归一化公式因子）...")
     X, y, chips_start = load_panel()
+
+    if args.infer_only:
+        print(f"  面板 {len(X):,} 行 × {X.shape[1]} 列")
+        infer_frontier(X, y)
+        return
+
     print(f"  面板 {len(X):,} 行 × {X.shape[1]} 列；有效目标 {y.notna().sum():,} 行"
           f"；训练起点（筹码存在起点）={chips_start.date()}")
 
@@ -222,6 +316,14 @@ def main():
     con_w.execute("CHECKPOINT")
     con_w.close()
     print(f"  写入 {COL}: matched {n_match:,} rows | 总耗时 {(time.time() - t0) / 60:.1f} 分钟")
+
+    # 保存末段模型状态（确定性复现），供 --infer-only 前沿补值使用
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    m_final = _last_segment_model(X, y)
+    joblib.dump({"model": m_final, "cols": list(X.columns),
+                 "trained_cut": str(X.index.get_level_values("date").max().date())},
+                STATE_PATH)
+    print(f"  模型状态已保存 -> {STATE_PATH}")
 
 
 if __name__ == "__main__":

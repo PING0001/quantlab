@@ -118,10 +118,17 @@ def main():
     print(f"  {n_factors} factors available")
 
     date_level = factors.index.get_level_values("date")
-    train_mask = (date_level >= train_start) & (date_level < test_start)
+    # 2026-08-24 修复：筛选 IC 窗口补 label_buffer——窗口末 e0 个交易日的标签
+    # 引用 test_start 之后的开盘价（原实现裸取 [start, test_start)，尾部 IC
+    # 吸收测试窗价格信息）。与训练侧 buffered_train_end 同一机制。
+    from strategies.base import buffered_train_end
+    panel_dates = sorted(date_level.unique())
+    buf_end = buffered_train_end(panel_dates, test_start, cfg["label_buffer"])
+    train_mask = (date_level >= train_start) & (date_level < buf_end)
     factors = factors.loc[train_mask]
     print(f"  Training range: {factors.index.get_level_values('date').min().date()} ~ "
-          f"{factors.index.get_level_values('date').max().date()}")
+          f"{factors.index.get_level_values('date').max().date()} "
+          f"(IC 窗口终点回退 label_buffer={cfg['label_buffer']} 至 {buf_end.date()})")
     print(f"  Training rows: {len(factors)}")
 
     print("Loading kline ...")

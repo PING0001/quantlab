@@ -274,12 +274,12 @@ def main():
             return
 
         if target_dates:
-            # ---- 计算：lookback 从最晚目标日期起算 ----
-            # 2026-08-22 审计 F5 修复：原以最早目标日锚定，LOOKBACK_DAYS=260 只
-            # 保证首个目标日的 252d 窗口完整——补漏超过 9 个交易日时后续目标日
-            # 的长窗因子被截断且 min_samples=1 静默给出不同值。改锚最晚目标日后
-            # 所有目标日的窗口必然完整（更早目标日只是多算一段历史，无害）
-            from_date = target_dates[-1]
+            # ---- 计算：lookback 锚定最早目标日 ----
+            # 2026-08-24 审计 #7 修正：锚"最晚"目标日时，回补跨度 g>8 个交易日
+            # 就截断最早目标日的 252d 长窗（完整需 g ≤ 260−252=8）；锚"最早"
+            # 目标日则任意跨度完整（窗口 [t0−260, kline_max] ⊇ 全部目标日需求
+            # [t0−252, tN]）。此前 F5 注释的论证恰好说反。
+            from_date = target_dates[0]
             lookback_start = get_lookback_start(con, from_date)
             log.info("Incremental range: lookback %s -> kline max %s", lookback_start, kline_max)
 

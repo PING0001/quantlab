@@ -496,21 +496,12 @@ def store_factor_values(con: duckdb.DuckDBPyConnection, panel: pl.DataFrame):
     # Deduplicate on (code, date)
     panel = panel.unique(subset=["code", "date"], keep="last")
 
-    # 备份 ai 因子列（若旧表存在且有数据）
-    old_cols = {r[0] for r in con.execute(
-        "SELECT column_name FROM information_schema.columns WHERE table_name='factor_values'"
-    ).fetchall()}
-    has_ai = bool(AI_FACTOR_COLUMNS) and all(c in old_cols for c in AI_FACTOR_COLUMNS)
-    if has_ai:
-        con.execute(
-            "CREATE OR REPLACE TEMP TABLE _ai_keep AS "
-            "SELECT code, date, ai_gz2000_20d, ai_gz2000_median_5d "
-            "FROM factor_values WHERE ai_gz2000_20d IS NOT NULL "
-            "OR ai_gz2000_median_5d IS NOT NULL"
-        )
-        n_keep = con.execute("SELECT COUNT(*) FROM _ai_keep").fetchone()[0]
-    else:
-        n_keep = 0
+    # 2026-08-24 拆弹：重建前保全旧表全部非面板列（模型因子 nn_/gb_/mf_ 等
+    # 归构建脚本所有的列），重建后回填——原实现只备份 ai 列（AI_FACTOR_COLUMNS
+    # 清空后备份条件恒假），一次全量重建会静默清空模型因子列（nn_gap1d 已是
+    # 6d/open2d 生产输入，2026-08-24 审计 #6）
+    con.execute("CREATE OR REPLACE TEMP TABLE _fv_keep AS SELECT * FROM factor_values")
+    keep_schema = con.execute("DESCRIBE _fv_keep").fetchdf()[["column_name", "column_type"]]
 
     con.execute("DROP TABLE IF EXISTS factor_values")
 
@@ -519,28 +510,30 @@ def store_factor_values(con: duckdb.DuckDBPyConnection, panel: pl.DataFrame):
     pandas_df = pandas_df.sort_values(["date", "code"])
     con.execute("CREATE TABLE factor_values AS SELECT * FROM pandas_df")
 
-    # 恢复 ai 列结构 + 主键
-    for col in AI_FACTOR_COLUMNS:
-        con.execute(f"ALTER TABLE factor_values ADD COLUMN IF NOT EXISTS {col} DOUBLE")
+    # 恢复非面板列结构 + 主键
+    panel_cols = set(pandas_df.columns)
+    kept = [(r.column_name, r.column_type) for r in keep_schema.itertuples()
+            if r.column_name not in panel_cols and r.column_name not in ("code", "date")]
+    for col, dtype in kept:
+        con.execute(f"ALTER TABLE factor_values ADD COLUMN {col} {dtype}")
     con.execute("ALTER TABLE factor_values ADD PRIMARY KEY (code, date)")
 
-    # 回填 ai 数据
-    if has_ai and n_keep > 0:
-        con.execute("""
-            UPDATE factor_values f SET
-                ai_gz2000_20d = k.ai_gz2000_20d,
-                ai_gz2000_median_5d = k.ai_gz2000_median_5d
-            FROM _ai_keep k
+    # 回填保全列数据
+    if kept:
+        sets = ", ".join(f"f.{c} = k.{c}" for c, _ in kept)
+        con.execute(f"""
+            UPDATE factor_values f SET {sets}
+            FROM _fv_keep k
             WHERE f.code = k.code AND f.date = k.date
         """)
-        n_restored = con.execute(
-            "SELECT COUNT(*) FROM factor_values WHERE ai_gz2000_20d IS NOT NULL"
+        n_kept = con.execute(
+            f"SELECT COUNT(*) FROM factor_values WHERE {kept[0][0]} IS NOT NULL"
         ).fetchone()[0]
-        log.info("ai factor columns restored: %d/%d rows", n_restored, n_keep)
+        log.info("non-panel columns restored: %d 列, %d 行非空", len(kept), n_kept)
 
     con.execute("CHECKPOINT")
     log.info("factor_values table created with %d rows, %d columns (PK on code,date)",
-             len(pandas_df), len(pandas_df.columns) + len(AI_FACTOR_COLUMNS))
+             len(pandas_df), len(pandas_df.columns) + len(kept))
 
 
 # ---- Main Entry ----

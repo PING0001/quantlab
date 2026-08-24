@@ -70,6 +70,7 @@ def walk_forward(
     test_end: pd.Timestamp | None = None,
     warmup_days: int = 0,
     label_buffer: int = 20,
+    train_exclude: pd.Series | None = None,
 ) -> pd.DataFrame:
     """
     Walk-forward cross-sectional prediction.
@@ -79,6 +80,12 @@ def walk_forward(
     Training rows within *label_buffer* trading days of the prediction boundary
     are dropped in both branches: their forward labels would reference prices
     from the prediction period.
+
+    train_exclude: bool Series on factor_panel.index，True = 该行只从训练集剔除
+    （预测照常输出）。2026-08-24 修复：此前封板/ST/退市观测在训练入口整行
+    删除，预测行集被连带删掉——回测可交易宇宙被 T+1 信息条件化（回避次日
+    开盘跌停的崩盘股，收益乐观偏）。现在排除语义收敛为"仅训练"；下游
+    （回测执行层 / 报告 / IC 评估）各自过滤。
 
     Returns a DataFrame with one column per horizon, indexed by (date, code).
     """
@@ -99,6 +106,9 @@ def walk_forward(
         # labels reference test-period prices (label look-ahead buffer)
         train_end = buffered_train_end(all_dates, test_start, label_buffer)
         train_mask = (idx_dates >= all_dates[0]) & (idx_dates < train_end)
+        if train_exclude is not None:
+            train_mask = train_mask & ~train_exclude.reindex(
+                factor_panel.index, fill_value=False).to_numpy()
         X_train = factor_panel.loc[train_mask]
         y_train = forward_returns.loc[train_mask].reindex(columns=list(strategy.horizons))
 
@@ -131,6 +141,9 @@ def walk_forward(
         # at prediction time; exclude them the same way as the fixed branch
         train_end = buffered_train_end(all_dates, dt, label_buffer)
         train_mask = (idx_dates >= train_start) & (idx_dates < train_end)
+        if train_exclude is not None:
+            train_mask = train_mask & ~train_exclude.reindex(
+                factor_panel.index, fill_value=False).to_numpy()
         X_train = factor_panel.loc[train_mask]
         y_train = forward_returns.loc[train_mask].reindex(columns=list(strategy.horizons))
 
@@ -143,7 +156,6 @@ def walk_forward(
         if isinstance(pred.index, pd.MultiIndex):
             pred.index = pred.index.droplevel("date")
         predictions[dt] = pred
-
     if not predictions:
         return pd.DataFrame(dtype=float)
     return pd.concat(predictions, names=["date"])

@@ -124,8 +124,9 @@ def replicate_model_panel(
 ) -> pd.MultiIndex:
     """复刻 run_lgb.train_model 的 X 行过滤链，返回最终 (date, code) 索引。
 
-    链条：factor 面板 ∩ 标签非 NaN → date >= TRAIN_START → 剔除
-    IsST / 退市 / 次日开盘封板。训练与预测共用同一个 X。
+    2026-08-24 语义变更后：链条 = factor 面板 ∩ 标签非 NaN → date >=
+    TRAIN_START（**到此为止**）。ST/退市/封板/远引用越界只从训练集剔除
+    （train_exclude），预测 parquet 保持全量面板行集。
     """
     common = fv_idx.intersection(label.index)
     lab = label.reindex(common)
@@ -134,17 +135,7 @@ def replicate_model_panel(
 
     idx_date = idx.get_level_values("date")
     idx = idx[np.asarray(idx_date >= trainer.TRAIN_START)]
-    idx_date = idx.get_level_values("date")
-    idx_code = idx.get_level_values("code")
-
-    st_on = st_series.reindex(idx, fill_value=False).to_numpy()
-    lim_on = limit_mask.reindex(idx, fill_value=False).to_numpy()
-    dl = idx_code.map(delist_series)
-    dl_on = (idx_date >= dl.to_numpy()).tolist()   # NaT 比较为 False
-    dl_on = pd.Series(dl_on, index=idx).fillna(False).to_numpy()
-
-    exclude = st_on | lim_on | dl_on
-    return idx[~exclude]
+    return idx
 
 
 def check_model(
@@ -154,6 +145,7 @@ def check_model(
     axis_dates: list[pd.Timestamp],        # 该模型 X 的日期轴（复刻，含 warmup 前缀剔除后）
     all_dates: list[pd.Timestamp],         # 全历史交易日（位置参考系）
     expected_pred_idx: pd.MultiIndex,      # C3 复刻的期望预测行集
+    far_cross_n: int,                      # C1e 复算的标签远引用越界行数
 ) -> None:
     cfg = MODEL_CONFIGS[m]
     s0, e0 = cfg["label_window"]
@@ -184,6 +176,15 @@ def check_model(
            f"first_test={first_test.date()}")
     _check("label_buffer ≥ 标签窗末日（buffer 语义充分）",
            buffer >= e0, f"buffer={buffer}, label_window_end={e0}")
+
+    # C1e（2026-08-24 新增）：停牌股标签远引用越界的排除机制交叉核对——
+    # 标签按个股交易行前移、buffer 按池轴回退，停牌股 T+e0 可越界（实测
+    # 2025-04-29 有 25 只）；断言复算越界数与训练时记录一致，防规则被
+    # 静默移除
+    meta_cnt = (meta.get("train_exclude_counts") or {}).get("label_far_cross")
+    _check("标签远引用越界排除数与 meta 一致",
+           meta_cnt is not None and int(meta_cnt) == far_cross_n,
+           f"复算={far_cross_n}, meta={meta_cnt}")
     _check("meta 测试窗 = 训练入口常量",
            meta["test_start"] == str(ts.date()) and meta["test_end"] == str(te.date()),
            f"meta={meta['test_start']}~{meta['test_end']}")
@@ -288,13 +289,25 @@ def main() -> int:
                                     baseline=cfg["baseline"])
         x_idx = replicate_model_panel(m, fv_idx, label, st_series, limit_mask,
                                       delist_series)
+        x_idx = x_idx.sort_values()   # DB 原序非日期序，shift 类计算必须先排
         axis_dates = sorted(x_idx.get_level_values("date").unique())[trainer.WARMUP_DAYS:]
 
         idx_date = x_idx.get_level_values("date")
         in_tw = np.asarray((idx_date >= ts) & (idx_date <= te))
         expected_pred_idx = x_idx[in_tw]
 
-        check_model(m, meta, pred, axis_dates, all_dates, expected_pred_idx)
+        # C1e 用：复算标签远引用越界行数（与 run_lgb 的 far_cross 同式，
+        # 只计训练侧 date < test_start——测试窗行 far_cross 恒真但无训练意义）
+        first_test = min(d for d in all_dates if d >= ts)
+        date_s = pd.Series(idx_date, index=x_idx)
+        e0 = cfg["label_window"][1]
+        far_max = pd.concat(
+            [date_s.groupby(level="code", sort=False).shift(-lag) for lag in range(1, e0 + 1)],
+            axis=1).max(axis=1)
+        far_cross_n = int(((far_max >= first_test) & (date_s < ts)).sum())
+
+        check_model(m, meta, pred, axis_dates, all_dates, expected_pred_idx,
+                    far_cross_n)
 
     # ---- summary ----
     n_pass = sum(1 for _, ok, _ in _RESULTS if ok)

@@ -23,7 +23,8 @@
     "AvgAmount_3d",
     "StockIndexCorr_20d",
     "LnMktCap",
-    "CSI_return_20d"
+    "CSI_return_20d",
+    "nn_gap1d"
   ],
   "factor_metrics": {
     "CSI_return_20d": {
@@ -372,5 +373,6 @@
       "corr_with": "Turnover_3d_rank",
       "corr": -0.8017296435507332
     }
-  ]
+  ],
+  "note": "2026-08-24 用户裁定加入 nn_gap1d（MLP 隔夜跳空因子，rank IC 0.198，2021-12 前缺失由 Boost 容忍）"
 }

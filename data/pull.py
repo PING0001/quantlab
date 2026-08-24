@@ -197,9 +197,12 @@ def _pull_cyq(con, pro, dates: list[str], latest_open: str):
             now = datetime.now()
             deadline = now.replace(hour=CYQ_RETRY_UNTIL[0], minute=CYQ_RETRY_UNTIL[1],
                                    second=0, microsecond=0)
-            if now >= deadline:
-                log.error("cyq %s: still failing at deadline %s, left pending",
-                          today_str, deadline.strftime("%H:%M"))
+            # 重试窗口下界：源 18~19 点才更新，17 点前当日数据不可能存在——
+            # 盘前/凌晨运行不进循环，记 pending 退出（防睡到 21:00，2026-08-24 实测事故）
+            earliest = now.replace(hour=17, minute=0, second=0, microsecond=0)
+            if now < earliest or now >= deadline:
+                log.error("cyq %s: empty outside retry window (17:00~%02d:%02d), "
+                          "left pending", today_str, *CYQ_RETRY_UNTIL)
                 return
             wait_s = min(CYQ_RETRY_INTERVAL_MIN * 60, (deadline - now).total_seconds())
             log.info("cyq %s empty (source updates ~18-19h, relay lag until ~20:52), "
@@ -304,7 +307,10 @@ def run(full: bool = False, reconcile: bool = False, dry_run: bool = False) -> i
             report = integrity.check(con)
             log.info("Pull complete. hard_fail=%s, soft_warnings=%d",
                      report["hard_fail"], len(report["soft_warnings"]))
-            return 0
+            # 2026-08-24 审计 #12：硬失败时返回非零退出码——原实现恒 return 0，
+            # 夜间流水线对"数据真失败"无阻断信号（pull 假成功 → update 通过 →
+            # 报告占位，全链无告警）
+            return 1 if report["hard_fail"] else 0
         finally:
             con.close()
 

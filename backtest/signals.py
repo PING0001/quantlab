@@ -45,20 +45,19 @@ def _limit_pct(is_st) -> float:
     return 0.05 if is_st else 0.10
 
 
-def _limit_up(prev_close, is_st) -> float:
-    return round(prev_close * (1.0 + _limit_pct(is_st)), 2)
+# 2026-08-24 审计 #10：封板判定改纯比率口径（±0.05% 容差，与标签侧
+# compute_nextopen_limit_mask 同源同参）。原实现 round(2) 价格网格打 qfq
+# 价——qfq 不在原始价 0.01 网格上，adj≠1 的股票近板误判（标签侧
+# 2026-08-22 已修，组合侧漏修）。
+_FROZEN_TOL = 0.0005
 
 
-def _limit_down(prev_close, is_st) -> float:
-    return round(prev_close * (1.0 - _limit_pct(is_st)), 2)
+def _frozen_up(low, prev_close, is_st) -> bool:
+    return prev_close > 0 and low >= prev_close * (1.0 + _limit_pct(is_st) - _FROZEN_TOL)
 
 
-def _is_frozen_up(low, limit_up_price) -> bool:
-    return low >= limit_up_price
-
-
-def _is_frozen_down(high, limit_down_price) -> bool:
-    return high <= limit_down_price
+def _frozen_down(high, prev_close, is_st) -> bool:
+    return prev_close > 0 and high <= prev_close * (1.0 - _limit_pct(is_st) + _FROZEN_TOL)
 
 
 # ============================================================================
@@ -228,10 +227,8 @@ def run_portfolio(
                 continue
 
             is_st = isst_map.get(code, 0)
-            limit_dn = _limit_down(prev_cl, is_st)
-
-            # sealed limit-down -> defer
-            if _is_frozen_down(hi, limit_dn):
+            # sealed limit-down -> defer（比率口径）
+            if _frozen_down(hi, prev_cl, is_st):
                 deferred_sells.add(code)
                 continue
 
@@ -283,10 +280,8 @@ def run_portfolio(
                 continue
 
             is_st = isst_map.get(code, 0)
-            limit_up_px = _limit_up(prev_cl, is_st)
-
-            # sealed limit-up -> skip
-            if _is_frozen_up(lo, limit_up_px):
+            # sealed limit-up -> skip（比率口径）
+            if _frozen_up(lo, prev_cl, is_st):
                 continue
 
             # auction fill
@@ -317,6 +312,14 @@ def run_portfolio(
         buy_orders.clear()
 
         # Track stocks bought today (T+1 sell prohibition)
+        # 2026-08-24 审计 #9：退市持仓强制清仓计零。原实现：预测行随退市消失
+        # →永不挂卖单→按最后收盘价永续估值；基准侧同股退市直接归零——两侧
+        # 口径相反。统一为：到达退市日的持仓移除且无现金回流（保守计零）。
+        if delist_info:
+            for code in list(positions.keys()):
+                if code in delist_info and date >= delist_info[code]:
+                    del positions[code]
+
         buy_lock = {code for code, pos in positions.items() if pos["entry_date"] == date}
 
         # ====================================================================
@@ -379,6 +382,8 @@ def run_portfolio(
         # ====================================================================
         nav = cash
         for code, pos in positions.items():
+            if delist_info and code in delist_info and date >= delist_info[code]:
+                continue          # 退市持仓计零（与基准侧口径一致）
             cl = close_map.get(code)
             if cl is None:
                 continue
@@ -511,9 +516,7 @@ def run_portfolio_rebalance(
                 continue
 
             is_st = isst_map.get(code, 0)
-            limit_dn = _limit_down(prev_cl, is_st)
-
-            if _is_frozen_down(hi, limit_dn):
+            if _frozen_down(hi, prev_cl, is_st):
                 deferred_sells.add(code)
                 continue
 
@@ -561,9 +564,7 @@ def run_portfolio_rebalance(
                 continue
 
             is_st = isst_map.get(code, 0)
-            limit_up_px = _limit_up(prev_cl, is_st)
-
-            if _is_frozen_up(lo, limit_up_px):
+            if _frozen_up(lo, prev_cl, is_st):
                 continue
 
             if op <= limit_price:
@@ -593,6 +594,14 @@ def run_portfolio_rebalance(
         # limit prices are based on tonight's close/pred and must not survive
         # to later days. Fresh orders are only placed on rebalance evenings.
         buy_orders.clear()
+
+        # 2026-08-24 审计 #9：退市持仓强制清仓计零。原实现：预测行随退市消失
+        # →永不挂卖单→按最后收盘价永续估值；基准侧同股退市直接归零——两侧
+        # 口径相反。统一为：到达退市日的持仓移除且无现金回流（保守计零）。
+        if delist_info:
+            for code in list(positions.keys()):
+                if code in delist_info and date >= delist_info[code]:
+                    del positions[code]
 
         buy_lock = {code for code, pos in positions.items() if pos["entry_date"] == date}
 
@@ -685,6 +694,8 @@ def run_portfolio_rebalance(
         # ================================================================
         nav = cash
         for code, pos in positions.items():
+            if delist_info and code in delist_info and date >= delist_info[code]:
+                continue          # 退市持仓计零（与基准侧口径一致）
             cl = close_map.get(code)
             if cl is None:
                 # Suspended: use last known close price

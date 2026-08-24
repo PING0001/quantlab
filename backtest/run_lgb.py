@@ -262,8 +262,8 @@ def main():
     con_r.close()
 
     limit_mask = compute_nextopen_limit_mask(kline, st_series=st_series)
-    # 预测帧在训练入口已排除 limit/ST/退市行，故此处计数为 0 属预期；
-    # 掩码仍用于 IC 块的 safe 过滤（防未来数据变化）
+    # 2026-08-24 语义变更：训练排斥仅作用于训练集，预测帧含全量行；
+    # 此处计数非零属预期；掩码用于 IC 块的 safe 过滤
     n_limit = int(limit_mask.loc[score.index].sum()) if not limit_mask.empty else 0
     n_st = int(st_series.loc[score.index].sum()) if st_series is not None else 0
     print(f"  pred rows with limit-hit/ST (expected 0, excluded upstream): "

@@ -133,15 +133,76 @@ def load_st_delist_excluded(target_date: pd.Timestamp,
 # ============================================================================
 # 报告构建
 # ============================================================================
-def build_day_frame(comps: dict[str, dict], target_date: pd.Timestamp,
-                    name_st: set[str]) -> tuple[pd.DataFrame, dict] | None:
-    """指定日融合 + 三层防御过滤。返回 (results, report_meta) 或 None（当日无任何行）。"""
+def live_day_predictions(target_date: pd.Timestamp,
+                         comps: dict[str, dict]) -> tuple[dict[str, pd.Series], list[str]]:
+    """前沿日期实时推理：冻结 joblib × calib_slope（parquet 止于 TEST_END，不含前沿）。
+
+    模型与训练完全一致（只加载不重训）；输出与 parquet 同口径（已乘校准斜率）。
+    单成分失败只降级该成分（走 L2 缺失重归一），不炸整报；
+    SQL 加池过滤防池外行混入（2026-08-24 审计 #11）。
+    返回 ({model: 当日预测 Series(code 索引)}, 缺失/降级披露)。"""
+    from strategies.lgb import LGBStrategy
+    from config import get_lgb_model_path, get_pool_codes
+
+    pool_codes = get_pool_codes()
+    ph = ",".join(["?"] * len(pool_codes))
+    day = str(target_date.date())
     day_series: dict[str, pd.Series] = {}
-    for m, c in comps.items():
-        try:
-            day_series[m] = c["series"].xs(target_date, level="date")
-        except KeyError:
-            continue
+    notes: list[str] = []
+    con = duckdb.connect(str(DB_PATH), read_only=True)
+    try:
+        sw = con.execute(
+            "SELECT code, sw_l3_code FROM industry WHERE sw_l3_code IS NOT NULL"
+        ).fetchdf()
+        sw_map = dict(zip(sw["code"], sw["sw_l3_code"]))
+        for m, c in comps.items():
+            try:
+                strategy = LGBStrategy.load(get_lgb_model_path(m))
+                meta = c["meta"]
+                fnames = list(strategy.factor_names)
+                fcols = [f for f in fnames if f != "sw_l3"]
+                df = con.execute(
+                    f"SELECT code, {', '.join(fcols)} FROM factor_values "
+                    f"WHERE date = ? AND code IN ({ph})",
+                    [day, *pool_codes]).fetchdf()
+                if df.empty:
+                    notes.append(f"{m}: 因子表当日无池内行")
+                    continue
+                miss = [f for f in fcols if df[f].isna().all()]
+                if miss:
+                    notes.append(f"{m} 当日整列缺失（树容忍）: {', '.join(miss)}")
+                X = df.set_index("code")
+                if "sw_l3" in fnames:
+                    mapping = strategy._category_mappings.get("sw_l3", {})
+                    X["sw_l3"] = (X.index.map(sw_map).map(mapping)
+                                  if mapping else X.index.map(sw_map))
+                    X["sw_l3"] = pd.to_numeric(X["sw_l3"], errors="coerce").fillna(-1).astype(int)
+                X = X[fnames]
+                pred = strategy.predict(X)
+                pcol = [c2 for c2 in pred.columns if c2.startswith("pred_")][0]
+                k = float(meta.get("results", {}).get("calib_slope", 1.0))
+                day_series[m] = pred[pcol] * k
+            except Exception as e:  # noqa: BLE001 — 单成分失败只降级该成分
+                notes.append(f"{m}: 实时推理失败（{type(e).__name__}: {e}），按缺失成分处理")
+    finally:
+        con.close()
+    return day_series, notes
+
+
+def build_day_frame(comps: dict[str, dict], target_date: pd.Timestamp,
+                    name_st: set[str], day_series: dict[str, pd.Series] | None = None,
+                    live_notes: list[str] | None = None, is_live: bool = False,
+                    ) -> tuple[pd.DataFrame, dict] | None:
+    """指定日融合 + 三层防御过滤。返回 (results, report_meta) 或 None（当日无任何行）。
+
+    day_series 传入时跳过 parquet 切片（前沿实时推理路径）。"""
+    if day_series is None:
+        day_series = {}
+        for m, c in comps.items():
+            try:
+                day_series[m] = c["series"].xs(target_date, level="date")
+            except KeyError:
+                continue
     if not day_series:
         return None
 
@@ -201,6 +262,8 @@ def build_day_frame(comps: dict[str, dict], target_date: pd.Timestamp,
         "generated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "missing": missing,
         "degraded": bool(missing),
+        "live": is_live,
+        "live_notes": live_notes or [],
         "sell_zero": sell_zero,
         "med_parts": med_parts,
         "layer_notes": layer_notes,
@@ -295,10 +358,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <h1>Dual-Regression Forecast (v8 blend)</h1>
     <div class="meta">
       <span>Pred Date: {prediction_date}</span>
+      {live_badge}
       <span>Generated: {generated_at}</span>
       <span>Sell zero: {sell_zero:+.5f}</span>
       <span>Pool: {pool_name}</span>
     </div>
+    {live_notes_html}
     <div class="stats">
       <div class="stat-box"><div class="val">{n_stocks}</div><div class="lbl">Total</div></div>
       <div class="stat-box pos"><div class="val">{above_count}</div><div class="lbl">&gt; sell zero</div></div>
@@ -406,6 +471,12 @@ def build_html(df: pd.DataFrame, meta: dict) -> str:
         "w2d": W2D, "w6d": W6D, "w20d": W20D,
         "med_formula": "; ".join(meta["med_parts"]) or "meta 缺 calib_median，回退 0",
         "layer_line": "防御层: " + ", ".join(meta["layer_notes"]),
+        "live_badge": ('<span style="background:#e3f2e8;color:#0a8f4a;font-weight:600;">'
+                       "LIVE 实时推理（冻结模型×校准，前沿日）</span>") if meta.get("live") else "",
+        "live_notes_html": (('<div style="margin-top:6px;font-size:12px;color:#9a6200;'
+                             "background:#fff8e6;padding:6px 10px;border-radius:4px;\">"
+                             "前沿缺失披露：" + "；".join(meta.get("live_notes", []))
+                             + "</div>") if meta.get("live") and meta.get("live_notes") else ""),
     })
     return HTML_TEMPLATE.format(**m)
 
@@ -489,16 +560,24 @@ def main() -> None:
         avail_dates: set = set()
         for c in comps.values():
             avail_dates |= set(c["series"].index.get_level_values("date").unique())
+
+        # 因子表最新日期（前沿）：预测产物止于 TEST_END，前沿日期走实时推理
+        con = duckdb.connect(str(DB_PATH), read_only=True)
+        latest_factor_date = pd.Timestamp(
+            con.execute("SELECT max(date) FROM factor_values").fetchone()[0])
+        con.close()
+
         if args.date is not None:
             target = pd.Timestamp(args.date)
-            if target not in avail_dates:
+            if target not in avail_dates and target != latest_factor_date:
                 out = write_placeholder(
-                    f"指定日期 {args.date} 不在预测产物范围内；可用范围 "
-                    f"{min(last_dates.values()).date()} ~ {max(last_dates.values()).date()}")
+                    f"指定日期 {args.date} 不在预测产物范围内且非因子表最新日；"
+                    f"产物范围 {min(last_dates.values()).date()} ~ "
+                    f"{max(last_dates.values()).date()}，因子最新 {latest_factor_date.date()}")
                 print(f"  [L3] 指定日期无预测 → 占位报告: {out}")
                 return
         else:
-            target = max(last_dates.values())
+            target = max(max(last_dates.values()), latest_factor_date)
 
         # 防御层 ①：名称快照（池内）
         codes = sorted({str(c) for comp in comps.values()
@@ -507,9 +586,19 @@ def main() -> None:
         name_st = {c for c, n in name_map_all.items()
                    if isinstance(n, str) and ("ST" in n or "退" in n)}
 
-        built = build_day_frame(comps, target, name_st)
+        # 前沿日期（parquet 未覆盖）→ 冻结模型实时推理；否则走 parquet 切片
+        live_notes: list[str] = []
+        is_live = target not in avail_dates
+        if is_live:
+            print(f"  [LIVE] {target.date()} 超出预测产物范围 "
+                  f"(止于 {max(last_dates.values()).date()})，冻结模型实时推理")
+            day_series, live_notes = live_day_predictions(target, comps)
+            built = build_day_frame(comps, target, name_st, day_series=day_series,
+                                    live_notes=live_notes, is_live=True)
+        else:
+            built = build_day_frame(comps, target, name_st)
         if built is None:
-            out = write_placeholder(f"产物最新可用日 {target.date()} 当日无任何预测行")
+            out = write_placeholder(f"目标日 {target.date()} 无任何预测行")
             print(f"  [L3] 当日无预测行 → 占位报告: {out}")
             return
         df, meta = built

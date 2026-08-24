@@ -90,12 +90,28 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
     kline_dates = set(_dates_in(con, "daily_kline"))
 
     # ---- 硬失败：最新开市日 factor_values 无数据 ----
+    # 分时段判定（2026-08-24 审计 #12 精化）：当日行情已到位（kline 有行）
+    # 而因子缺 = 因子计算问题，硬失败；行情缺失时——17:00 前属盘前正常态
+    # （软警告），17:00 后属"晚间拉取真失败"，恢复硬失败以阻断下游
     if latest_open and latest_open not in fv_dates:
-        report["hard_fail"] = True
-        report["hard_fail_reason"] = (
-            f"最新开市日 {latest_open} 的 factor_values 无数据（行情未拉取或因子计算失败），"
-            f"当日预测不可产出"
-        )
+        import datetime as _dt
+        evening = _dt.datetime.now().hour >= 17
+        if latest_open in kline_dates:
+            report["hard_fail"] = True
+            report["hard_fail_reason"] = (
+                f"最新开市日 {latest_open} 的 factor_values 无数据（行情已到位，"
+                f"因子计算失败），当日预测不可产出"
+            )
+        elif evening:
+            report["hard_fail"] = True
+            report["hard_fail_reason"] = (
+                f"最新开市日 {latest_open} 行情在 17:00 后仍缺失——晚间拉取失败，"
+                f"当日预测不可产出"
+            )
+        else:
+            report["soft_warnings"].append(
+                f"最新开市日 {latest_open} 行情尚未到位（盘前运行），"
+                f"因子完整性硬失败暂缓")
 
     # ---- 软警告 1：factor_values vs daily_kline 历史日期空洞 ----
     fv_holes = sorted(kline_dates - fv_dates)
