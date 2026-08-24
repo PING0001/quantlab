@@ -267,6 +267,13 @@ def _compute_isst(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     - 撤销类记录（撤销ST/撤销*ST/摘星/摘帽）作为当前 ST 区间的终止信号
       （取区间内最早者），其自身不开启新 ST 区间。注意 '撤消*ST并实行ST'
       不属于撤销类（摘星后仍为 ST）。
+
+    2026-08-24 修复（变级记录漏开区间）：'从ST变为*ST'/'从*ST变为ST' 等
+    变级记录此前既不匹配 WHERE change_reason IN ('ST','*ST')（不开新
+    区间），又通过 LEAD 把旧区间截断在变级日——ST 从未中断的股票在变级
+    日当天被误判为非 ST（实测 2026-08-21 名带 ST 的 89 只中 12 只漏判，
+    *ST萃华 戴帽 7 个月 IsST=0 进了报告榜首）。开区间判定改为"reason 含
+    'ST' 且非撤销/摘星/摘帽前缀"。
     """
     df = con.execute("""
         WITH ordered AS (
@@ -289,7 +296,10 @@ def _compute_isst(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
                    ), DATE '9999-12-31')
                ) AS end_excl
         FROM ordered
-        WHERE change_reason IN ('ST', '*ST')
+        WHERE change_reason LIKE '%ST%'
+          AND NOT (change_reason LIKE '撤销%'
+                   OR change_reason LIKE '摘星%'
+                   OR change_reason LIKE '摘帽%')
         ORDER BY code, start_date
     """).fetchdf()
     if df.empty:

@@ -579,12 +579,9 @@ def main() -> None:
         else:
             target = max(max(last_dates.values()), latest_factor_date)
 
-        # 防御层 ①：名称快照（池内）
-        codes = sorted({str(c) for comp in comps.values()
-                        for c in comp["series"].index.get_level_values("code").unique()})
-        name_map_all = load_name_map(codes)
-        name_st = {c for c, n in name_map_all.items()
-                   if isinstance(n, str) and ("ST" in n or "退" in n)}
+        # 2026-08-24 用户裁定：名称快照层退役——ST/退市判定 = 日度 IsST +
+        # delist 日期（build_day_frame 内的 ②③ 层，均为时点口径）
+        name_st = set()
 
         # 前沿日期（parquet 未覆盖）→ 冻结模型实时推理；否则走 parquet 切片
         live_notes: list[str] = []

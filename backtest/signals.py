@@ -977,6 +977,11 @@ def compute_benchmark(ohlcv_map, test_dates, delist_info=None, excluded_codes=No
     for code, ohlcv in ohlcv_map.items():
         valid = ohlcv[ohlcv.index >= base_dt]
         if not valid.empty:
+            # 时点 ST 判定（2026-08-24 裁定，替代名称快照）：入场日 IsST=1
+            # 不进等权基准（当日不可买）；持有期间变 ST 不强制退出（买入持有
+            # 组合本就不交易，与组合侧"日度 IsST 只拦新买"对称）
+            if int(valid.iloc[0].get("IsST", 0) or 0) == 1:
+                continue
             base_close[code] = float(valid.iloc[0]["Close"])
 
     # Track last known close for each stock (for suspension handling)

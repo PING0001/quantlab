@@ -213,20 +213,11 @@ def main():
     full_ohlcv = load_ohlcv_map(con, pool_codes)
     print(f"  OHLCV: {len(ohlcv_map)} prediction stocks, {len(full_ohlcv)} pool stocks")
 
+    # 2026-08-24 用户裁定：名称快照层退役——ST/退市判定统一走时点口径
+    # （日度 IsST 因子 + delist_info 日期）。原实现用当前名称快照剔 ST/退
+    # 且对回测窗全程生效（2026 年才戴帽的股票被全程剔除，方向上抬高回测）。
     excluded_codes = set()
-    try:
-        placeholders = ",".join(["?"] * len(pred_codes))
-        name_df = con.execute(
-            f"SELECT code, name FROM stock_info WHERE code IN ({placeholders})",
-            pred_codes,
-        ).fetchdf()
-        for _, row in name_df.iterrows():
-            n = row["name"]
-            if isinstance(n, str) and ("ST" in n or "退" in n):
-                excluded_codes.add(row["code"])
-    except Exception:
-        pass
-    print(f"  Excluded (ST/退): {len(excluded_codes)} stocks")
+    print("  Excluded (ST/退): 0 — 名称快照层已退役（IsST 时点 + delist 日期接管）")
 
     delist_info = {}
     try:
