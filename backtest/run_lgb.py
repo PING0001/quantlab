@@ -207,11 +207,15 @@ def main():
     # ---- 2. Load OHLCV + metadata ----
     print(f"\n[2/5] Loading OHLCV + metadata ...")
     con = duckdb.connect(str(DB_PATH), read_only=True)
-    pool_codes = get_pool_codes()
+    from pools.membership import reset_points as pool_reset_points
+    pred_end = str(score.index.get_level_values("date").max().date())
+    bench_reset_pts = pool_reset_points(str(test_start.date()), pred_end)
+    bench_codes = sorted(set().union(*[m for _, m in bench_reset_pts]))
     pred_codes = sorted(score.index.get_level_values("code").unique())
     ohlcv_map = load_ohlcv_map(con, pred_codes)
-    full_ohlcv = load_ohlcv_map(con, pool_codes)
-    print(f"  OHLCV: {len(ohlcv_map)} prediction stocks, {len(full_ohlcv)} pool stocks")
+    full_ohlcv = load_ohlcv_map(con, bench_codes)
+    print(f"  OHLCV: {len(ohlcv_map)} prediction stocks, {len(full_ohlcv)} "
+          f"bench stocks（池时点化：窗口内成员并集，半年重置 {len(bench_reset_pts)} 段）")
 
     # 2026-08-24 用户裁定：名称快照层退役——ST/退市判定统一走时点口径
     # （日度 IsST 因子 + delist_info 日期）。原实现用当前名称快照剔 ST/退
@@ -232,16 +236,17 @@ def main():
     # ---- 3. IC reference (each model vs own label + score vs both) ----
     print(f"\n[3/5] IC reference ...")
     con_r = duckdb.connect(str(DB_PATH), read_only=True)
-    placeholders = ",".join(["?"] * len(pool_codes))
+    ic_codes = sorted(set(pred_codes) | set(bench_codes))   # 池时点化：预测 ∪ 基准成员
+    placeholders = ",".join(["?"] * len(ic_codes))
     kline = con_r.execute(
         f"SELECT code, date, open, close FROM daily_kline WHERE code IN ({placeholders}) ORDER BY code, date",
-        pool_codes,
+        ic_codes,
     ).fetchdf()
 
     try:
         st_df = con_r.execute(
             f"SELECT code, date, IsST FROM factor_values WHERE code IN ({placeholders})",
-            pool_codes,
+            ic_codes,
         ).fetchdf()
         if not st_df.empty:
             st_df["date"] = pd.to_datetime(st_df["date"])
@@ -323,8 +328,10 @@ def main():
               f"max={hd.max():.0f}")
 
     test_dates = [d for d in pred_dates if d <= pd.Timestamp(test_end_date)]
-    bench_df = compute_benchmark(full_ohlcv, test_dates, delist_info=delist_info,
-                                 excluded_codes=excluded_codes)
+    from backtest.signals import compute_benchmark_pit
+    bench_df = compute_benchmark_pit(full_ohlcv, test_dates,
+                                     reset_points=bench_reset_pts,
+                                     delist_info=delist_info)
 
     # ========================================================================
     # REPORT

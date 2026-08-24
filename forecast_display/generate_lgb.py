@@ -142,9 +142,10 @@ def live_day_predictions(target_date: pd.Timestamp,
     SQL 加池过滤防池外行混入（2026-08-24 审计 #11）。
     返回 ({model: 当日预测 Series(code 索引)}, 缺失/降级披露)。"""
     from strategies.lgb import LGBStrategy
-    from config import get_lgb_model_path, get_pool_codes
+    from config import get_lgb_model_path
+    from pools.membership import latest_codes
 
-    pool_codes = get_pool_codes()
+    pool_codes = sorted(latest_codes())   # 池时点化：LIVE 过滤 = 最新档成员
     ph = ",".join(["?"] * len(pool_codes))
     day = str(target_date.date())
     day_series: dict[str, pd.Series] = {}

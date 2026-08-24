@@ -34,6 +34,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import (DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS,
                     MODEL_CONFIGS, FOLDS, FOLD_TRAIN_START, get_fold)
 from strategies.labels import compute_median_open
+from pools.membership import union_codes, member_mask
+from run_lgb import HISTORY_SINCE   # 成员起点单源（池时点化 2026-08-24）
 
 
 # 口径说明：2026-08-21 用户裁定筛选与训练对齐——IC 与相关度均自 2020 起
@@ -48,7 +50,7 @@ MUST_INCLUDE = ["CSI_return_20d"]
 
 
 def load_factors(con):
-    pool_codes = get_pool_codes()
+    pool_codes = union_codes(since=HISTORY_SINCE)
     placeholders = ",".join(["?"] * len(pool_codes))
     query = f"SELECT * FROM factor_values WHERE code IN ({placeholders})"
     df = con.execute(query, pool_codes).fetchdf()
@@ -58,7 +60,7 @@ def load_factors(con):
 
 
 def load_kline(con):
-    pool_codes = get_pool_codes()
+    pool_codes = union_codes(since=HISTORY_SINCE)
     placeholders = ",".join(["?"] * len(pool_codes))
     query = f"SELECT code, date, open, close FROM daily_kline WHERE code IN ({placeholders}) ORDER BY code, date"
     return con.execute(query, pool_codes).fetchdf()
@@ -126,6 +128,10 @@ def main():
     buf_end = buffered_train_end(panel_dates, test_start, cfg["label_buffer"])
     train_mask = (date_level >= train_start) & (date_level < buf_end)
     factors = factors.loc[train_mask]
+    # 池时点化：IC 只在当期档成员行上算（横截面口径 = 各档当时的池）
+    mm = member_mask(factors.index.get_level_values("date"),
+                     factors.index.get_level_values("code"))
+    factors = factors.loc[mm]
     print(f"  Training range: {factors.index.get_level_values('date').min().date()} ~ "
           f"{factors.index.get_level_values('date').max().date()} "
           f"(IC 窗口终点回退 label_buffer={cfg['label_buffer']} 至 {buf_end.date()})")

@@ -211,8 +211,9 @@ def main():
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-    codes = get_pool_codes()
-    log.info("Pool: %d stocks", len(codes))
+    from pools.membership import latest_codes
+    codes = sorted(latest_codes())   # 池时点化：日更只算最新档成员（2026-08-24）
+    log.info("Pool: %d stocks (latest snapshot members)", len(codes))
 
     con = duckdb.connect(str(DB_PATH))
     con.execute("SET threads = 4")

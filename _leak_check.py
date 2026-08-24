@@ -46,6 +46,7 @@ from config import (DB_PATH, POOL_NAME, get_pool_codes, MODEL_CONFIGS,
                     get_lgb_predictions_path, get_lgb_predictions_meta_path)
 from strategies.base import buffered_train_end
 from strategies.labels import compute_median_open, compute_nextopen_limit_mask
+from pools.membership import union_codes, member_mask
 
 # 训练入口单源：常量与 delist 加载直接复用，防两处漂移
 import run_lgb as trainer
@@ -135,6 +136,10 @@ def replicate_model_panel(
 
     idx_date = idx.get_level_values("date")
     idx = idx[np.asarray(idx_date >= trainer.TRAIN_START)]
+
+    # 池时点化：与 run_lgb.train_model 同步的成员资格过滤
+    mm = member_mask(idx.get_level_values("date"), idx.get_level_values("code"))
+    idx = idx[mm]
     return idx
 
 
@@ -234,7 +239,7 @@ def main() -> int:
 
     check_c4_label_direction()
 
-    pool = get_pool_codes()
+    pool = union_codes(since=trainer.HISTORY_SINCE)
     ph = ",".join(["?"] * len(pool))
     con = duckdb.connect(str(DB_PATH), read_only=True)
 

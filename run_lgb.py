@@ -35,6 +35,11 @@ from config import (DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS,
 from strategies import LGBStrategy, walk_forward, rank_ic, ic_summary
 from strategies.base import buffered_train_end
 from strategies.labels import compute_median_open, compute_nextopen_limit_mask
+from pools.membership import union_codes, member_mask
+
+# 池时点化（2026-08-24）：数据加载 = 2019-12 首档起成员并集；行级资格 =
+# 各档成员期内。首档 2019-12-02 覆盖训练起点 2020-01 的完整成员。
+HISTORY_SINCE = "2019-12-02"
 
 
 # --- config ---
@@ -90,7 +95,7 @@ def load_industry_sw_l3(con: duckdb.DuckDBPyConnection) -> tuple[pd.Series, dict
 
 
 def load_factors(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
-    pool_codes = get_pool_codes()
+    pool_codes = union_codes(since=HISTORY_SINCE)
     placeholders = ",".join(["?"] * len(pool_codes))
     query = f"SELECT * FROM factor_values WHERE code IN ({placeholders})"
     df = con.execute(query, pool_codes).fetchdf()
@@ -100,7 +105,7 @@ def load_factors(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
 
 
 def load_kline(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
-    pool_codes = get_pool_codes()
+    pool_codes = union_codes(since=HISTORY_SINCE)
     placeholders = ",".join(["?"] * len(pool_codes))
     query = f"SELECT code, date, open, close FROM daily_kline WHERE code IN ({placeholders}) ORDER BY code, date"
     return con.execute(query, pool_codes).fetchdf()
@@ -205,6 +210,11 @@ def train_model(
 
     mask = y.notna().all(axis=1)
     X, y = X.loc[mask], y.loc[mask]
+
+    # 池时点化：只保留 (date ∈ 当期档成员) 的行
+    mm = member_mask(X.index.get_level_values("date"),
+                     X.index.get_level_values("code"))
+    X, y = X.loc[mm], y.loc[mm]
 
     date_level = X.index.get_level_values("date")
     mask = date_level >= TRAIN_START

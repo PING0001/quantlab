@@ -75,7 +75,9 @@ MLP_PARAMS = dict(
 
 
 def load_panel() -> tuple[pd.DataFrame, pd.Series, pd.Timestamp]:
-    codes = get_pool_codes()
+    from pools.membership import union_codes
+    codes = union_codes()   # 池时点化：面板覆盖历史各档成员并集（训练史
+    #                          仍以旧池行为主--已知近似，重算待用户裁定）
     ph = ",".join(["?"] * len(codes))
     con = duckdb.connect(str(DB_PATH), read_only=True)
 

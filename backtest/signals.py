@@ -1024,3 +1024,72 @@ def compute_benchmark(ohlcv_map, test_dates, delist_info=None, excluded_codes=No
     daily_ret = nav_series.pct_change().dropna()
     equity = nav_series / nav_series.iloc[0]
     return pd.DataFrame({"daily_ret": daily_ret, "equity": equity})
+
+
+def compute_benchmark_pit(ohlcv_map, test_dates, reset_points, delist_info=None):
+    """池时点化基准：半年重置等权（2026-08-24 用户裁定 A）。
+
+    测试首日与各档生效日重置：等权买入当期池成员，段内买入持有（权重
+    随价格漂移）；入场过滤 = 各股段内首个交易日 IsST=1 不入（时点）；
+    退市日之后贡献归零；停牌按段内最后收盘价延续。段间 NAV 链乘。
+
+    reset_points: [(date_str, members)] 升序（pools.membership.reset_points）。
+    返回 DataFrame[daily_ret, equity]（index=test_dates），与旧
+    compute_benchmark 同构供下游消费。
+    """
+    if not test_dates or not ohlcv_map or not reset_points:
+        return pd.DataFrame()
+
+    delist_dates = {c: pd.Timestamp(d) for c, d in (delist_info or {}).items()}
+    pts = sorted(reset_points, key=lambda x: x[0])
+    td = pd.DatetimeIndex(test_dates)
+
+    equity_vals = []
+    eq_cum = 1.0
+    for i, (pt_date, members) in enumerate(pts):
+        seg_start = pd.Timestamp(pt_date)
+        seg_end = pd.Timestamp(pts[i + 1][0]) if i + 1 < len(pts) else td[-1] + pd.Timedelta(days=1)
+        seg_dates = td[(td >= seg_start) & (td < seg_end)]
+        if len(seg_dates) == 0:
+            continue
+
+        # 段内入选：首个交易日有行情且非 ST、未退市
+        picks = {}
+        for code in members:
+            ohlcv = ohlcv_map.get(code)
+            if ohlcv is None:
+                continue
+            if code in delist_dates and seg_dates[0] >= delist_dates[code]:
+                continue
+            valid = ohlcv[(ohlcv.index >= seg_dates[0]) & (ohlcv.index <= seg_dates[-1])]
+            if valid.empty:
+                continue
+            first = valid.iloc[0]
+            if int(first.get("IsST", 0) or 0) == 1:
+                continue
+            base = float(first["Close"])
+            if base <= 0:
+                continue
+            picks[code] = (valid, base)
+        if not picks:
+            continue
+
+        for dt in seg_dates:
+            total = 0.0
+            for code, (valid, base) in picks.items():
+                upto = valid[valid.index <= dt]
+                if upto.empty:
+                    continue    # 段首前无行（不应发生，防御）
+                if code in delist_dates and dt >= delist_dates[code]:
+                    continue    # 退市后归零
+                total += float(upto.iloc[-1]["Close"]) / base
+            seg_nav = total / len(picks)
+            equity_vals.append((dt, eq_cum * seg_nav))
+        eq_cum = equity_vals[-1][1]
+
+    nav = pd.Series(dict(equity_vals)).sort_index()
+    if len(nav) < 2:
+        return pd.DataFrame()
+    daily_ret = nav.pct_change().dropna()
+    equity = nav / nav.iloc[0]
+    return pd.DataFrame({"daily_ret": daily_ret, "equity": equity})

@@ -308,9 +308,15 @@ def run(full: bool = False, reconcile: bool = False, dry_run: bool = False) -> i
             log.info("Pull complete. hard_fail=%s, soft_warnings=%d",
                      report["hard_fail"], len(report["soft_warnings"]))
             # 2026-08-24 审计 #12：硬失败时返回非零退出码——原实现恒 return 0，
-            # 夜间流水线对"数据真失败"无阻断信号（pull 假成功 → update 通过 →
-            # 报告占位，全链无告警）
-            return 1 if report["hard_fail"] else 0
+            # 夜间流水线对"数据真失败"无阻断信号。**职责边界（同日 cron 首跑
+            # 实测修正）**：pull 只对行情侧硬失败负责；"factor_values 无数据"
+            # 属因子侧，在 pull 时点必然未算（那是流水线第 2 步的活），
+            # 留给 factors.update 的 integrity 把关（其时点因子已写入）
+            reason = report.get("hard_fail_reason") or ""
+            factor_side = "factor_values 无数据" in reason
+            if report["hard_fail"] and factor_side:
+                log.warning("因子侧硬失败（%s）——属流水线第 2 步职责，pull 不阻断", reason)
+            return 1 if (report["hard_fail"] and not factor_side) else 0
         finally:
             con.close()
 
