@@ -16,44 +16,55 @@
   "exclude_prefixes": [
     "alpha"
   ],
-  "n_clusters": 49,
+  "n_clusters": 53,
   "max_factors": 60,
-  "n_dates_corr": 603,
+  "n_dates_corr": 597,
   "selected_factors": [
     "CSI_return_20d",
     "AvgAmount_3d",
     "Volatility",
-    "Volatility_60d",
+    "Turnover_3d_rank",
     "LimitUpCnt_20d",
+    "StockIndexCorr_20d",
+    "LimitUpStreakMax_60d",
+    "Volatility_60d",
     "Intraday_range_pct",
     "Bollinger_width",
     "Volatility_3d",
-    "PostHighDrawdown_10d",
-    "RangeEfficiency",
-    "LnMktCap",
     "Reversal_60d",
-    "MIN_5d",
     "AvgAmount_90d",
-    "Turnover_3d",
-    "Turnover_3d_rank",
-    "Price_position_252d",
+    "AmountShrink_5_60",
     "Return_20d",
-    "CloseBIAS_20d",
-    "Return_5d",
+    "AmountConc_20d",
+    "Price_position_252d",
+    "LnMktCap",
+    "MIN_5d",
+    "IntradaySkew_60d",
     "Return_skew_20d",
-    "Amihud_3d",
+    "LowerShadow",
+    "LnFloatCap",
+    "Return_5d",
     "Turnover_3d_ratio",
     "Intraday_return",
-    "LnFloatCap",
-    "VolPriceCorr_20d",
-    "ClosePos_mean_3d",
-    "ClosePos",
-    "Price_position_5d",
-    "Gap_pct",
-    "ChipSkew",
+    "MACD_hist_pct",
+    "Amihud_3d",
+    "ClosePos_std_20d",
+    "OpenPos_mean_20d",
     "WinnerRate",
-    "LnAge",
-    "Trend_strength"
+    "VolPriceCorr_20d",
+    "ClosePos",
+    "ClosePos_mean_3d",
+    "Stochastic_K",
+    "ChipSkew",
+    "OpenPos",
+    "Gap_pct",
+    "OvernightMean_20d",
+    "UpperShadow",
+    "ClosePos_mean_20d",
+    "ShadowRatio",
+    "Trend_strength",
+    "ChipDispersion",
+    "LnAge"
   ],
   "factor_metrics": {
     "CSI_return_20d": {
@@ -63,326 +74,335 @@
       "n_ic_dates": 0
     },
     "AvgAmount_3d": {
-      "ic_primary_mean": -0.10702292250183483,
-      "ic_primary_abs_mean": 0.10702292250183483,
-      "ic_all_mean": -0.10702292250183483,
-      "n_ic_dates": 603
+      "ic_primary_mean": -0.10508314550391457,
+      "ic_primary_abs_mean": 0.10508314550391457,
+      "ic_all_mean": -0.10508314550391457,
+      "n_ic_dates": 597
     },
     "Volatility": {
-      "ic_primary_mean": -0.09775353100026592,
-      "ic_primary_abs_mean": 0.09775353100026592,
-      "ic_all_mean": -0.09775353100026592,
-      "n_ic_dates": 603
-    },
-    "Volatility_60d": {
-      "ic_primary_mean": -0.08520101718497673,
-      "ic_primary_abs_mean": 0.08520101718497673,
-      "ic_all_mean": -0.08520101718497673,
-      "n_ic_dates": 603
-    },
-    "LimitUpCnt_20d": {
-      "ic_primary_mean": -0.08435801135120648,
-      "ic_primary_abs_mean": 0.08435801135120648,
-      "ic_all_mean": -0.08435801135120648,
-      "n_ic_dates": 603
-    },
-    "Intraday_range_pct": {
-      "ic_primary_mean": -0.082020082765916,
-      "ic_primary_abs_mean": 0.082020082765916,
-      "ic_all_mean": -0.082020082765916,
-      "n_ic_dates": 603
-    },
-    "Bollinger_width": {
-      "ic_primary_mean": -0.07492608168801533,
-      "ic_primary_abs_mean": 0.07492608168801533,
-      "ic_all_mean": -0.07492608168801533,
-      "n_ic_dates": 603
-    },
-    "Volatility_3d": {
-      "ic_primary_mean": -0.07253489630635722,
-      "ic_primary_abs_mean": 0.07253489630635722,
-      "ic_all_mean": -0.07253489630635722,
-      "n_ic_dates": 603
-    },
-    "PostHighDrawdown_10d": {
-      "ic_primary_mean": 0.062407416275811166,
-      "ic_primary_abs_mean": 0.062407416275811166,
-      "ic_all_mean": 0.062407416275811166,
-      "n_ic_dates": 603
-    },
-    "RangeEfficiency": {
-      "ic_primary_mean": 0.06240437198921865,
-      "ic_primary_abs_mean": 0.06240437198921865,
-      "ic_all_mean": 0.06240437198921865,
-      "n_ic_dates": 603
-    },
-    "LnMktCap": {
-      "ic_primary_mean": -0.05439480260652977,
-      "ic_primary_abs_mean": 0.05439480260652977,
-      "ic_all_mean": -0.05439480260652977,
-      "n_ic_dates": 603
-    },
-    "Reversal_60d": {
-      "ic_primary_mean": 0.05061267242033559,
-      "ic_primary_abs_mean": 0.05061267242033559,
-      "ic_all_mean": 0.05061267242033559,
-      "n_ic_dates": 603
-    },
-    "MIN_5d": {
-      "ic_primary_mean": 0.04934982088945355,
-      "ic_primary_abs_mean": 0.04934982088945355,
-      "ic_all_mean": 0.04934982088945355,
-      "n_ic_dates": 603
-    },
-    "AvgAmount_90d": {
-      "ic_primary_mean": -0.04852966867720519,
-      "ic_primary_abs_mean": 0.04852966867720519,
-      "ic_all_mean": -0.04852966867720519,
-      "n_ic_dates": 603
-    },
-    "Turnover_3d": {
-      "ic_primary_mean": -0.04592691392690116,
-      "ic_primary_abs_mean": 0.04592691392690116,
-      "ic_all_mean": -0.04592691392690116,
-      "n_ic_dates": 603
+      "ic_primary_mean": -0.10073085460668584,
+      "ic_primary_abs_mean": 0.10073085460668584,
+      "ic_all_mean": -0.10073085460668584,
+      "n_ic_dates": 597
     },
     "Turnover_3d_rank": {
-      "ic_primary_mean": -0.045763035472070994,
-      "ic_primary_abs_mean": 0.045763035472070994,
-      "ic_all_mean": -0.045763035472070994,
-      "n_ic_dates": 603
+      "ic_primary_mean": -0.09646192134976396,
+      "ic_primary_abs_mean": 0.09646192134976396,
+      "ic_all_mean": -0.09646192134976396,
+      "n_ic_dates": 597
     },
-    "IntradaySkew_60d": {
-      "ic_primary_mean": -0.043179577340571415,
-      "ic_primary_abs_mean": 0.043179577340571415,
-      "ic_all_mean": -0.043179577340571415,
-      "n_ic_dates": 603
+    "LimitUpCnt_20d": {
+      "ic_primary_mean": -0.09389640400609502,
+      "ic_primary_abs_mean": 0.09389640400609502,
+      "ic_all_mean": -0.09389640400609502,
+      "n_ic_dates": 597
     },
-    "Price_position_252d": {
-      "ic_primary_mean": -0.041225273484749046,
-      "ic_primary_abs_mean": 0.041225273484749046,
-      "ic_all_mean": -0.041225273484749046,
-      "n_ic_dates": 603
+    "StockIndexCorr_20d": {
+      "ic_primary_mean": 0.0937454769973599,
+      "ic_primary_abs_mean": 0.0937454769973599,
+      "ic_all_mean": 0.0937454769973599,
+      "n_ic_dates": 597
+    },
+    "LimitUpStreakMax_60d": {
+      "ic_primary_mean": -0.09311112676429056,
+      "ic_primary_abs_mean": 0.09311112676429056,
+      "ic_all_mean": -0.09311112676429056,
+      "n_ic_dates": 597
+    },
+    "Volatility_60d": {
+      "ic_primary_mean": -0.08631810733750753,
+      "ic_primary_abs_mean": 0.08631810733750753,
+      "ic_all_mean": -0.08631810733750753,
+      "n_ic_dates": 597
+    },
+    "Intraday_range_pct": {
+      "ic_primary_mean": -0.08418664849316054,
+      "ic_primary_abs_mean": 0.08418664849316054,
+      "ic_all_mean": -0.08418664849316054,
+      "n_ic_dates": 597
+    },
+    "Bollinger_width": {
+      "ic_primary_mean": -0.07955988036937443,
+      "ic_primary_abs_mean": 0.07955988036937443,
+      "ic_all_mean": -0.07955988036937443,
+      "n_ic_dates": 597
+    },
+    "Volatility_3d": {
+      "ic_primary_mean": -0.07343593710421983,
+      "ic_primary_abs_mean": 0.07343593710421983,
+      "ic_all_mean": -0.07343593710421983,
+      "n_ic_dates": 597
+    },
+    "Reversal_60d": {
+      "ic_primary_mean": 0.07187178726777374,
+      "ic_primary_abs_mean": 0.07187178726777374,
+      "ic_all_mean": 0.07187178726777374,
+      "n_ic_dates": 597
+    },
+    "AvgAmount_90d": {
+      "ic_primary_mean": -0.0666659411426561,
+      "ic_primary_abs_mean": 0.0666659411426561,
+      "ic_all_mean": -0.0666659411426561,
+      "n_ic_dates": 597
+    },
+    "AmountShrink_5_60": {
+      "ic_primary_mean": -0.06286448423692373,
+      "ic_primary_abs_mean": 0.06286448423692373,
+      "ic_all_mean": -0.06286448423692373,
+      "n_ic_dates": 597
     },
     "Return_20d": {
-      "ic_primary_mean": -0.040524330768099574,
-      "ic_primary_abs_mean": 0.040524330768099574,
-      "ic_all_mean": -0.040524330768099574,
-      "n_ic_dates": 603
+      "ic_primary_mean": -0.062111025097574955,
+      "ic_primary_abs_mean": 0.062111025097574955,
+      "ic_all_mean": -0.062111025097574955,
+      "n_ic_dates": 597
     },
-    "LowerShadow": {
-      "ic_primary_mean": -0.04021013046164862,
-      "ic_primary_abs_mean": 0.04021013046164862,
-      "ic_all_mean": -0.04021013046164862,
-      "n_ic_dates": 603
+    "AmountConc_20d": {
+      "ic_primary_mean": -0.06080129051804361,
+      "ic_primary_abs_mean": 0.06080129051804361,
+      "ic_all_mean": -0.06080129051804361,
+      "n_ic_dates": 597
     },
-    "CloseBIAS_20d": {
-      "ic_primary_mean": -0.03863739565909236,
-      "ic_primary_abs_mean": 0.03863739565909236,
-      "ic_all_mean": -0.03863739565909236,
-      "n_ic_dates": 603
+    "Price_position_252d": {
+      "ic_primary_mean": -0.05164531941690424,
+      "ic_primary_abs_mean": 0.05164531941690424,
+      "ic_all_mean": -0.05164531941690424,
+      "n_ic_dates": 597
     },
-    "Return_5d": {
-      "ic_primary_mean": -0.03567748747042228,
-      "ic_primary_abs_mean": 0.03567748747042228,
-      "ic_all_mean": -0.03567748747042228,
-      "n_ic_dates": 603
+    "LnMktCap": {
+      "ic_primary_mean": -0.05119729708314696,
+      "ic_primary_abs_mean": 0.05119729708314696,
+      "ic_all_mean": -0.05119729708314696,
+      "n_ic_dates": 597
+    },
+    "MIN_5d": {
+      "ic_primary_mean": 0.04873945252147839,
+      "ic_primary_abs_mean": 0.04873945252147839,
+      "ic_all_mean": 0.04873945252147839,
+      "n_ic_dates": 597
+    },
+    "IntradaySkew_60d": {
+      "ic_primary_mean": -0.047230992799973316,
+      "ic_primary_abs_mean": 0.047230992799973316,
+      "ic_all_mean": -0.047230992799973316,
+      "n_ic_dates": 597
     },
     "Return_skew_20d": {
-      "ic_primary_mean": -0.035118542751224405,
-      "ic_primary_abs_mean": 0.035118542751224405,
-      "ic_all_mean": -0.035118542751224405,
-      "n_ic_dates": 603
+      "ic_primary_mean": -0.04568602681400946,
+      "ic_primary_abs_mean": 0.04568602681400946,
+      "ic_all_mean": -0.04568602681400946,
+      "n_ic_dates": 597
     },
-    "Amihud_3d": {
-      "ic_primary_mean": 0.03417829961966356,
-      "ic_primary_abs_mean": 0.03417829961966356,
-      "ic_all_mean": 0.03417829961966356,
-      "n_ic_dates": 603
-    },
-    "Turnover_3d_ratio": {
-      "ic_primary_mean": -0.03181836863657055,
-      "ic_primary_abs_mean": 0.03181836863657055,
-      "ic_all_mean": -0.03181836863657055,
-      "n_ic_dates": 603
-    },
-    "Intraday_return": {
-      "ic_primary_mean": -0.03170761629424859,
-      "ic_primary_abs_mean": 0.03170761629424859,
-      "ic_all_mean": -0.03170761629424859,
-      "n_ic_dates": 603
-    },
-    "ClosePos_std_20d": {
-      "ic_primary_mean": -0.030165052868061537,
-      "ic_primary_abs_mean": 0.030165052868061537,
-      "ic_all_mean": -0.030165052868061537,
-      "n_ic_dates": 603
+    "LowerShadow": {
+      "ic_primary_mean": -0.044542087270487495,
+      "ic_primary_abs_mean": 0.044542087270487495,
+      "ic_all_mean": -0.044542087270487495,
+      "n_ic_dates": 597
     },
     "LnFloatCap": {
-      "ic_primary_mean": -0.02851098112753127,
-      "ic_primary_abs_mean": 0.02851098112753127,
-      "ic_all_mean": -0.02851098112753127,
-      "n_ic_dates": 603
+      "ic_primary_mean": -0.04406855265799395,
+      "ic_primary_abs_mean": 0.04406855265799395,
+      "ic_all_mean": -0.04406855265799395,
+      "n_ic_dates": 597
     },
-    "VolPriceCorr_20d": {
-      "ic_primary_mean": -0.02466406937876369,
-      "ic_primary_abs_mean": 0.02466406937876369,
-      "ic_all_mean": -0.02466406937876369,
-      "n_ic_dates": 603
+    "Return_5d": {
+      "ic_primary_mean": -0.043708862534609184,
+      "ic_primary_abs_mean": 0.043708862534609184,
+      "ic_all_mean": -0.043708862534609184,
+      "n_ic_dates": 597
     },
-    "ClosePos_mean_3d": {
-      "ic_primary_mean": -0.022631661318858902,
-      "ic_primary_abs_mean": 0.022631661318858902,
-      "ic_all_mean": -0.022631661318858902,
-      "n_ic_dates": 603
+    "Turnover_3d_ratio": {
+      "ic_primary_mean": -0.03817800854166836,
+      "ic_primary_abs_mean": 0.03817800854166836,
+      "ic_all_mean": -0.03817800854166836,
+      "n_ic_dates": 597
     },
-    "ClosePos": {
-      "ic_primary_mean": -0.022413420675344204,
-      "ic_primary_abs_mean": 0.022413420675344204,
-      "ic_all_mean": -0.022413420675344204,
-      "n_ic_dates": 603
+    "Intraday_return": {
+      "ic_primary_mean": -0.03789531985758946,
+      "ic_primary_abs_mean": 0.03789531985758946,
+      "ic_all_mean": -0.03789531985758946,
+      "n_ic_dates": 597
     },
-    "UpperShadow": {
-      "ic_primary_mean": -0.021975787485683018,
-      "ic_primary_abs_mean": 0.021975787485683018,
-      "ic_all_mean": -0.021975787485683018,
-      "n_ic_dates": 603
+    "MACD_hist_pct": {
+      "ic_primary_mean": -0.032595341849147086,
+      "ic_primary_abs_mean": 0.032595341849147086,
+      "ic_all_mean": -0.032595341849147086,
+      "n_ic_dates": 597
     },
-    "Price_position_5d": {
-      "ic_primary_mean": -0.021121891002681456,
-      "ic_primary_abs_mean": 0.021121891002681456,
-      "ic_all_mean": -0.021121891002681456,
-      "n_ic_dates": 603
+    "Amihud_3d": {
+      "ic_primary_mean": 0.031571389208692006,
+      "ic_primary_abs_mean": 0.031571389208692006,
+      "ic_all_mean": 0.031571389208692006,
+      "n_ic_dates": 597
     },
-    "OvernightMean_20d": {
-      "ic_primary_mean": 0.020622119857221118,
-      "ic_primary_abs_mean": 0.020622119857221118,
-      "ic_all_mean": 0.020622119857221118,
-      "n_ic_dates": 603
+    "ClosePos_std_20d": {
+      "ic_primary_mean": -0.031354247563183536,
+      "ic_primary_abs_mean": 0.031354247563183536,
+      "ic_all_mean": -0.031354247563183536,
+      "n_ic_dates": 597
     },
-    "OpenPos": {
-      "ic_primary_mean": 0.019672528584518657,
-      "ic_primary_abs_mean": 0.019672528584518657,
-      "ic_all_mean": 0.019672528584518657,
-      "n_ic_dates": 603
-    },
-    "Gap_pct": {
-      "ic_primary_mean": 0.018734544988687755,
-      "ic_primary_abs_mean": 0.018734544988687755,
-      "ic_all_mean": 0.018734544988687755,
-      "n_ic_dates": 603
-    },
-    "ChipSkew": {
-      "ic_primary_mean": -0.018662160612252218,
-      "ic_primary_abs_mean": 0.018662160612252218,
-      "ic_all_mean": -0.018662160612252218,
-      "n_ic_dates": 603
+    "OpenPos_mean_20d": {
+      "ic_primary_mean": 0.029815776828224817,
+      "ic_primary_abs_mean": 0.029815776828224817,
+      "ic_all_mean": 0.029815776828224817,
+      "n_ic_dates": 597
     },
     "WinnerRate": {
-      "ic_primary_mean": -0.017429356703294423,
-      "ic_primary_abs_mean": 0.017429356703294423,
-      "ic_all_mean": -0.017429356703294423,
-      "n_ic_dates": 603
+      "ic_primary_mean": -0.028950332035480707,
+      "ic_primary_abs_mean": 0.028950332035480707,
+      "ic_all_mean": -0.028950332035480707,
+      "n_ic_dates": 597
     },
-    "ChipDispersion": {
-      "ic_primary_mean": 0.014581305981099184,
-      "ic_primary_abs_mean": 0.014581305981099184,
-      "ic_all_mean": 0.014581305981099184,
-      "n_ic_dates": 603
+    "VolPriceCorr_20d": {
+      "ic_primary_mean": -0.028938073113429233,
+      "ic_primary_abs_mean": 0.028938073113429233,
+      "ic_all_mean": -0.028938073113429233,
+      "n_ic_dates": 597
     },
-    "LnAge": {
-      "ic_primary_mean": 0.010450232961152701,
-      "ic_primary_abs_mean": 0.010450232961152701,
-      "ic_all_mean": 0.010450232961152701,
-      "n_ic_dates": 603
+    "ClosePos": {
+      "ic_primary_mean": -0.02872559341405396,
+      "ic_primary_abs_mean": 0.02872559341405396,
+      "ic_all_mean": -0.02872559341405396,
+      "n_ic_dates": 597
     },
-    "ShadowRatio": {
-      "ic_primary_mean": 0.009568519824644251,
-      "ic_primary_abs_mean": 0.009568519824644251,
-      "ic_all_mean": 0.009568519824644251,
-      "n_ic_dates": 603
+    "ClosePos_mean_3d": {
+      "ic_primary_mean": -0.027885417195340326,
+      "ic_primary_abs_mean": 0.027885417195340326,
+      "ic_all_mean": -0.027885417195340326,
+      "n_ic_dates": 597
+    },
+    "Stochastic_K": {
+      "ic_primary_mean": -0.026507793761675155,
+      "ic_primary_abs_mean": 0.026507793761675155,
+      "ic_all_mean": -0.026507793761675155,
+      "n_ic_dates": 597
+    },
+    "ChipSkew": {
+      "ic_primary_mean": -0.02607114326495005,
+      "ic_primary_abs_mean": 0.02607114326495005,
+      "ic_all_mean": -0.02607114326495005,
+      "n_ic_dates": 597
+    },
+    "OpenPos": {
+      "ic_primary_mean": 0.022471264813152363,
+      "ic_primary_abs_mean": 0.022471264813152363,
+      "ic_all_mean": 0.022471264813152363,
+      "n_ic_dates": 597
+    },
+    "Gap_pct": {
+      "ic_primary_mean": 0.01923805170096458,
+      "ic_primary_abs_mean": 0.01923805170096458,
+      "ic_all_mean": 0.01923805170096458,
+      "n_ic_dates": 597
+    },
+    "OvernightMean_20d": {
+      "ic_primary_mean": 0.01887950263248097,
+      "ic_primary_abs_mean": 0.01887950263248097,
+      "ic_all_mean": 0.01887950263248097,
+      "n_ic_dates": 597
+    },
+    "UpperShadow": {
+      "ic_primary_mean": -0.01870290413658952,
+      "ic_primary_abs_mean": 0.01870290413658952,
+      "ic_all_mean": -0.01870290413658952,
+      "n_ic_dates": 597
     },
     "ClosePos_mean_20d": {
-      "ic_primary_mean": -0.00807604576784954,
-      "ic_primary_abs_mean": 0.00807604576784954,
-      "ic_all_mean": -0.00807604576784954,
-      "n_ic_dates": 603
+      "ic_primary_mean": -0.015010310979732726,
+      "ic_primary_abs_mean": 0.015010310979732726,
+      "ic_all_mean": -0.015010310979732726,
+      "n_ic_dates": 597
+    },
+    "ShadowRatio": {
+      "ic_primary_mean": 0.014041287934610696,
+      "ic_primary_abs_mean": 0.014041287934610696,
+      "ic_all_mean": 0.014041287934610696,
+      "n_ic_dates": 597
     },
     "Trend_strength": {
-      "ic_primary_mean": -0.00569339703482347,
-      "ic_primary_abs_mean": 0.00569339703482347,
-      "ic_all_mean": -0.00569339703482347,
-      "n_ic_dates": 603
+      "ic_primary_mean": -0.008422951385601089,
+      "ic_primary_abs_mean": 0.008422951385601089,
+      "ic_all_mean": -0.008422951385601089,
+      "n_ic_dates": 597
+    },
+    "ChipDispersion": {
+      "ic_primary_mean": -0.0022250103504145684,
+      "ic_primary_abs_mean": 0.0022250103504145684,
+      "ic_all_mean": -0.0022250103504145684,
+      "n_ic_dates": 597
+    },
+    "LnAge": {
+      "ic_primary_mean": 4.384291845357067e-05,
+      "ic_primary_abs_mean": 4.384291845357067e-05,
+      "ic_all_mean": 4.384291845357067e-05,
+      "n_ic_dates": 597
     }
   },
   "discarded_corr": [
     {
       "factor": "CostPosition",
       "corr_with": "ChipSkew",
-      "corr": 0.9329193517780958
-    },
-    {
-      "factor": "Volume_ratio",
-      "corr_with": "Turnover_3d_ratio",
-      "corr": 0.8225998993923297
-    },
-    {
-      "factor": "Amihud_illiquidity",
-      "corr_with": "Amihud_3d",
-      "corr": 0.8175046450986514
-    },
-    {
-      "factor": "MACD_hist_pct",
-      "corr_with": "CloseBIAS_20d",
-      "corr": 0.8113774485506746
+      "corr": 0.942136079469073
     },
     {
       "factor": "ATR_pct",
       "corr_with": "Volatility",
-      "corr": 0.7889434802554492
+      "corr": 0.8920999450436354
+    },
+    {
+      "factor": "CloseBIAS_20d",
+      "corr_with": "Return_20d",
+      "corr": 0.8394722009901951
+    },
+    {
+      "factor": "Volume_ratio",
+      "corr_with": "Turnover_3d_ratio",
+      "corr": 0.8268361678522348
+    },
+    {
+      "factor": "Turnover_3d",
+      "corr_with": "AvgAmount_3d",
+      "corr": 0.821654626158374
+    },
+    {
+      "factor": "Return_20d_rank",
+      "corr_with": "Return_20d",
+      "corr": 0.8199141517596878
+    },
+    {
+      "factor": "Amihud_illiquidity",
+      "corr_with": "Amihud_3d",
+      "corr": 0.8032397516413093
     },
     {
       "factor": "Return_3d",
       "corr_with": "Return_5d",
-      "corr": 0.760918290109862
-    },
-    {
-      "factor": "Return_20d_rank",
-      "corr_with": "Turnover_3d_rank",
-      "corr": 0.7230296509378198
-    },
-    {
-      "factor": "Stochastic_K",
-      "corr_with": "Price_position_5d",
-      "corr": 0.7131163267186289
+      "corr": 0.7855574316062692
     },
     {
       "factor": "Return_1d_rank",
-      "corr_with": "Turnover_3d_rank",
-      "corr": 0.6309464593036257
+      "corr_with": "Intraday_return",
+      "corr": 0.7721059148741277
     },
     {
-      "factor": "CSI_volatility_20d",
+      "factor": "DownsideVol_20d",
+      "corr_with": "Volatility",
+      "corr": 0.7514424741633584
+    },
+    {
+      "factor": "Price_position_5d",
+      "corr_with": "Stochastic_K",
+      "corr": 0.7142145507965918
+    },
+    {
+      "factor": "RangeEfficiency",
       "corr_with": "Turnover_3d_rank",
-      "corr": -0.8071274455184312
+      "corr": -0.7232360123319356
+    },
+    {
+      "factor": "PostHighDrawdown_10d",
+      "corr_with": "Volatility",
+      "corr": -0.7401722455849888
     }
-  ],
-  "cleaned": {
-    "source": "fold_cv_slim",
-    "fold": "F1",
-    "rule": "gain==0 and ic_drop==0 (rounded 1e-4)",
-    "dropped": [
-      "IntradaySkew_60d",
-      "LowerShadow",
-      "ClosePos_std_20d",
-      "UpperShadow",
-      "OvernightMean_20d",
-      "OpenPos",
-      "ChipDispersion",
-      "ShadowRatio",
-      "ClosePos_mean_20d"
-    ],
-    "n_before": 43,
-    "n_after": 34
-  }
+  ]
 }
