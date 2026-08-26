@@ -29,15 +29,17 @@ import duckdb
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import DB_PATH
+from config import DB_PATH, POOL_NAME, ROOT, get_factor_table
 from pools.membership import union_codes
 
 log = logging.getLogger(__name__)
 
-REPORT_PATH = DB_PATH.parent / "integrity_report.json"
+# 报告写本仓 data/（ROOT 锚定而非 DB_PATH.parent：dev bench 经 QUANTLAB_DB
+# 共享主仓 DB 时，报告不越界写进主仓；主仓默认路径不变）
+REPORT_PATH = ROOT / "data" / "integrity_report.json"
 
 # 行数漂移监控的表（trading 粒度）
-ROW_DRIFT_TABLES = ["daily_raw", "daily_basic", "cyq_perf", "factor_values"]
+ROW_DRIFT_TABLES = ["daily_raw", "daily_basic", "cyq_perf"]
 
 # 因子列 NULL 率监控窗口（交易日）与告警阈值。阈值取 0.30 而非 0.50：
 # 实证 alpha100 在近 250 交易日 NULL 率 33%（80/250 天全空）从未触发旧
@@ -71,7 +73,8 @@ def _latest_open_day(con) -> tuple[str, bool]:
     return (str(d)[:10], False) if d else (None, False)
 
 
-def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
+def run_checks(con: duckdb.DuckDBPyConnection, pool: str | None = None) -> dict:
+    fv_table = get_factor_table(pool)
     report = {
         "checked_at": datetime.now().isoformat(timespec="seconds"),
         "hard_fail": False,
@@ -87,7 +90,7 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
         report["degraded"] = True
         report["soft_warnings"].append("trading_calendar 不可用，日历对账已跳过（降级）")
 
-    fv_dates = set(_dates_in(con, "factor_values"))
+    fv_dates = set(_dates_in(con, fv_table))
     kline_dates = set(_dates_in(con, "daily_kline"))
 
     # ---- 硬失败：最新开市日 factor_values 无数据 ----
@@ -100,7 +103,7 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
         if latest_open in kline_dates:
             report["hard_fail"] = True
             report["hard_fail_reason"] = (
-                f"最新开市日 {latest_open} 的 factor_values 无数据（行情已到位，"
+                f"最新开市日 {latest_open} 的 {fv_table} 无数据（行情已到位，"
                 f"因子计算失败），当日预测不可产出"
             )
         elif evening:
@@ -114,13 +117,17 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
                 f"最新开市日 {latest_open} 行情尚未到位（盘前运行），"
                 f"因子完整性硬失败暂缓")
 
-    # ---- 软警告 1：factor_values vs daily_kline 历史日期空洞 ----
-    fv_holes = sorted(kline_dates - fv_dates)
+    # ---- 软警告 1：池因子表自身范围内 vs daily_kline 的历史日期空洞 ----
+    # 锚定表内最早日期：2020 起的新池表不把 2008~2019 计为缺失（表范围外
+    # 不属于该池口径）。
+    fv_lo = min(fv_dates) if fv_dates else None
+    fv_holes = sorted(d for d in (kline_dates - fv_dates)
+                      if fv_lo is None or d >= fv_lo)
     if fv_holes:
         report["soft_warnings"].append(
-            f"factor_values 缺 {len(fv_holes)} 个历史交易日: {fv_holes[:5]}{'...' if len(fv_holes) > 5 else ''}"
+            f"{fv_table} 缺 {len(fv_holes)} 个历史交易日: {fv_holes[:5]}{'...' if len(fv_holes) > 5 else ''}"
         )
-    report["tables"]["factor_values"] = {"missing_vs_kline": len(fv_holes)}
+    report["tables"][fv_table] = {"missing_vs_kline": len(fv_holes)}
 
     # ---- 软警告 2：行数漂移（最新有数据日 vs 前 20 日中位数，±30%）----
     for table in ROW_DRIFT_TABLES:
@@ -162,7 +169,7 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
     # ---- 软警告 4：日历对账（各表自身范围内缺的开市日）----
     if cal_ok and latest_open:
         from data import trading_calendar as cal
-        for table in ["daily_raw", "daily_basic", "cyq_perf", "factor_values"]:
+        for table in ["daily_raw", "daily_basic", "cyq_perf", fv_table]:
             tdates = set(_dates_in(con, table))
             if not tdates:
                 continue
@@ -182,12 +189,11 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
     #      代表因子的非空率 ----
     if latest_open:
         fv_cols = {r[0] for r in con.execute(
-            "SELECT column_name FROM information_schema.columns WHERE table_name='factor_values'"
-        ).fetchall()}
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = ?", [fv_table]).fetchall()}
         cols_to_check = []
         try:
-            sel_path = Path(__file__).parent / \
-                f"selected_{(os.environ.get('QUANTLAB_POOL') or 'mainboard_microcap')}_20d.json"
+            sel_path = Path(__file__).parent / f"selected_{POOL_NAME}_20d.json"
             if sel_path.exists():
                 sel = json.loads(sel_path.read_text(encoding="utf-8"))
                 cols_to_check += [c for c in sel.get("selected_factors", [])
@@ -198,7 +204,7 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
                           if c in fv_cols]
         for col in dict.fromkeys(cols_to_check):
             nonnull, total = con.execute(
-                f"SELECT COUNT({col}), COUNT(*) FROM factor_values WHERE date=?::DATE",
+                f"SELECT COUNT({col}), COUNT(*) FROM {fv_table} WHERE date=?::DATE",
                 [latest_open],
             ).fetchone()
             if total and nonnull / total < 0.5:
@@ -214,12 +220,12 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
         from .update import STOCK_COVERAGE_MIN
 
         # 池时点化（2026-08-25）：快照全历史成员并集，经调用方连接查询
-        pool_codes = union_codes(con=con)
+        pool_codes = union_codes(con=con, pool=POOL_NAME)
         rows = con.execute(
             """
             WITH pool AS (SELECT DISTINCT unnest(?::VARCHAR[]) AS code),
             k AS (SELECT code, COUNT(*) AS n FROM daily_kline GROUP BY code),
-            f AS (SELECT code, COUNT(*) AS n FROM factor_values GROUP BY code)
+            f AS (SELECT code, COUNT(*) AS n FROM {fv_table} GROUP BY code)
             SELECT p.code, COALESCE(k.n, 0), COALESCE(f.n, 0)
             FROM pool p
             LEFT JOIN k ON k.code = p.code
@@ -231,13 +237,13 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
             [pool_codes, STOCK_COVERAGE_MIN],
         ).fetchall()
         miss_rows = sum(int(k - f) for _, k, f in rows)
-        report["tables"].setdefault("factor_values", {})["stock_gaps"] = {
+        report["tables"].setdefault(fv_table, {})["stock_gaps"] = {
             "codes": len(rows), "pool": len(pool_codes), "missing_rows": miss_rows,
         }
         if rows:
             sample = ", ".join(str(c) for c, _, _ in rows[:5])
             report["soft_warnings"].append(
-                f"factor_values 股票级缺口: {len(rows)}/{len(pool_codes)} 只池内代码"
+                f"{fv_table} 股票级缺口: {len(rows)}/{len(pool_codes)} 只池内代码"
                 f"覆盖不足（<{STOCK_COVERAGE_MIN:.0%}，约缺 {miss_rows} 行），"
                 f"示例 {sample}{'...' if len(rows) > 5 else ''}"
                 f"（python -m factors.update --backfill-stocks 回补）"
@@ -251,29 +257,29 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
     #      逐列 NULL 率超阈值即告警 ----
     try:
         fv_cols = {r[0] for r in con.execute(
-            "SELECT column_name FROM information_schema.columns WHERE table_name='factor_values'"
-        ).fetchall()}
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = ?", [fv_table]).fetchall()}
         null_cols = [c for c in sorted(fv_cols)
                      if c not in ("code", "date") and not c.startswith("ai_")]
         if null_cols:
             cutoff = con.execute(
-                "SELECT MIN(date) FROM (SELECT DISTINCT date FROM factor_values "
+                f"SELECT MIN(date) FROM (SELECT DISTINCT date FROM {fv_table} "
                 "ORDER BY date DESC LIMIT ?)", [NULL_WINDOW_DAYS]
             ).fetchone()[0]
             total = con.execute(
-                "SELECT COUNT(*) FROM factor_values WHERE date >= ?", [cutoff]
+                f"SELECT COUNT(*) FROM {fv_table} WHERE date >= ?", [cutoff]
             ).fetchone()[0]
             if total:
                 exprs = ", ".join(f"COUNT({c})" for c in null_cols)
                 nonnulls = con.execute(
-                    f"SELECT {exprs} FROM factor_values WHERE date >= ?", [cutoff]
+                    f"SELECT {exprs} FROM {fv_table} WHERE date >= ?", [cutoff]
                 ).fetchone()
                 high_null = [
                     {"column": c, "null_rate": round(1 - n / total, 3)}
                     for c, n in zip(null_cols, nonnulls) if (1 - n / total) > NULL_RATE_MAX
                 ]
                 if high_null:
-                    report["tables"].setdefault("factor_values", {})[
+                    report["tables"].setdefault(fv_table, {})[
                         "high_null_columns"] = high_null
                     detail = ", ".join(
                         f"{h['column']}({h['null_rate']:.0%})" for h in high_null[:10])
@@ -294,9 +300,9 @@ def write_report(report: dict):
     )
 
 
-def check(con: duckdb.DuckDBPyConnection) -> dict:
+def check(con: duckdb.DuckDBPyConnection, pool: str | None = None) -> dict:
     """运行校验、写报告、打日志。返回 report（调用方据 hard_fail 决定 exit code）。"""
-    report = run_checks(con)
+    report = run_checks(con, pool)
     write_report(report)
     for w in report["soft_warnings"]:
         log.warning("[integrity/soft] %s", w)
@@ -316,7 +322,7 @@ def main():
     )
     con = duckdb.connect(str(DB_PATH), read_only=True)
     try:
-        report = check(con)
+        report = check(con, pool=POOL_NAME)
     finally:
         con.close()
     sys.exit(1 if report["hard_fail"] else 0)

@@ -52,3 +52,4 @@ data/alpha_test_report.json
 
 # fold predictions cache (regenerable via fold_cv.py)
 data/folds/
+.venv

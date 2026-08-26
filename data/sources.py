@@ -20,8 +20,8 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from config import DB_PATH, TRACKED_INDICES
-from pools.membership import union_codes
+from config import DB_PATH, POOL_NAME, TRACKED_INDICES
+from pools.membership import POOLS, union_codes
 
 from data._ts import retry_api
 
@@ -281,14 +281,31 @@ def pull_shibor(con, pro, dates: list[str]) -> int:
 
 
 def _pool_union_codes(con) -> set[str]:
-    """池代码并集（时点快照全历史成员）--namechange 过滤与行业触发的范围。
+    """全部池代码并集（各池时点快照全历史成员）--namechange 过滤与行业触发的范围。
 
     必须传调用方已持有的连接（pull 进程持有写连接，membership 若自开
-    只读连接会撞 DuckDB 单写者文件锁）。pool_snapshots 缺表时此处大声
-    失败（fail-fast）：池快照是全系统宇宙定义，静默空集会让 namechange
-    停更、ST/退市事件断流（2026-08-25 json 池删除事故的教训）。
+    只读连接会撞 DuckDB 单写者文件锁）。默认池（config.POOL_NAME）快照表
+    缺失时大声失败（fail-fast）：池快照是全系统宇宙定义，静默空集会让
+    namechange 停更、ST/退市事件断流（2026-08-25 json 池删除事故的教训）。
+    非默认池表缺失则告警跳过（多池渐进部署，单池环境行为不变）。
+
+    2026-08-26 多池化：范围从单池并集放宽为注册表全池并集（超集，
+    对微盘池行为中立），保证 mainboard_all 新增代码也有 namechange/
+    delist 记录（IsST/退市因子依赖）。
     """
-    return set(union_codes(con=con))
+    codes = set(union_codes(con=con))   # 默认池，缺表即 CatalogException fail-fast
+    for p in POOLS:
+        if p == POOL_NAME:
+            continue
+        tbl = POOLS[p]["snap_table"]
+        exists = con.execute(
+            "SELECT count(*) FROM information_schema.tables "
+            "WHERE table_schema = 'main' AND table_name = ?", [tbl]).fetchone()[0]
+        if not exists:
+            log.warning("池 %s 快照表 %s 缺失，拉取范围暂不含该池", p, tbl)
+            continue
+        codes |= set(union_codes(con=con, pool=p))
+    return codes
 
 
 def dedup_namechange(df: pd.DataFrame) -> pd.DataFrame:

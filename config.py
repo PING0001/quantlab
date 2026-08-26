@@ -17,13 +17,33 @@ POOL_NAME = os.environ.get("QUANTLAB_POOL", "mainboard_microcap")
 log = logging.getLogger("config")
 
 # ---- Database ----
-DB_PATH = ROOT / "data" / "ashare.duckdb"
+# QUANTLAB_DB 可覆盖 DB 路径（dev bench worktree 共享主仓 DB 实体，
+# 避免复制 5.9GB；默认仍为本仓 data/ashare.duckdb）
+DB_PATH = Path(os.environ.get("QUANTLAB_DB") or (ROOT / "data" / "ashare.duckdb"))
 
 # ---- Stock pool ----
 # 池代码单源（2026-08-25）：pools/membership.py（DB 表 pool_snapshots，
 # 时点快照）。旧 pools/*.json 历史并集已物理删除，config 不再提供任何
 # json 池读取；需要池代码一律 `from pools.membership import ...`。
+# 2026-08-26 多池化：每池独立快照表与因子表（见 pools.membership.POOLS），
+# 横截面因子参考系按池隔离，绝不可共表。
 POOLS_DIR = ROOT / "pools"
+
+# 每池一张因子表（列所有权同构：update 公式列 + gb_/nn_ 模型因子列）。
+# 微盘池沿用现名 factor_values（现役零改名）；新池表名带池后缀。
+FACTOR_TABLES = {
+    "mainboard_microcap": "factor_values",
+    "mainboard_all": "factor_values_mainboard_all",
+}
+
+
+def get_factor_table(pool: str | None = None) -> str:
+    """池 -> 因子表名。缺省 = config.POOL_NAME（env QUANTLAB_POOL）。"""
+    p = pool or POOL_NAME
+    if p not in FACTOR_TABLES:
+        raise ValueError(f"no factor table registered for pool {p!r}, "
+                         f"expected one of {sorted(FACTOR_TABLES)}")
+    return FACTOR_TABLES[p]
 
 
 # ---- Selected factor set (single source of truth) ----

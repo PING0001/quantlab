@@ -2,11 +2,14 @@
 """池成员资格（时点）单源模块：查询 API + 快照构建器（2026-08-24 池时点化，
 2026-08-25 吸收原 pools/build_pool_history.py）。
 
-数据源：pool_snapshots(effective_date, cutoff_date, code)--半年度快照。
+数据源：每池一张快照表（mainboard_microcap -> pool_snapshots；
+mainboard_all -> pool_snapshots_mainboard_all），结构同为
+(effective_date, cutoff_date, code)--半年度快照，独立存储互不污染。
 查询语义：日期 d 的池 = 满足 eff <= d < next_eff 的档的成员集；d 早于首档
 -> 空集。消费端（训练/筛选/泄漏断言/回测基准/LIVE 报告/日更/数据拉取范围）
 一律经本模块取成员，不再读 pools/*.json 的历史并集（并集宇宙已废，
-2026-08-25 起物理删除）。
+2026-08-25 起物理删除）。查询 API 缺省池 = config.POOL_NAME（env
+QUANTLAB_POOL，默认微盘）；显式 pool= 参数可覆盖。
 
 快照构建（沪深300式，2026-08-24 用户四项裁定 + 次新参数）：
   生效日   = 每年 6 / 12 月的首个交易日（简化版，不抄第二个周五）
@@ -18,8 +21,9 @@
   次新排除 = 选样截止日时上市不满 252 个交易日（按交易日历计）
 
 Usage（重建快照，幂等；写 DB 后自动清进程缓存）：
-    python -m pools.membership              # 全序列重建（默认 2015 起）
-    python -m pools.membership --from 2024  # 只重建指定年份起的档
+    python -m pools.membership                          # 微盘池全序列重建
+    python -m pools.membership --from 2024              # 只重建指定年份起的档
+    python -m pools.membership --pool mainboard_all     # 全主板池重建
 """
 from __future__ import annotations
 
@@ -33,14 +37,12 @@ import duckdb
 import numpy as np
 import pandas as pd
 
-from config import DB_PATH
+from config import DB_PATH, POOL_NAME
 
 log = logging.getLogger(__name__)
 
-_IVS = None   # 进程级缓存：[(eff, next_eff|None, frozenset)]
-
-# 人读版 JSON（构建器副产物，regenerable，gitignore；勿复用已删的旧池历史并集文件名）
-HISTORY_PATH = DB_PATH.parent.parent / "pools" / "mainboard_microcap_snapshots.json"
+# 进程级缓存：{pool: [(eff, next_eff|None, frozenset)]}
+_IVS_CACHE: dict[str, list] = {}
 
 # ---- 带规则（原 pools/build_microcap.py 同源复制，勿漂移）----
 # 2026-08-24 用户裁定：带宽放宽至 1~40 亿（流通市值；原 1~20 亿时点池仅
@@ -52,20 +54,48 @@ TOTAL_YEARS = 11.0
 DECAY_RATIO = 11.0 / 20.0
 MIN_LISTED_TRADING_DAYS = 252   # 次新股门槛（用户裁定 2026-08-24）
 
+# ---- 池注册表（2026-08-26 多池化）：每池独立快照表，band=None 即无市值带 ----
+# 横截面因子参考系按池隔离（factor_values 每池一表，见 config.FACTOR_TABLES）；
+# 两池代码大量重叠（全主板 ⊇ 微盘），绝不可共表共列。
+POOLS = {
+    "mainboard_microcap": dict(
+        snap_table="pool_snapshots",
+        band=(BASE_LOW_YI, BASE_HIGH_YI),
+    ),
+    "mainboard_all": dict(
+        snap_table="pool_snapshots_mainboard_all",
+        band=None,
+    ),
+}
+
+
+def _history_path(pool: str) -> Path:
+    # 人读版 JSON（构建器副产物，regenerable，gitignore）；命名沿用 main 的
+    # neat-freak 改名裁定：{pool}_snapshots.json
+    return DB_PATH.parent.parent / "pools" / f"{pool}_snapshots.json"
+
 
 # ============================================================================
 # 查询 API
 # ============================================================================
 
-def _load(con: duckdb.DuckDBPyConnection | None = None):
-    global _IVS
-    if _IVS is not None:
-        return _IVS
+def _resolve_pool(pool: str | None) -> str:
+    """缺省池 = config.POOL_NAME（env QUANTLAB_POOL，默认微盘）。"""
+    p = pool or POOL_NAME
+    if p not in POOLS:
+        raise ValueError(f"unknown pool {p!r}, expected one of {sorted(POOLS)}")
+    return p
+
+
+def _load(pool: str | None = None, con: duckdb.DuckDBPyConnection | None = None):
+    p = _resolve_pool(pool)
+    if p in _IVS_CACHE:
+        return _IVS_CACHE[p]
     own = con is None
     c = con or duckdb.connect(str(DB_PATH), read_only=True)
     try:
         rows = c.execute(
-            "SELECT effective_date, list(code) FROM pool_snapshots "
+            f"SELECT effective_date, list(code) FROM {POOLS[p]['snap_table']} "
             "GROUP BY effective_date ORDER BY effective_date").fetchall()
     finally:
         if own:
@@ -73,14 +103,13 @@ def _load(con: duckdb.DuckDBPyConnection | None = None):
     effs = [r[0] for r in rows]
     ivs = [(r[0], effs[i + 1] if i + 1 < len(rows) else None, frozenset(r[1]))
            for i, r in enumerate(rows)]
-    _IVS = ivs
+    _IVS_CACHE[p] = ivs
     return ivs
 
 
 def refresh():
-    """快照重建后清缓存。"""
-    global _IVS
-    _IVS = None
+    """快照重建后清缓存（全池）。"""
+    _IVS_CACHE.clear()
 
 
 def _norm_date(d) -> str:
@@ -89,9 +118,9 @@ def _norm_date(d) -> str:
     return pd.Timestamp(d).strftime("%Y-%m-%d")
 
 
-def member_mask(dates, codes, con=None) -> np.ndarray:
+def member_mask(dates, codes, con=None, pool: str | None = None) -> np.ndarray:
     """逐行判定 (date, code) 是否当期池成员。向量化（merge），无 python 行循环。"""
-    ivs = _load(con)
+    ivs = _load(pool, con)
     effs = np.array([e for e, _, _ in ivs])
     d_str = pd.Series(dates).map(_norm_date).to_numpy()
     iv_id = np.searchsorted(effs, d_str, side="right") - 1
@@ -107,9 +136,9 @@ def member_mask(dates, codes, con=None) -> np.ndarray:
     return (hit["_merge"] == "both").to_numpy()
 
 
-def union_codes(since: str | None = None, con=None) -> list[str]:
+def union_codes(since: str | None = None, con=None, pool: str | None = None) -> list[str]:
     """since 起各档成员并集（数据加载用：标签 K 线、因子行、拉取范围）。"""
-    ivs = _load(con)
+    ivs = _load(pool, con)
     s = set()
     for eff, _, codes in ivs:
         if since is None or eff >= since:
@@ -117,24 +146,24 @@ def union_codes(since: str | None = None, con=None) -> list[str]:
     return sorted(s)
 
 
-def latest_codes(con=None) -> frozenset:
-    return _load(con)[-1][2]
+def latest_codes(con=None, pool: str | None = None) -> frozenset:
+    return _load(pool, con)[-1][2]
 
 
-def codes_on(date, con=None) -> frozenset:
+def codes_on(date, con=None, pool: str | None = None) -> frozenset:
     d = _norm_date(date)
-    for eff, nxt, codes in reversed(_load(con)):
+    for eff, nxt, codes in reversed(_load(pool, con)):
         if d >= eff and (nxt is None or d < nxt):
             return codes
     return frozenset()
 
 
-def reset_points(test_start, test_end, con=None) -> list[tuple[str, frozenset]]:
+def reset_points(test_start, test_end, con=None, pool: str | None = None) -> list[tuple[str, frozenset]]:
     """基准半年重置点（用户裁定 A）：测试首日 + 窗口内各生效日 ->
     [(date, members)] 升序。"""
     ts, te = _norm_date(test_start), _norm_date(test_end)
-    pts = [(ts, codes_on(ts, con))]
-    for eff, _, codes in _load(con):
+    pts = [(ts, codes_on(ts, con, pool))]
+    for eff, _, codes in _load(pool, con):
         if ts < eff <= te:
             pts.append((eff, codes))
     return pts
@@ -186,22 +215,31 @@ def _periods(con: duckdb.DuckDBPyConnection, from_year: int) -> list[tuple[str, 
     return out
 
 
-def rebuild_snapshots(from_year: int = 2015) -> None:
-    """全序列重建 pool_snapshots（幂等，DROP+CREATE）+ 人读版 JSON。"""
+def rebuild_snapshots(from_year: int = 2015, pool: str | None = None) -> None:
+    """重建指定池的快照表（幂等，DROP+CREATE 该池自己的表）+ 人读版 JSON。"""
+    p = _resolve_pool(pool)
+    snap_table = POOLS[p]["snap_table"]
+    band = POOLS[p]["band"]
     con = duckdb.connect(str(DB_PATH))
 
     periods = _periods(con, from_year)
     if not periods:
         raise SystemExit("无可构建档期（检查 trading_calendar / daily_basic）")
-    log.info("档期 %d 个: %s ... %s", len(periods), periods[0][0], periods[-1][0])
+    log.info("[%s] 档期 %d 个: %s ... %s", p, len(periods), periods[0][0], periods[-1][0])
 
     snapshots = []
     for eff, cut in periods:
         factor = _decay_factor(_decimal_year(cut))
         low_wan = round(BASE_LOW_YI * factor * 10000, 0)
         high_wan = round(BASE_HIGH_YI * factor * 10000, 0)
+        # band=None（如 mainboard_all）-> 无市值带：只留板块/次新/存在性谓词
+        band_sql = ("AND b.circ_mv > ? AND b.circ_mv < ?" if band else "")
+        params = [cut]
+        if band:
+            params += [low_wan, high_wan]
+        params += [cut, MIN_LISTED_TRADING_DAYS]
         codes = [r[0] for r in con.execute(
-            """
+            f"""
             SELECT DISTINCT b.code
             FROM daily_basic b
             LEFT JOIN stock_info s ON b.code = s.code
@@ -210,22 +248,22 @@ def rebuild_snapshots(from_year: int = 2015) -> None:
                       CASE WHEN b.code LIKE '00%' OR b.code LIKE '60%'
                            THEN '主板' END) = '主板'
               AND b.date = ?
-              AND b.circ_mv > ?
-              AND b.circ_mv < ?
+              {band_sql}
               AND s.list_date IS NOT NULL
               AND (SELECT count(*) FROM trading_calendar c
                    WHERE c.is_open = true
                      AND c.date > s.list_date AND c.date <= ?::DATE) >= ?
             """,
-            [cut, low_wan, high_wan, cut, MIN_LISTED_TRADING_DAYS],
+            params,
         ).fetchall()]
         snapshots.append({"effective_date": eff, "cutoff_date": cut,
                           "codes": sorted(codes)})
-        log.info("  生效 %s（选样 %s，带 %.2f~%.2f 亿）: %d 只",
-                 eff, cut, BASE_LOW_YI * factor, BASE_HIGH_YI * factor, len(codes))
+        band_desc = (f"带 {BASE_LOW_YI * factor:.2f}~{BASE_HIGH_YI * factor:.2f} 亿"
+                     if band else "无市值带")
+        log.info("  生效 %s（选样 %s，%s）: %d 只", eff, cut, band_desc, len(codes))
 
-    con.execute("DROP TABLE IF EXISTS pool_snapshots")
-    con.execute("""CREATE TABLE pool_snapshots (
+    con.execute(f"DROP TABLE IF EXISTS {snap_table}")
+    con.execute(f"""CREATE TABLE {snap_table} (
         effective_date VARCHAR NOT NULL,
         cutoff_date     VARCHAR NOT NULL,
         code            VARCHAR NOT NULL,
@@ -233,18 +271,24 @@ def rebuild_snapshots(from_year: int = 2015) -> None:
     for snap in snapshots:
         if snap["codes"]:
             con.execute(
-                "INSERT INTO pool_snapshots SELECT ?, ?, unnest(?)",
+                f"INSERT INTO {snap_table} SELECT ?, ?, unnest(?)",
                 [snap["effective_date"], snap["cutoff_date"], snap["codes"]])
     con.execute("CHECKPOINT")
-    n = con.execute("SELECT count(*) FROM pool_snapshots").fetchone()[0]
+    n = con.execute(f"SELECT count(*) FROM {snap_table}").fetchone()[0]
     con.close()
     refresh()
 
     # ---- 写 JSON（人读版）----
+    rule = ("半年度快照：生效=6/12月首个交易日；选样=前一月末最后交易日；"
+            "主板+通胀调整带(1-40亿@2026, decay 0.55/11y)；"
+            f"次新排除=上市不满 {MIN_LISTED_TRADING_DAYS} 交易日"
+            if band else
+            "半年度快照：生效=6/12月首个交易日；选样=前一月末最后交易日；"
+            "主板（00/60 前缀兜底，排除 B 股）无市值带；"
+            f"次新排除=上市不满 {MIN_LISTED_TRADING_DAYS} 交易日")
     meta = {
-        "rule": "半年度快照：生效=6/12月首个交易日；选样=前一月末最后交易日；"
-                "主板+通胀调整带(1-40亿@2026, decay 0.55/11y)；"
-                f"次新排除=上市不满 {MIN_LISTED_TRADING_DAYS} 交易日",
+        "pool": p,
+        "rule": rule,
         "built_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "n_periods": len(snapshots),
         "total_rows": n,
@@ -252,12 +296,14 @@ def rebuild_snapshots(from_year: int = 2015) -> None:
                     for s in snapshots],
         "snapshots": snapshots,
     }
-    HISTORY_PATH.write_text(json.dumps(meta, ensure_ascii=False, indent=2),
+    history_path = _history_path(p)
+    history_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2),
                             encoding="utf-8")
 
     sizes = [len(s["codes"]) for s in snapshots]
     log.info("=" * 60)
-    log.info("DB pool_snapshots 共 %d 行 / %d 档；JSON -> %s", n, len(snapshots), HISTORY_PATH)
+    log.info("[%s] DB %s 共 %d 行 / %d 档；JSON -> %s", p, snap_table, n,
+             len(snapshots), history_path)
     log.info("最新档 %s: %d 只；各档人数: min=%d max=%d 中位=%d",
              snapshots[-1]["effective_date"], len(snapshots[-1]["codes"]),
              min(sizes), max(sizes), sorted(sizes)[len(sizes) // 2])
@@ -265,11 +311,14 @@ def rebuild_snapshots(from_year: int = 2015) -> None:
 
 def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    ap = argparse.ArgumentParser(description="重建池时点快照 pool_snapshots")
+    ap = argparse.ArgumentParser(description="重建池时点快照（每池一表）")
     ap.add_argument("--from", dest="from_year", type=int, default=2015,
                     help="起始年份（默认 2015，即首个档 2015-06）")
+    ap.add_argument("--pool", default=POOL_NAME,
+                    choices=sorted(POOLS),
+                    help="目标池（默认 config.POOL_NAME / env QUANTLAB_POOL）")
     args = ap.parse_args()
-    rebuild_snapshots(from_year=args.from_year)
+    rebuild_snapshots(from_year=args.from_year, pool=args.pool)
 
 
 if __name__ == "__main__":
