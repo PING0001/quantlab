@@ -157,6 +157,30 @@ def load_isst(con: duckdb.DuckDBPyConnection, spec: PoolSpec,
     return load_panel(con, spec, codes=codes, cols=["IsST"], start=start, end=end)
 
 
+def min_date_nonnull(con: duckdb.DuckDBPyConnection, spec: PoolSpec,
+                     col: str) -> str | None:
+    """某因子列最早非空日期（如 nn 训练段的筹码起点，运行时动态查询防硬编码漂移）。"""
+    try:
+        row = con.execute(
+            f"SELECT min(date) FROM {spec.factor_table} WHERE {col} IS NOT NULL"
+        ).fetchone()
+        return str(row[0])[:10] if row and row[0] else None
+    except duckdb.Error:
+        return None
+
+
+def coverage_frontier(con: duckdb.DuckDBPyConnection, spec: PoolSpec,
+                      col: str) -> str | None:
+    """某因子列的覆盖前沿（最新非空日期；--infer-only 补值的起点判定）。"""
+    try:
+        row = con.execute(
+            f"SELECT max(date) FROM {spec.factor_table} WHERE {col} IS NOT NULL"
+        ).fetchone()
+        return str(row[0])[:10] if row and row[0] else None
+    except duckdb.Error:
+        return None
+
+
 # ============================================================================
 # 写
 # ============================================================================
@@ -320,6 +344,30 @@ def _dtype_of(s: pd.Series) -> str:
     if pd.api.types.is_float_dtype(s):
         return "DOUBLE"
     return "VARCHAR"
+
+
+def fill_column_nulls(con: duckdb.DuckDBPyConnection, spec: PoolSpec,
+                      col: str, pdf: pd.DataFrame) -> int:
+    """只填 NULL 的单列写入（--infer-only 前沿补值路径：不覆盖已有值）。
+
+    pdf 需含 code/date/value 三列；列不存在时先补齐。返回匹配行数。
+    """
+    if pdf.empty:
+        return 0
+    ensure_column(con, spec, col, _dtype_of(pdf["value"]))
+    pdf = pdf[["code", "date", "value"]].copy()
+    pdf["date"] = pdf["date"].astype(str).str[:10]
+    pdf = pdf.rename(columns={"value": col})
+    con.execute("CREATE OR REPLACE TEMP TABLE _panel_upd AS SELECT * FROM pdf")
+    con.execute(f"""
+        UPDATE {spec.factor_table} f SET {col} = p.{col}
+        FROM _panel_upd p
+        WHERE f.code = p.code AND f.date = p.date AND f.{col} IS NULL
+    """)
+    return con.execute(f"""
+        SELECT COUNT(*) FROM _panel_upd p
+        JOIN {spec.factor_table} f ON f.code = p.code AND f.date = p.date
+    """).fetchone()[0]
 
 
 def ensure_column(con: duckdb.DuckDBPyConnection, spec: PoolSpec,

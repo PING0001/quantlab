@@ -16,17 +16,19 @@ mlp_ 前缀保留给深度学习族；列所有权归本脚本。
   模型  = XGBoost 回归（reg:squarederror，保守小树）
   管道  = expanding walk-forward OOF：2015 起，≥960 交易日出 OOS，每 120 交易日
           重训，训练尾段截 label_buffer=6（目标最远引用 T+1，1+5 安全边际）
-  产出  = factor_values 列 gb_gap1d（本脚本拥有列所有权；全历史重建覆盖旧值）
+  产出  = 池因子表（spec.factor_table）列 gb_gap1d（本脚本拥有列所有权；全历史重建覆盖旧值）
 
 验收基准（过去实测）：最强单因子 Gap_pct 的 IC 0.089；gap1d 主模型
 （35 因子 LightGBM）IC ~0.19；早期带 OHLCV 的迭代版（100 列 + 9 因子）
 IC 0.1912（已归档删除）。
 
 Usage:
-    python -m factors.build_gb_gap1d
+    python -m factors.build_gb_gap1d                     # 默认池（env/微盘）
+    python -m factors.build_gb_gap1d --pool mainboard_all
 """
 from __future__ import annotations
 
+import argparse
 import sys
 import time
 from pathlib import Path
@@ -40,7 +42,9 @@ from scipy.stats import spearmanr
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import DB_PATH
+from pools.spec import get_pool, PoolSpec
 from pools.membership import union_codes
+from factors import store
 
 TRAIN_START = "2015-01-01"
 MIN_TRAIN_DAYS = 960
@@ -62,16 +66,15 @@ XGB_PARAMS = dict(
 )
 
 
-def load_panel() -> tuple[pd.DataFrame, pd.Series]:
+def load_panel(spec: PoolSpec) -> tuple[pd.DataFrame, pd.Series]:
     # kline 仅用于构造目标：次行开盘 / 当日收盘 − 1（后复权）
     con = duckdb.connect(str(DB_PATH), read_only=True)
-    codes = union_codes(con=con)   # 池时点化：快照全历史成员并集
+    codes = union_codes(con=con, pool=spec.name)   # 池时点化：快照全历史成员并集
     ph = ",".join(["?"] * len(codes))
     k = con.execute(
         f"SELECT code, date, open, close, adj_factor "
         f"FROM daily_raw WHERE code IN ({ph}) AND date >= ? ORDER BY code, date",
         [*codes, TRAIN_START]).fetchdf()
-    con.close()
     k["date"] = pd.to_datetime(k["date"])
     for c in ("open", "close"):
         k[c] = k[c] * k["adj_factor"]
@@ -82,11 +85,9 @@ def load_panel() -> tuple[pd.DataFrame, pd.Series]:
     y = y.where(nxt_open.notna().to_numpy())   # 次日停牌剔除
     y.name = "target"
 
-    # 输入 = 11 个公式因子列，无原始 OHLCV
-    con = duckdb.connect(str(DB_PATH), read_only=True)
-    fv = con.execute(
-        f"SELECT code, date, {', '.join(FORMULA_FACTORS)} FROM factor_values "
-        f"WHERE code IN ({ph}) AND date >= ?", [*codes, TRAIN_START]).fetchdf()
+    # 输入 = 11 个公式因子列，无原始 OHLCV（因子表 SQL 走 store 单点）
+    fv = store.load_panel(con, spec, codes=codes, cols=FORMULA_FACTORS,
+                          start=TRAIN_START)
     con.close()
     fv["date"] = pd.to_datetime(fv["date"])
     X = fv.set_index(["code", "date"]).sort_index()
@@ -120,9 +121,15 @@ def walk_forward_oof(X: pd.DataFrame, y: pd.Series) -> pd.Series:
 
 
 def main():
+    ap = argparse.ArgumentParser(description="gb_gap1d 构建XGBoost 隔夜跳空因子")
+    ap.add_argument("--pool", default=None,
+                    help="目标池（默认 env QUANTLAB_POOL / 微盘）")
+    args = ap.parse_args()
+    spec = get_pool(args.pool)
+
     t0 = time.time()
-    print(f"[{COL}] 加载面板（{len(FORMULA_FACTORS)} 公式因子，无原始 OHLCV）...")
-    X, y = load_panel()
+    print(f"[{COL}] 池 {spec.name} 加载面板（{len(FORMULA_FACTORS)} 公式因子，无原始 OHLCV）...")
+    X, y = load_panel(spec)
     print(f"  面板 {len(X):,} 行 × {X.shape[1]} 列；有效目标 {y.notna().sum():,} 行")
 
     preds = walk_forward_oof(X, y)
@@ -153,21 +160,16 @@ def main():
               f"({len(a)} 日)")
 
     con_w = duckdb.connect(str(DB_PATH))
-    con_w.execute(f"ALTER TABLE factor_values ADD COLUMN IF NOT EXISTS {COL} DOUBLE")
     s = preds.dropna().copy()
     s.name = "value"
     pdf = s.reset_index()
     pdf["date"] = pdf["date"].astype(str).str[:10]
-    con_w.execute("CREATE OR REPLACE TEMP TABLE _gb_upd AS SELECT * FROM pdf")
-    n_match = con_w.execute("""
-        SELECT COUNT(*) FROM _gb_upd p JOIN factor_values f
-          ON f.code = p.code AND f.date = p.date""").fetchone()[0]
-    con_w.execute(f"""
-        UPDATE factor_values f SET {COL} = p.value
-        FROM _gb_upd p WHERE f.code = p.code AND f.date = p.date""")
+    pdf = pdf.rename(columns={"value": COL})
+    n_match = store.update_columns(con_w, spec, pdf)
     con_w.execute("CHECKPOINT")
     con_w.close()
-    print(f"  写入 {COL}: matched {n_match:,} rows | 总耗时 {(time.time() - t0) / 60:.1f} 分钟")
+    print(f"  写入 {COL}@{spec.factor_table}: matched {n_match:,} rows | "
+          f"总耗时 {(time.time() - t0) / 60:.1f} 分钟")
 
 
 if __name__ == "__main__":

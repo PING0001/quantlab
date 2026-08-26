@@ -123,10 +123,13 @@ def _load_cyq(con: duckdb.DuckDBPyConnection, codes: list[str]) -> pl.DataFrame:
 def _load_index_data(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     """Load CSI (000985) / HS300 (000300) / GZ2000 (399303) market state features.
 
-    GZ2000 九列的计算公式系按列名语义重建，并已用 2026-06 历史存量值
+    GZ2000 列的计算公式系按列名语义重建，并已用 2026-06 历史存量值
     回归验证（全部 0.00% 偏差）--原始实现代码从未入 git，2026-07 因子
     污染事故溯源时发现缺失。注意：GZ2000 feats 必须真正 join 进返回值
     （历史上构建后被丢弃，导致入模的 GZ2000_* 因子全 NULL）。
+    2026-08-27 死列清理：GZ2000 九列只留 return_5d/return_20d（其余 7 列
+    零引用，连同表列一并删除；return_5d 是 gb/nn 活输入，return_20d 被
+    integrity 值级检查引用）。
     """
     df = con.execute(
         "SELECT code, date, high, low, close FROM index_daily "
@@ -143,21 +146,11 @@ def _load_index_data(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
             continue
         pl_df = pl.from_pandas(part).rename({"date": "datetime"})
         if prefix == "GZ2000":
-            h, l, c = pl.col("high"), pl.col("low"), pl.col("close")
-            pc = c.shift(1)
-            tr = pl.max_horizontal(h, pc) - pl.min_horizontal(l, pc)
+            c = pl.col("close")
             feats = pl_df.select([
                 pl.col("datetime"),
-                (c / c.shift(1) - 1).alias("GZ2000_return_1d"),
                 (c / c.shift(5) - 1).alias("GZ2000_return_5d"),
                 (c / c.shift(20) - 1).alias("GZ2000_return_20d"),
-                ((c / c.shift(1) - 1).rolling_std(10)).alias("GZ2000_vol_10d"),
-                ((c / c.shift(1) - 1).rolling_std(60)).alias("GZ2000_vol_60d"),
-                (-(c / c.shift(60) - 1)).alias("GZ2000_reversal_60d"),
-                ((c - c.rolling_min(252))
-                 / (c.rolling_max(252) - c.rolling_min(252))).alias("GZ2000_pricepos_252d"),
-                tr.rolling_mean(14).alias("GZ2000_atr_14d"),
-                (4 * c.rolling_std(20) / c.rolling_mean(20)).alias("GZ2000_boll_width"),
             ])
             r[prefix] = feats
             continue
@@ -183,17 +176,6 @@ def _load_index_data(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     if "GZ2000" in r:
         market = market.join(r["GZ2000"], on="datetime", how="left") if not market.is_empty() else r["GZ2000"]
     return market
-
-
-def _load_shibor(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
-    """Load SHIBOR daily rates (on, 1m) for macro feature."""
-    df = con.execute(
-        "SELECT date, shibor_on, shibor_1m FROM macro_daily ORDER BY date"
-    ).fetchdf()
-    if df.empty:
-        return pl.DataFrame()
-    df["date"] = df["date"].astype(str)
-    return pl.from_pandas(df).rename({"date": "datetime"})
 
 
 def _load_days_to_next_trading(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
@@ -439,14 +421,6 @@ def compute_panel(
         symbols = extra_df.select("vt_symbol").unique()
         market_df = symbols.join(market_df, how="cross")
         extra_df = extra_df.join(market_df, on=["datetime", "vt_symbol"], how="left")
-
-    shibor_df = _load_shibor(con)
-    if not shibor_df.is_empty():
-        dates = extra_df.select("datetime").unique()
-        shibor_df = dates.join(shibor_df, on="datetime", how="left")
-        symbols = extra_df.select("vt_symbol").unique()
-        shibor_df = symbols.join(shibor_df, how="cross")
-        extra_df = extra_df.join(shibor_df, on=["datetime", "vt_symbol"], how="left")
 
     gap_df = _load_days_to_next_trading(con)
     if not gap_df.is_empty():
