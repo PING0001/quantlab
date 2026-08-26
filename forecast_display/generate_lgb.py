@@ -41,13 +41,13 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import (DB_PATH, POOL_NAME, get_pool_codes, get_lgb_predictions_path,
+from config import (DB_PATH, POOL_NAME, get_lgb_predictions_path,
                     get_lgb_predictions_meta_path, get_forecast_lgb_dir)
 
 # 融合权重与预测列名单源：直接 import 回测入口，防两处漂移暗改有效权重
-# （v8 的核心教训——幅度/权重漂移曾在主窗口摆动 ±20pp）
+# （v8 的核心教训--幅度/权重漂移曾在主窗口摆动 ±20pp）
 from backtest.run_lgb import PRED_COLS, W2D, W6D, W20D
-from strategies.combine import combine_scores3
+from strategies.lgb import combine_scores3
 
 # 报告成分（gap1d 独立实验模型，刻意排除）
 COMPONENTS: dict[str, float] = {"open2d": W2D, "6d": W6D, "20d": W20D}

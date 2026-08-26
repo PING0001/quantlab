@@ -39,7 +39,8 @@ from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config import DB_PATH, get_pool_codes
+from config import DB_PATH
+from pools.membership import union_codes
 
 TRAIN_START = "2015-01-01"
 MIN_TRAIN_DAYS = 960
@@ -62,11 +63,10 @@ XGB_PARAMS = dict(
 
 
 def load_panel() -> tuple[pd.DataFrame, pd.Series]:
-    codes = get_pool_codes()
-    ph = ",".join(["?"] * len(codes))
-
     # kline 仅用于构造目标：次行开盘 / 当日收盘 − 1（后复权）
     con = duckdb.connect(str(DB_PATH), read_only=True)
+    codes = union_codes(con=con)   # 池时点化：快照全历史成员并集
+    ph = ",".join(["?"] * len(codes))
     k = con.execute(
         f"SELECT code, date, open, close, adj_factor "
         f"FROM daily_raw WHERE code IN ({ph}) AND date >= ? ORDER BY code, date",

@@ -1,9 +1,5 @@
 """
 Forward returns computation for supervised learning labels.
-
-Supports delisting-aware returns: for stocks in the delisting process,
-forward returns beyond the last trading date are set to -1.0 to reflect
-that delisted stock value goes to approximately zero.
 """
 from __future__ import annotations
 
@@ -13,6 +9,9 @@ import pandas as pd
 def compute_forward_returns(kline_df: pd.DataFrame, horizon: int = 5,
                             delist_info: dict[str, pd.Timestamp] | None = None) -> pd.Series:
     """Compute forward returns from a kline DataFrame.
+
+    close 锚口径，仅供评估器回归门禁（factors/baseline_check.py）使用；
+    主线回归标签走 compute_median_open。
 
     Parameters
     ----------
@@ -53,223 +52,6 @@ def compute_forward_returns(kline_df: pd.DataFrame, horizon: int = 5,
     return fwd
 
 
-def compute_peak_high(
-    kline_df: pd.DataFrame,
-    start_day: int = 11,
-    end_day: int = 20,
-    delist_info: dict[str, pd.Timestamp] | None = None,
-) -> pd.Series:
-    """Max of daily highs over a forward window [T+start_day, T+end_day].
-
-    Relative return: max_high / close[T] - 1.
-
-    Parameters
-    ----------
-    kline_df : DataFrame
-        Must contain columns: date, code, high, close.
-    start_day, end_day : int
-        Forward window (inclusive).
-    delist_info : dict or None
-        Mapping from code to delist_date.
-
-    Returns
-    -------
-    Series with (date, code) MultiIndex.
-    """
-    df = kline_df[["date", "code", "close", "high"]].copy()
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values(["code", "date"])
-    df = df.set_index(["date", "code"])
-
-    def _peak(group):
-        c = group["close"]
-        h = group["high"]
-        peaks = pd.concat(
-            [h.shift(-d) for d in range(start_day, end_day + 1)],
-            axis=1,
-        )
-        return peaks.max(axis=1) / c - 1.0
-
-    fwd = df.groupby("code", group_keys=False).apply(_peak)
-    fwd.name = "forward_ret"
-
-    if delist_info:
-        for code, delist_date in delist_info.items():
-            if code not in fwd.index.get_level_values("code"):
-                continue
-            delist_date = pd.Timestamp(delist_date)
-            code_mask = fwd.index.get_level_values("code") == code
-            date_mask = fwd.index.get_level_values("date") >= delist_date
-            mask = code_mask & date_mask
-            fwd.loc[mask] = fwd.loc[mask].fillna(-1.0)
-
-    return fwd
-
-
-def compute_peak_close(
-    kline_df: pd.DataFrame,
-    start_day: int = 11,
-    end_day: int = 20,
-    delist_info: dict[str, pd.Timestamp] | None = None,
-) -> pd.Series:
-    """Max of daily closes over a forward window [T+start_day, T+end_day].
-
-    Relative return: max_close / close[T] - 1.
-
-    Parameters
-    ----------
-    kline_df : DataFrame
-        Must contain columns: date, code, close.
-    start_day, end_day : int
-        Forward window (inclusive).
-    delist_info : dict or None
-        Mapping from code to delist_date.
-
-    Returns
-    -------
-    Series with (date, code) MultiIndex.
-    """
-    df = kline_df[["date", "code", "close"]].copy()
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values(["code", "date"])
-    df = df.set_index(["date", "code"])
-
-    def _peak(group):
-        c = group["close"]
-        peaks = pd.concat(
-            [c.shift(-d) for d in range(start_day, end_day + 1)],
-            axis=1,
-        )
-        return peaks.max(axis=1) / c - 1.0
-
-    fwd = df.groupby("code", group_keys=False).apply(_peak)
-    fwd.name = "forward_ret"
-
-    if delist_info:
-        for code, delist_date in delist_info.items():
-            if code not in fwd.index.get_level_values("code"):
-                continue
-            delist_date = pd.Timestamp(delist_date)
-            code_mask = fwd.index.get_level_values("code") == code
-            date_mask = fwd.index.get_level_values("date") >= delist_date
-            mask = code_mask & date_mask
-            fwd.loc[mask] = fwd.loc[mask].fillna(-1.0)
-
-    return fwd
-
-
-def compute_median_close(
-    kline_df: pd.DataFrame,
-    start_day: int = 16,
-    end_day: int = 20,
-    delist_info: dict[str, pd.Timestamp] | None = None,
-) -> pd.Series:
-    """Median of daily closes over a forward window [T+start_day, T+end_day].
-
-    Relative return: median_close / close[T] - 1.
-
-    Parameters
-    ----------
-    kline_df : DataFrame
-        Must contain columns: date, code, close.
-    start_day, end_day : int
-        Forward window (inclusive).
-    delist_info : dict or None
-        Mapping from code to delist_date.
-
-    Returns
-    -------
-    Series with (date, code) MultiIndex.
-    """
-    df = kline_df[["date", "code", "close"]].copy()
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values(["code", "date"])
-    df = df.set_index(["date", "code"])
-
-    def _median(group):
-        c = group["close"]
-        vals = pd.concat(
-            [c.shift(-d) for d in range(start_day, end_day + 1)],
-            axis=1,
-        )
-        return vals.median(axis=1) / c - 1.0
-
-    fwd = df.groupby("code", group_keys=False).apply(_median)
-    fwd.name = "forward_ret"
-
-    if delist_info:
-        for code, delist_date in delist_info.items():
-            if code not in fwd.index.get_level_values("code"):
-                continue
-            delist_date = pd.Timestamp(delist_date)
-            code_mask = fwd.index.get_level_values("code") == code
-            date_mask = fwd.index.get_level_values("date") >= delist_date
-            mask = code_mask & date_mask
-            fwd.loc[mask] = fwd.loc[mask].fillna(-1.0)
-
-    return fwd
-
-
-def compute_smoothed_forward_returns(kline_df: pd.DataFrame, horizon: int = 20,
-                                     delist_info: dict[str, pd.Timestamp] | None = None) -> pd.Series:
-    """Compute smoothed forward returns using 6 price points around T+horizon.
-
-    For horizon h, uses:
-        avg(close[T+h-1], open[T+h-1], close[T+h], open[T+h], close[T+h+1], open[T+h+1])
-        / close[T] - 1
-
-    This reduces label noise by averaging over a 3-day window with both
-    open and close prices.
-
-    Parameters
-    ----------
-    kline_df : DataFrame
-        Must contain columns: date, code, open, close.
-        Sorted by (code, date).
-    horizon : int
-        Center day of the averaging window.
-    delist_info : dict or None
-        Mapping from code to delist_date (Timestamp).
-
-    Returns
-    -------
-    Series with (date, code) MultiIndex.
-    """
-    df = kline_df[["date", "code", "open", "close"]].copy()
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values(["code", "date"])
-    df = df.set_index(["date", "code"])
-
-    def _smoothed_return(group):
-        c = group["close"]
-        o = group["open"]
-        # 6 price points: close[T+h-1], open[T+h-1], close[T+h], open[T+h], close[T+h+1], open[T+h+1]
-        avg_future = (
-            c.shift(-(horizon - 1)) +
-            o.shift(-(horizon - 1)) +
-            c.shift(-horizon) +
-            o.shift(-horizon) +
-            c.shift(-(horizon + 1)) +
-            o.shift(-(horizon + 1))
-        ) / 6.0
-        return avg_future / c - 1.0
-
-    fwd = df.groupby("code", group_keys=False).apply(_smoothed_return)
-    fwd.name = "forward_ret"
-
-    if delist_info:
-        for code, delist_date in delist_info.items():
-            if code not in fwd.index.get_level_values("code"):
-                continue
-            delist_date = pd.Timestamp(delist_date)
-            code_mask = fwd.index.get_level_values("code") == code
-            date_mask = fwd.index.get_level_values("date") >= delist_date
-            mask = code_mask & date_mask
-            fwd.loc[mask] = fwd.loc[mask].fillna(-1.0)
-
-    return fwd
-
-
 def compute_median_open(
     kline_df: pd.DataFrame,
     start_day: int = 4,
@@ -279,7 +61,7 @@ def compute_median_open(
     """Median of daily opens over a forward window [T+start_day, T+end_day].
 
     Relative return: median_open / baseline - 1, where baseline is one of:
-      - "next_open": open[T+1] — earliest executable entry after the T-close
+      - "next_open": open[T+1] - earliest executable entry after the T-close
         signal; aligns with the backtest's next-day-open fill
       - "open":      open[T]
       - "close":     close[T]
@@ -288,7 +70,7 @@ def compute_median_open(
     partial windows keep the median over the opens that exist (they are real
     tradable exit prices and carry the pre-delist crash signal); a fully
     missing window yields NaN and is dropped by the caller's notna filter.
-    No -1.0 fill is implemented — the legacy fill in compute_median_close
+    No -1.0 fill is implemented - the legacy fill in compute_median_close
     never fired (its date >= delist_date mask matches no kline rows) and
     delisting risk is handled at the portfolio layer instead.
 
@@ -368,7 +150,7 @@ def compute_nextopen_limit_mask(kline_df: pd.DataFrame,
 
     # ±10% limit check (all stocks)
     # 2026-08-22 审计 F1 修复：改纯比率判断（0.05% 容差）。原实现对 qfq 价做
-    # round(2)±0.005 的价格网格判断——qfq 不在原始价 0.01 网格上，adj≠1 的
+    # round(2)±0.005 的价格网格判断--qfq 不在原始价 0.01 网格上，adj≠1 的
     # 股票近板开盘会误分类。比率口径下 adj 因子分子分母相消，与真实涨跌幅
     # 一致（除权日为复权收益，仍是最接近"真实可交易回报"的口径）
     _tol = 0.0005
@@ -381,8 +163,8 @@ def compute_nextopen_limit_mask(kline_df: pd.DataFrame,
     # ±5% ST limit check
     if st_series is not None:
         # 按列 merge 对齐（2026-08-21 修复）：此前用 MultiIndex reindex，
-        # st_series 的 ns 级日期与 kline 的 µs 级日期哈希失配 → is_st 全
-        # False → ±5% ST 子带静默失效（主库遗留缺陷）
+        # st_series 的 ns 级日期与 kline 的 µs 级日期哈希失配 -> is_st 全
+        # False -> ±5% ST 子带静默失效（主库遗留缺陷）
         st_frame = st_series.rename("_st").reset_index()
         st_frame["date"] = pd.to_datetime(st_frame["date"])
         df = df.merge(st_frame, on=["date", "code"], how="left")

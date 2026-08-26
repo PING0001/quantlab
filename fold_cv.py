@@ -6,15 +6,15 @@ Rolling fold CV driver（2026-08-21 用户裁定：连续 7 折半年窗，训�
 - 标签前视：run_lgb 的 label_buffer 机制（复用，无新代码）
 - 筛选泄漏：每折重跑 select_factors，窗口 [2020, 折 test_start)，训练强制读折专属清单
 
-每折产出双执行语义回测：limit（收盘限价 v7 语义）/ market（开盘市价 v7mo 语义）。
-汇总报告：每折×每语义指标 + 跨折平均 + 最差折，写 data/fold_cv_report.json。
+每折产出开盘市价（market）语义回测；limit 语义已判死删除（2026-08-25）。
+汇总报告：每折指标 + 跨折平均 + 最差折，写 data/fold_cv_report.json。
 
 全程 DB 只读，与夜间流水线无锁冲突。
 
 Usage:
     python fold_cv.py --dry-run                 # 打印每折计划
-    python fold_cv.py                           # 7 折全链 × 双语义
-    python fold_cv.py --folds F1,F2 --exec market
+    python fold_cv.py                           # 7 折全链
+    python fold_cv.py --folds F1,F2
     python fold_cv.py --skip-train              # 复用折产物只重跑回测
 """
 from __future__ import annotations
@@ -119,7 +119,6 @@ def main():
     parser = argparse.ArgumentParser(description="Rolling fold CV driver")
     parser.add_argument("--folds", default=",".join(FOLDS),
                         help="逗号分隔折号（默认全部 7 折）")
-    parser.add_argument("--exec", choices=["both", "limit", "market"], default="both")
     parser.add_argument("--skip-train", action="store_true",
                         help="复用已有折筛选/模型/预测，只重跑回测与汇总")
     parser.add_argument("--dry-run", action="store_true")
@@ -128,10 +127,9 @@ def main():
     fids = [x.strip() for x in args.folds.split(",") if x.strip()]
     for fid in fids:
         assert fid in FOLDS, f"unknown fold {fid}"
-    execs = ["limit", "market"] if args.exec == "both" else [args.exec]
     log_path = ROOT / "data" / "fold_cv_run.log"
 
-    print(f"Fold CV: {fids} | exec={execs} | train_start={FOLD_TRAIN_START}（扩张窗口）")
+    print(f"Fold CV: {fids} | exec=market | train_start={FOLD_TRAIN_START}（扩张窗口）")
     for fid in fids:
         ts, te = get_fold(fid)
         n_years = (pd.Timestamp(ts) - pd.Timestamp(FOLD_TRAIN_START)).days / 365.25
@@ -141,7 +139,7 @@ def main():
         print("\n[dry-run] 每折将依次执行：")
         print("  1) python -m factors.select_factors --model 20d/6d --fold F*")
         print("  2) python run_lgb.py --model all --fold F*")
-        print(f"  3) python -m backtest.run_lgb --fold F* --exec {'/'.join(execs)}")
+        print("  3) python -m backtest.run_lgb --fold F*")
         print(f"  产物：factors/folds/F*/、models/{POOL_NAME}/folds/F*/、data/folds/F*/、"
               f"backtest/{POOL_NAME}/folds/F*/")
         return
@@ -155,12 +153,11 @@ def main():
             run([PY, "run_lgb.py", "--model", "all", "--fold", fid], log_path)
         leak_checks(fid)
         print(f"    leak checks passed")
-        for ex in execs:
-            run([PY, "-m", "backtest.run_lgb", "--fold", fid, "--exec", ex], log_path)
+        run([PY, "-m", "backtest.run_lgb", "--fold", fid], log_path)
 
     # ---- summary ----
     report = {}
-    for ex in execs:
+    for ex in ["market"]:
         rows = {}
         for fid in fids:
             rows[fid] = fold_metrics(fid, ex)
@@ -178,7 +175,7 @@ def main():
     out_path = ROOT / "data" / "fold_cv_report.json"
     out_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    for ex in execs:
+    for ex in ["market"]:
         print(f"\n{'=' * 78}\n  {ex.upper()} 执行语义 — 各折汇总\n{'=' * 78}")
         df = pd.DataFrame({fid: report[ex]["per_fold"][fid] for fid in fids}).T
         with pd.option_context("display.float_format", "{:.3f}".format):

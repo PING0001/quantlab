@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-评估器回归门禁：8 个基准因子（factors/baseline_alphas.py）的固定窗口
-rank IC 汇总，与冻结参考值（factors/baseline_reference.json）比对。
+评估器回归门禁：8 个基准因子（原生 Polars 重实现，2026-08-25 并入原
+factors/baseline_alphas.py）的固定窗口 rank IC 汇总，与冻结参考值
+（factors/baseline_reference.json）比对。
 
-用途：评估口径（select_factors 的 IC 计算 / labels 前向收益 / 未来
-factor foundry 准入逻辑）变更后，跑本工具确认"已知因子"的 IC 没有
-非预期漂移。手动工具，不进每日流水线。
+用途：评估口径（select_factors 的 IC 计算 / labels 前向收益）变更后，
+跑本工具确认"已知因子"的 IC 没有非预期漂移。手动工具，不进每日流水线。
 
     python -m factors.baseline_check           # 比对模式，超限 exit 1
     python -m factors.baseline_check --init    # 冻结/刷新参考值
@@ -15,8 +15,20 @@ factor foundry 准入逻辑）变更后，跑本工具确认"已知因子"的 IC
 截面最少 30 只。标签为 close 锚 20d 前向收益（经典口径）。
 
 repaint 注意：daily_kline 为前复权 VIEW，新除权事件会使历史 IC 缓慢
-漂移——容差带（ic_mean ±0.01 / icir ±0.10）用于吸收；无评估器变更却
+漂移--容差带（ic_mean ±0.01 / icir ±0.10）用于吸收；无评估器变更却
 持续超限时，用 --init 重新冻结并记录原因。
+（2026-08-25 宇宙切换：池代码从旧 json 并集改为时点快照并集，参考值已
+随之重冻结，见 baseline_reference.json 的 frozen_at。）
+
+公式出处：Kakushadze (2016)《101 Formulaic Alphas》（document/alpha101.md）
+及已删除的 vnpy 移植版 alpha101.py，表达式原文存档于 BASELINE_EXPRESSIONS。
+实现与原 DSL 算子语义逐一对齐（2026-08-22 全池交叉验证 |Pearson|>0.999）：
+  ts_std(x, w)   -> rolling_std(w, min_samples=1, ddof=0)
+  ts_corr(a,b,w) -> pl.rolling_corr(w, min_samples=1)；inf -> null
+  ts_rank(x, w)  -> 过去 w-1 个值中严格小于当前值的占比（分母为非空
+                    shifted 计数；为 0 时置 0）；inf/nan -> null
+  ts_argmax(x,w) -> 窗口内最大值位置（1-based，np.argmax 首现）
+  cs_rank(x)     -> 同日截面 rank()/count() 百分位（average 法，null 不参与）
 """
 from __future__ import annotations
 
@@ -33,10 +45,10 @@ import polars as pl
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import DB_PATH, POOL_NAME, get_pool_codes
-from factors.baseline_alphas import compute_baseline_factors, BASELINE_FACTORS
+from config import DB_PATH, POOL_NAME
 from factors.select_factors import MIN_STOCKS_PER_DATE, _rank_ic_np
 from strategies.labels import compute_forward_returns
+from pools.membership import union_codes
 
 TRAIN_START = "2018-01-01"
 TRAIN_END = "2025-06-01"
@@ -48,6 +60,150 @@ ICIR_TOL = 0.10
 
 REF_PATH = Path(__file__).resolve().parent / "baseline_reference.json"
 
+BASELINE_FACTORS = [
+    "alpha1_v0", "alpha18_v0", "alpha50_v0", "alpha60_v0",
+    "alpha6", "alpha40", "alpha42", "alpha101",
+]
+
+# 原表达式存档（自 alpha101.py 抄录，DSL 已删除）
+BASELINE_EXPRESSIONS = {
+    "alpha1_v0": "cs_rank(ts_argmax(pow1(ts_corr(close, volume, 5), 2.0), 5) - 0.5)",
+    "alpha18_v0": "-1 * ((ts_std(abs(close - open), 5) + (close - open)) + ts_corr(close, open, 10))",
+    "alpha50_v0": "cs_rank(-1 * ts_corr(ts_rank(close, 10), ts_rank(volume, 10), 10))",
+    "alpha60_v0": "-1 * (ts_rank(ts_std(close, 20), 10) - ts_rank(ts_std(close, 5), 10))",
+    "alpha6": "(-1) * ts_corr(open, volume, 10)",
+    "alpha40": "((-1) * cs_rank(ts_std(high, 10))) * ts_corr(high, volume, 10)",
+    "alpha42": "cs_rank((vwap - close)) / cs_rank((vwap + close))",
+    "alpha101": "((close - open) / ((high - low) + 0.001))",
+}
+
+
+# ============================================================================
+# 基准因子实现（输入约定：宽表 [datetime, vt_symbol, open, high, low, close,
+# volume, vwap]，内部自排 (vt_symbol, datetime)）
+# ============================================================================
+
+def _ts_std(col: str, window: int) -> pl.Expr:
+    return pl.col(col).rolling_std(window, min_samples=1, ddof=0).over("vt_symbol")
+
+
+def _ts_rank(col: str, window: int) -> pl.Expr:
+    """ts_ops.ts_rank 等价：count(shift_i < cur, i=1..w-1) / count(非空 shift)。"""
+    lt = pl.lit(0, dtype=pl.Int32)
+    cnt = pl.lit(0, dtype=pl.Int32)
+    for i in range(1, window):
+        shifted = pl.col(col).shift(i)
+        lt = lt + (shifted < pl.col(col)).cast(pl.Int32)
+        cnt = cnt + shifted.is_not_null().cast(pl.Int32)
+    rank_expr = lt / pl.when(cnt > 0).then(cnt).otherwise(1)
+    rank_expr = pl.when(rank_expr.is_infinite() | rank_expr.is_nan()) \
+        .then(None).otherwise(rank_expr)
+    return rank_expr.over("vt_symbol")
+
+
+def _ts_argmax(col: str, window: int) -> pl.Expr:
+    """ts_ops.ts_argmax 等价：窗口内最大值 1-based 位次（首现）。"""
+    return pl.col(col).rolling_map(
+        lambda s: int(np.argmax(s.to_numpy())) + 1, window
+    ).over("vt_symbol")
+
+
+def _cs_rank(col: str) -> pl.Expr:
+    """cs_ops.cs_rank 等价：同日截面百分位 (0,1]。"""
+    return pl.col(col).rank().over("datetime") / pl.col(col).count().over("datetime")
+
+
+def _rolling_corr(df: pl.DataFrame, a: str, b: str, window: int, out: str) -> pl.DataFrame:
+    """ts_ops.ts_corr 等价（需物化输入列后按名计算）。"""
+    df = df.with_columns(
+        pl.rolling_corr(a, b, window_size=window, min_samples=1)
+        .over("vt_symbol").alias(out)
+    )
+    return df.with_columns(
+        pl.when(pl.col(out).is_infinite()).then(None)
+        .otherwise(pl.col(out)).alias(out)
+    )
+
+
+def _clean(df: pl.DataFrame, cols: list[str]) -> pl.DataFrame:
+    return df.with_columns([
+        pl.when(pl.col(c).is_infinite() | pl.col(c).is_nan())
+        .then(None).otherwise(pl.col(c)).alias(c)
+        for c in cols
+    ])
+
+
+def compute_baseline_factors(ohlcv: pl.DataFrame) -> pl.DataFrame:
+    """在 OHLCV 宽表上追加 8 个基准因子列，返回原列 + 基准列。"""
+    df = ohlcv.sort(["vt_symbol", "datetime"])
+
+    # alpha1_v0
+    df = _rolling_corr(df, "close", "volume", 5, "_a1_c")
+    df = df.with_columns((pl.col("_a1_c") ** 2.0).alias("_a1_x"))
+    df = df.with_columns(_ts_argmax("_a1_x", 5).alias("_a1_arg"))
+    df = df.with_columns((pl.col("_a1_arg") - 0.5).alias("_a1_arg2"))
+    df = df.with_columns(_cs_rank("_a1_arg2").alias("alpha1_v0"))
+
+    # alpha18_v0
+    df = df.with_columns((pl.col("close") - pl.col("open")).abs().alias("_a18_do"))
+    df = df.with_columns(_ts_std("_a18_do", 5).alias("_a18_std"))
+    df = _rolling_corr(df, "close", "open", 10, "_a18_c")
+    df = df.with_columns(
+        (-1 * ((pl.col("_a18_std") + (pl.col("close") - pl.col("open")))
+               + pl.col("_a18_c"))).alias("alpha18_v0")
+    )
+
+    # alpha50_v0
+    df = df.with_columns(_ts_rank("close", 10).alias("_a50_rc"))
+    df = df.with_columns(_ts_rank("volume", 10).alias("_a50_rv"))
+    df = _rolling_corr(df, "_a50_rc", "_a50_rv", 10, "_a50_c")
+    df = df.with_columns((-1 * pl.col("_a50_c")).alias("_a50_nc"))
+    df = df.with_columns(_cs_rank("_a50_nc").alias("alpha50_v0"))
+
+    # alpha60_v0
+    df = df.with_columns(_ts_std("close", 20).alias("_a60_s20"))
+    df = df.with_columns(_ts_std("close", 5).alias("_a60_s5"))
+    df = df.with_columns(_ts_rank("_a60_s20", 10).alias("_a60_r20"))
+    df = df.with_columns(_ts_rank("_a60_s5", 10).alias("_a60_r5"))
+    df = df.with_columns(
+        (-1 * (pl.col("_a60_r20") - pl.col("_a60_r5"))).alias("alpha60_v0")
+    )
+
+    # alpha6
+    df = _rolling_corr(df, "open", "volume", 10, "_a6_c")
+    df = df.with_columns((-1 * pl.col("_a6_c")).alias("alpha6"))
+
+    # alpha40
+    df = df.with_columns(_ts_std("high", 10).alias("_a40_s"))
+    df = df.with_columns(_cs_rank("_a40_s").alias("_a40_r"))
+    df = _rolling_corr(df, "high", "volume", 10, "_a40_c")
+    df = df.with_columns(
+        (((-1) * pl.col("_a40_r")) * pl.col("_a40_c")).alias("alpha40")
+    )
+
+    # alpha42
+    df = df.with_columns((pl.col("vwap") - pl.col("close")).alias("_a42_d"))
+    df = df.with_columns((pl.col("vwap") + pl.col("close")).alias("_a42_s"))
+    df = df.with_columns(_cs_rank("_a42_d").alias("_a42_rd"))
+    df = df.with_columns(_cs_rank("_a42_s").alias("_a42_rs"))
+    df = df.with_columns((pl.col("_a42_rd") / pl.col("_a42_rs")).alias("alpha42"))
+
+    # alpha101
+    df = df.with_columns(
+        ((pl.col("close") - pl.col("open"))
+         / ((pl.col("high") - pl.col("low")) + 0.001)).alias("alpha101")
+    )
+
+    df = _clean(df, BASELINE_FACTORS)
+    drop_cols = [c for c in df.columns if c.startswith(("_a1_", "_a18_", "_a50_",
+                                                         "_a60_", "_a6_", "_a40_",
+                                                         "_a42_"))]
+    return df.drop(drop_cols)
+
+
+# ============================================================================
+# 门禁主体
+# ============================================================================
 
 def load_kline_pd(con, codes):
     ph = ",".join(["?"] * len(codes))
@@ -79,7 +235,8 @@ def load_isst(con, codes) -> pd.Series:
 
 def compute_metrics() -> dict:
     con = duckdb.connect(str(DB_PATH), read_only=True)
-    codes = get_pool_codes()
+    # 池时点化（2026-08-25）：时点快照全历史成员并集（原 json 池并集已删）
+    codes = union_codes(con=con)
 
     # 行情（polars 面板，供因子计算）
     ph = ",".join(["?"] * len(codes))
@@ -154,6 +311,7 @@ def compute_metrics() -> dict:
         }
     metrics["_meta"] = {
         "pool": POOL_NAME,
+        "universe": "pool_snapshots union (2026-08-25)",
         "train_window": [TRAIN_START, TRAIN_END],
         "horizon": HORIZON,
         "data_max_date": data_max_date,

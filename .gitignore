@@ -21,8 +21,8 @@ data/predictions__*
 # Generated forecast HTML reports
 forecast_display/html/*/
 
-# Generated trade signal JSON files
-trade_signals/output/
+# Regenerable pool snapshot readable dumps (builder side-product)
+pools/*.json
 
 # Editor/tool cache
 .zcode/

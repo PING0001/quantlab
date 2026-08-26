@@ -8,7 +8,7 @@ before TEST_START stepped back label_buffer trading days, predict the whole
 test period.
 
 Usage:
-    python run_lgb.py                # train all models (20d, 6d)
+    python run_lgb.py                # train all models (20d / 6d / open2d / gap1d)
     python run_lgb.py --model 20d
     python run_lgb.py --model 6d
 """
@@ -28,12 +28,12 @@ from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import (DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS,
+from config import (DB_PATH, POOL_NAME, SELECTED_FACTORS,
                     MODEL_CONFIGS, get_lgb_model_path, get_lgb_predictions_path,
                     get_lgb_predictions_meta_path, FOLDS, get_fold)
 
-from strategies import LGBStrategy, walk_forward, rank_ic, ic_summary
-from strategies.base import buffered_train_end
+from strategies.lgb import (LGBStrategy, walk_forward, buffered_train_end,
+                            rank_ic, ic_summary)
 from strategies.labels import compute_median_open, compute_nextopen_limit_mask
 from pools.membership import union_codes, member_mask
 
@@ -49,13 +49,12 @@ TEST_END = pd.Timestamp("2026-06-01")
 WARMUP_DAYS = 90
 # 输出校准：训练窗内留出尾段（交易日数）估计 out-of-sample 收缩斜率，见下方 calibration 注释
 CALIB_TAIL_DAYS = 60
-TRAIN_WINDOW = 252
 MIN_TRAIN = 252
 
 # 超参沿用分类时代调参（num_leaves/min_child/colsample 均为分类调出），
 # 回归首跑结果即基线，之后按回归目标重调（spec §3.3 超参注意）
 LGB_KWARGS = dict(
-    # 2026-08-22 用户裁定：L1 损失（条件中位数估计器）——与输出校准的 L1 斜率
+    # 2026-08-22 用户裁定：L1 损失（条件中位数估计器）--与输出校准的 L1 斜率
     # 同口径自洽（L2 均值模型 × L1 中位数校准会因右偏标签系统性压小斜率），
     # 且对肥尾标签更稳（早停 eval 同步变为 l1）
     objective="regression_l1",
@@ -69,7 +68,6 @@ LGB_KWARGS = dict(
     subsample=0.6,
     subsample_freq=1,
     colsample_bytree=0.3,
-    model_type="regressor",
     categorical_feature=["sw_l3"],
     early_stopping=True,
     validation_fraction=0.10,
@@ -277,12 +275,11 @@ def train_model(
     preds = walk_forward(
         strategy,
         X, y,
-        train_window=TRAIN_WINDOW,
-        min_train=MIN_TRAIN,
-        warmup_days=WARMUP_DAYS,
         test_start=test_start,
         test_end=test_end,
+        warmup_days=WARMUP_DAYS,
         label_buffer=label_buffer,
+        min_train=MIN_TRAIN,
         train_exclude=train_exclude,
     )
 

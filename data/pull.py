@@ -219,7 +219,7 @@ def _trigger_industry(con):
     DuckDB 文件锁跨进程互斥：父进程必须先释放连接子进程才能写库，跑完重连。
     返回（可能重连过的）连接，调用方需接住返回值。
     """
-    pool_codes = sorted(sources._pool_union_codes())
+    pool_codes = sorted(sources._pool_union_codes(con))
     if not pool_codes:
         return con
     ph = ",".join(["?"] * len(pool_codes))

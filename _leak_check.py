@@ -42,9 +42,9 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import (DB_PATH, POOL_NAME, get_pool_codes, MODEL_CONFIGS,
+from config import (DB_PATH, POOL_NAME, MODEL_CONFIGS,
                     get_lgb_predictions_path, get_lgb_predictions_meta_path)
-from strategies.base import buffered_train_end
+from strategies.lgb import buffered_train_end
 from strategies.labels import compute_median_open, compute_nextopen_limit_mask
 from pools.membership import union_codes, member_mask
 

@@ -1,233 +1,208 @@
 # Quantlab — AI Agent Instructions
 
-> **⚠️ 本工作树是双回归模型体系主线（worktree `/Users/cui/Projects/quantlab-dual`，2026-08-21 开工于 dev 分支，2026-08-24 经用户裁定合并入 `main` 并切换——此后在本工作树的 `main` 上工作；dev 分支指针保留于同提交）**
-> 本文件主体已于 2026-08-23（Task 10）重写为双回归体系；主工作区 `/Users/cui/Projects/quantlab`（fix 分支，workbuddy 生产流水线所在，含另一 session 未提交改动）的三分类架构文档见主区 AGENTS.md，本工作树不碰。
+> **⚠️ 本仓库（`/Users/cui/Projects/quantlab`，`main` 分支）是双回归体系唯一工作区（2026-08-24 从 quantlab-dual 合并入 main；dual worktree 仍留在磁盘上但已停用，不碰）。2026-08-25 完成破坏性简化瘦身（用户指令"合并/删功能/删重写"）：py 文件 62→28（净删 35 个、新增 mining.py），详见 `docs/superpowers/specs/2026-08-25-destructive-simplification-design.md`**
 >
-> **本分支现役架构（2026-08-23，v8 正式版）速览**：
-> - **三模型 LightGBM 回归（objective=regression_l1，条件中位数），全部 next_open 锚**：open2d / 6d / 20d；训练起点锁 2020-01，固定测试集 walk-forward
-> - **股票池已时点化（2026-08-24 用户四项裁定）**：沪深300式半年度快照（pool_snapshots 表，pools/build_pool_history.py 构建、pools/membership.py 单源消费）——带宽 **1~40 亿流通市值**（通胀调整带）+ 主板 + 次新排除（上市 <252 交易日）；生效日=6/12 月首个交易日、选样截止=前一月末。**旧池 json 实为历史并集（非时点）已废**；基准=半年重置等权指数。宇宙口径已换，与旧版本数字不可直接比较
-> - **现役清单（2026-08-24）：20d 广谱 32（折存活投票定稿）/ 6d 极简 5（4+nn_gap1d）/ open2d 极简 4（3+nn_gap1d）**——无候补名单制度，换人只经六关考核（批测→画像→贡献→边际贡献门→泛化缺口→折存活投票）。**2026-08-24 审计修复批后实测**：三 IC **0.1421/0.1074/0.0725**（20d 历史最高），gap1d 0.1747；主窗口（时点池口径）**+48.72%/2.47/−6.70% vs 半年重置等权基准 +26.17%/1.20/−14.12%，超额 +22.55pp**（**时点池口径七折已跑**：market 平均 +20.9%/半年 vs 基准 +9.5%、超额 5/7 为正（F2 −1.2/F6 −0.3pp 失守）、最差折 F4 −22.8% vs 基准 −26.7%（崩盘防御仍在）、平均夏普 1.44——宇宙诚实化后较旧口径（+23.4%/1.93）回落属预期，旧数字含未来名册偏差；清洗版/44 因子版折见 Key Decisions #6）。**ST/退市判定已时点化**（2026-08-24 裁定：名称快照层退役，日度 IsST + delist 日期；IsST 变级记录解析缺陷同步修复——'从ST变为*ST' 类记录此前漏开区间致 12 只 ST 股漏判）。训练排斥为"仅训练"语义（ST/退市/封板/标签远引用越界不进训练但预测照常输出，回测宇宙不再被 T+1 信息条件化）；qfq 死列 ATR/SMA/MACD_signal/LogClose 已归档删除（表 86 列）
+> **本分支现役架构（v8 正式版）速览**：
+> - **三模型 LightGBM 回归（objective=regression_l1，条件中位数），全部 next_open 锚**：open2d / 6d / 20d（+gap1d 独立实验模型）；训练起点锁 2020-01，固定测试集 walk-forward
+> - **股票池已时点化（2026-08-24 用户四项裁定）**：沪深300式半年度快照（pool_snapshots 表，`pools/membership.py` 单源：查询 API + 快照构建器）；带宽 **1~40 亿流通市值**（通胀调整带）+ 主板 + 次新排除（上市 <252 交易日）；生效日=6/12 月首个交易日、选样截止=前一月末。**旧池 json（历史并集，非时点）已于 2026-08-25 物理删除**——池代码一律走 membership（config 不再有 json 池读取）；基准=半年重置等权指数。宇宙口径已换，与旧版本数字不可直接比较
+> - **现役清单（2026-08-24）：20d 广谱 32（折存活投票定稿）/ 6d 极简 5（4+nn_gap1d）/ open2d 极简 4（3+nn_gap1d）**——无候补名单制度，换人只经六关考核（批测→画像→贡献→边际贡献门→泛化缺口→折存活投票）。**2026-08-24 审计修复批后实测**：三 IC **0.1421/0.1074/0.0725**（20d 历史最高），gap1d 0.1747；主窗口（时点池口径）**+48.72%/2.47/−6.70% vs 半年重置等权基准 +26.17%/1.20/−14.12%，超额 +22.55pp**（**时点池口径七折已跑**：market 平均 +20.9%/半年 vs 基准 +9.5%、超额 5/7 为正（F2 −1.2/F6 −0.3pp 失守）、最差折 F4 −22.8% vs 基准 −26.7%（崩盘防御仍在）、平均夏普 1.44——宇宙诚实化后较旧口径（+23.4%/1.93）回落属预期，旧数字含未来名册偏差）。**ST/退市判定已时点化**（2026-08-24 裁定：名称快照层退役，日度 IsST + delist 日期；IsST 变级记录解析缺陷同步修复——'从ST变为*ST' 类记录此前漏开区间致 12 只 ST 股漏判）。训练排斥为"仅训练"语义（ST/退市/封板/标签远引用越界不进训练但预测照常输出，回测宇宙不再被 T+1 信息条件化）
 > - **输出校准（根治幅度事故）**：训练窗留出尾段 60 交易日测 L1 收缩斜率与横截面中位数，输出×斜率还原为"模型真实相信的到期涨幅"；卖出零点平移 `score < Σwᵢ×calib_medianᵢ`（排序与 parquet 原始值不变）。教训：原始幅度加权融合对训练幅度漂移敏感（纯缩放 open2d 预测即可摆动主窗口 12.6pp）
 > - **融合分** `score = 0.4×p2d + 0.35×p6d + 0.25×p20d`（手工权重，用户按幅度特性亲自配比；权重调优留到实盘前最后做）
-> - **执行语义：开盘市价**（买=次日开盘必成交取前 k；卖=score 低于平移零点时开盘市价卖出）；`--exec limit` 仅供旧语义对照
-> - **因子分层范式**：第1层**公式因子**（确定性公式，宽读法含市值/筹码源表）→ 第2层**模型因子**（`factors/build_model_factors.py` walk-forward OOF，只吃公式因子+后复权 OHLCV，`mf_` 前缀列，`factors/registry.py` 白名单+血缘+反向依赖）；禁环、OHLCV 一律后复权（永不重绘）、模型因子无结构特权。**分层不混同**：模型因子不参与公式因子的簇竞争，准入走独立门=对整个在任集合的边际贡献 A/B（与单一公式的相关度只是背景信息）。首批 mf_vol20/mf_volsurp5 已删（2026-08-23 用户裁定重新指导编写；DB 列归档 data/archive/ 后 DROP，注册表已清空，机制保留）。**新一代（2026-08-23 深夜，独立脚本不走注册表）**：`gb_gap1d`（XGBoost 预测 T+1 隔夜跳空，11 公式因子输入，OOS rank IC 0.198，盘上候审）；`mf_volchg3`（XGBoost 波动率变化率，rank IC 0.128，用户裁定暂放）。**命名惯例**：前缀区分模型家族——gb_=梯度提升、nn_=神经网络（预留）、mf_=旧前缀遗留；任务后缀（gap1d 等）跨模型保持一致可比。ai_gz2000_* 已审查删除（in-sample 泄漏）
-> - **审查三件套**：`factor_audit.py`（画像：四标签 IC/衰减/全池 max 相关/血缘）、`factor_contribution.py`（gain+日内截面 permutation）、`test_new_factors.py`（候选批测）。纪律：加因子看 train-test 泛化缺口；冗余判定对全池取 max（<0.75 增量/>0.95 冗余，用户标准）；强因子替换弱因子优先于堆加
-> - **验证框架**：`python fold_cv.py`（7 折半年窗，每折独立筛选+训练+双语义回测，含泄漏断言）；修复后干净折：market 平均 +23.4% vs 基准 +9.4%、6/7 折超额为正、最差折 −17.5%
-> - **已判死（勿再提出）**：close 锚 open2d；limit 执行语义；qfq 水平因子（latest_adj 未来信息）；显式门控逻辑（门控类非线性关系由模型自学，2026-08-23 裁定）
+> - **执行语义：开盘市价唯一**（买=次日开盘必成交取前 k，一字封板跳过；卖=score 低于平移零点时开盘市价卖出，一字跌停顺延）。**limit 执行语义已物理删除**（2026-08-25；判死于七折 +3.9% 跑输基准）；长空诊断件（run_long_short）同批删除（历史极不稳定，勿当版本优劣依据）
+> - **因子分层范式（mf_ 注册表机制已删，铁律在此单源）**：第1层**公式因子**（确定性公式，宽读法含市值/筹码源表，`factors/extra_factors.py`）→ 第2层**模型因子**（gb_/nn_ 独立脚本，walk-forward OOF，只吃公式因子+后复权 OHLCV，列所有权归各构建脚本）→ 第3层主模型 → 第4层 combiner（手工权重）。**五铁律**：DAG 无环（模型因子输入永不引用任何模型输出）；OHLCV 一律后复权（hfq 时点诚实、永不重绘，水平型因子禁用 qfq）；删除公式因子前查反向依赖；模型因子无结构特权（不是门控、不进模型结构）；分层不混同（不参与公式因子簇竞争，准入走独立门=对在任集合的边际贡献 A/B）。现役模型因子：`gb_gap1d`（XGBoost 隔夜跳空，11 公式因子，OOS rank IC 0.198，盘上候审）、`nn_gap1d`（MLP 隔夜跳空，30 日 OHLCV 窗口+12 公式因子，已入 6d/open2d 清单，每交易日前沿推理）。旧 mf_ 注册表/build_model_factors/mf_volchg3 已删（2026-08-25，git 可恢复）
+> - **挖矿三件套已合一**：`python -m factors.mining {audit|contribution|batch}`（画像/贡献/批测）。纪律：加因子看 train-test 泛化缺口；冗余判定对全池取 max（<0.75 增量/>0.95 冗余，用户标准）；强因子替换弱因子优先于堆加
+> - **验证框架**：`python fold_cv.py`（7 折半年窗，每折独立筛选+训练+market 回测，含泄漏断言）；时点池口径官方折：market 平均 +20.9% vs 基准 +9.5%（见上）
+> - **已判死（勿再提出）**：close 锚 open2d；limit 执行语义（已物理删除）；qfq 水平因子（latest_adj 未来信息）；显式门控逻辑（门控类非线性关系由模型自学，2026-08-23 裁定）；模型因子入簇竞争；ai_gz2000_*（in-sample 泄漏）；长空信号当版本依据（诊断件已删）
 > - **纪律**：F1-F6 做开发、F7/新数据终裁；收益判定看折超额/alpha（主窗口 ≈ 0.53×池 beta + 年化 ~13% alpha）
 > - 裁定史与实验全记录：agent memory（dual-regression-bench-status）；spec/plan 见 `docs/superpowers/`
 
 ## Project Overview
 
-Quantlab 是一个 **A股主板微盘股量化选股系统**（流通市值 1-20 亿，池 ~1112 只）。本 worktree 是**双回归模型 bench**：三个 LightGBM 回归模型分别预测 open2d / 6d / 20d 前向开盘收益（next_open 锚，条件中位数），手工权重融合成单一 score 驱动每日开盘市价组合。核心流程：
+Quantlab 是一个 **A股主板微盘股量化选股系统**（时点池 1-40 亿流通市值带，各档约数百只）。三个 LightGBM 回归模型分别预测 open2d / 6d / 20d 前向开盘收益（next_open 锚，条件中位数），手工权重融合成单一 score 驱动每日开盘市价组合。核心流程：
 
 ```
-Tushare 数据 → DuckDB 存储
-  → 因子分层：公式因子（Polars，compute/update）+ 模型因子（mf_*，OOF 管道）
-  → 因子筛选（簇优先，相关度>IC，每模型一份清单）
-  → 三回归模型训练（run_lgb.py，L1 目标 + 输出校准）
-  → 融合分 → 回测（backtest/run_lgb.py）→ HTML 预测报告（三级降级）
+Tushare 数据 → DuckDB 存储（data/pull）
+  → 因子管道（factors/update：增量日更 + --full 全量；公式因子 Polars）
+  → 模型因子（factors/build_gb_gap1d / build_nn_gap1d，OOF 管道）
+  → 因子筛选（factors/select_factors，簇优先，相关度>IC，每模型一份清单）
+  → 回归模型训练（run_lgb.py，L1 目标 + 输出校准）
+  → 融合分 → 回测（backtest/run_lgb.py，开盘市价模拟器内置）→ HTML 预测报告（三级降级）
   → 泄漏断言（_leak_check.py）+ 折 CV（fold_cv.py）
 ```
 
-**与主工作区的关系**：主区（`/Users/cui/Projects/quantlab`，fix 分支）是三分类生产流水线（workbuddy 每晚跑）；本 worktree 做双回归主线，重大重构先进 dual 再合并。`data/ashare.duckdb` 与 `.env` 是指向主区的**符号链接**（DB 共享）——主区 compute/update 不产的列（mf_*、挖矿因子等）由本分支写入，两区**共享 DuckDB 单写者锁**，勿同时跑写库任务。
+**唯一工作区**：本仓库即主线（`main`）。`data/ashare.duckdb`（5.8GB）与 `.env` 是本仓库实体文件——DB 属主在此，勿提交。夜间流水线（cron automation-596d04c5，每交易日 21:05）四步：`data.pull` → `factors.update` → `factors.build_nn_gap1d --infer-only` → `forecast_display/generate_lgb.py`（fail-fast，模块路径是契约，改名必须同步改 cron）。
 
 ## Technology Stack
 
 | 层 | 技术 |
 |------|-----------|
 | 数据源 | Tushare（通过 quicksync.cn 中继） |
-| 数据库 | **DuckDB**（嵌入式 OLAP，所有数据单一来源，与主区共享） |
+| 数据库 | **DuckDB**（嵌入式 OLAP，所有数据单一来源） |
 | 数值计算 | numpy, pandas, scipy, polars |
-| 机器学习 | **LightGBM ×3**（LGBMRegressor，objective=regression_l1） |
+| 机器学习 | **LightGBM ×3**（LGBMRegressor，objective=regression_l1）+ XGBoost/sklearn-MLP（模型因子） |
 | 序列化 | joblib（模型）、parquet（预测）、JSON（meta/清单） |
 | 配置 | python-dotenv（.env）、config.py（中心配置） |
 
 ## Project Structure
 
 ```
-quantlab-dual/
-├── config.py                # ★ 中心配置：DB 路径、MODEL_CONFIGS（四模型标签窗/锚/buffer）、FOLDS、输出路径
-├── run_lgb.py               # ★ 训练入口：三回归模型（+gap1d 实验），L1 目标 + 输出校准（calib_slope/median 入 meta）
-├── fold_cv.py               # 滚动 7 折 CV 驱动：每折独立筛选+训练+双语义回测+泄漏断言
-├── _leak_check.py           # ★ 主窗口泄漏断言（C1 训练掩码/C2 校准尾段/C3 样本排除/C4 标签方向，52 项）
-├── _check_pkgs.py           # 依赖检查
+quantlab/
+├── config.py                # ★ 中心配置：DB 路径、MODEL_CONFIGS（四模型标签窗/锚/buffer）、FOLDS、SELECTED_FACTORS、输出路径
+├── run_lgb.py               # ★ 训练入口：三回归模型+gap1d，L1 目标 + 输出校准（calib_slope/median 入 meta）；HISTORY_SINCE 单源
+├── fold_cv.py               # 滚动 7 折 CV 驱动：每折独立筛选+训练+market 回测+泄漏断言
+├── _leak_check.py           # ★ 主窗口泄漏断言（C1 训练掩码/C2 校准尾段/C3 样本排除/C4 标签方向，56 项）
 │
-├── factors/                 # 因子工程（分层范式，五铁律见 registry.py 头注释）
-│   ├── registry.py          # ★ 模型因子注册表：白名单输入/血缘/反向依赖/超参指纹；范式约束单源
-│   ├── extra_factors.py     # 公式因子主载体（原生 Polars）；新公式因子加这里
-│   ├── compute.py           # 全量计算流水线：DuckDB → Polars → factor_values
-│   ├── update.py            # 增量因子更新（日期+股票级对账，lookback 锚点=最晚目标日）
-│   ├── integrity.py         # 完整性校验（硬失败 exit 1 / 软警告）
-│   ├── select_factors.py    # ★ 筛选：簇优先（average-linkage，相关度>IC），每模型 selected_{pool}_{model}.json
-│   ├── baseline_alphas.py   # 8 个经典 alpha 原生 Polars 重实现（评估器回归基准，不入模）
-│   ├── baseline_check.py    # ★ 门禁：固定窗 rank IC vs 冻结参考值（改评估器/标签必跑）
-│   ├── build_model_factors.py # 模型因子 OOF 管道（mf_ 前缀列所有权，walk-forward + label_buffer）
-│   ├── factor_audit.py      # 审查 A：因子画像（四标签 IC/ICIR/衰减/全池 max 相关）
-│   ├── factor_contribution.py # 审查 B1：gain + 测试窗日内截面 permutation ΔIC
-│   ├── test_new_factors.py  # ★ 挖矿批测：候选因子 IC + 全池相关（新因子入口）
-│   ├── selected_*_{model}.json # 各模型入模清单（定稿 20d 32 / 6d 4 / open2d 3 / gap1d 35）
-│   ├── build_mf_volchg3.py    # XGBoost 波动率变化率因子（用户裁定暂放）
-│   └── build_gb_gap1d.py      # XGBoost 隔夜跳空因子（11 公式因子，rank IC 0.198）
-│   ├── folds/{F1..F7}/      # 折专属筛选清单（防筛选泄漏，fold_cv 消费）
-│   └── migrate_*.py         # 历史回填工具（short/mined/delivery/calendar_gap/intraday_shape）
+├── factors/
+│   ├── extra_factors.py     # ★ 公式因子主载体（原生 Polars）；新公式因子加这里
+│   ├── update.py            # ★ 因子管道：增量日更（日期+股票级对账，lookback 锚=最早目标日）+ --full 全量重建（原 compute.py 已并入）
+│   ├── integrity.py         # 完整性校验（硬失败 exit 1 / 软警告；pull/update 末尾自动调用）
+│   ├── select_factors.py    # ★ 筛选：簇优先（average-linkage，相关度>IC），每模型 selected_{pool}_{model}.json；研究工具共享库（_rank_ic_np/load_factors）
+│   ├── mining.py            # ★ 挖矿三件套：audit（画像）/ contribution（gain+permutation）/ batch（候选批测）
+│   ├── baseline_check.py    # ★ 评估器回归门禁（含 8 个基准 alpha 原生 Polars 实现 + 冻结参考值比对）
+│   ├── build_gb_gap1d.py    # XGBoost 隔夜跳空因子（11 公式因子，rank IC 0.198）
+│   ├── build_nn_gap1d.py    # MLP 隔夜跳空因子（cron 每日 --infer-only 前沿推理）
+│   ├── selected_*_{model}.json # 各模型入模清单（定稿 20d 32 / 6d 5 / open2d 4 / gap1d 35-拷贝）
+│   └── folds/{F1..F7}/      # 折专属筛选清单（防筛选泄漏，fold_cv 消费）
 │
-├── strategies/
-│   ├── base.py              # BaseStrategy + walk_forward() + buffered_train_end()（排他上界）
-│   ├── labels.py            # ★ compute_median_open（回归标签）+ compute_nextopen_limit_mask（比率口径）
-│   ├── combine.py           # combine_scores3（v8 三模型融合，缺失侧重归一）
-│   ├── lgb.py               # LGBStrategy（回归版）
-│   └── evaluation.py        # rank IC / IC 汇总
+├── strategies/              # 策略库（2026-08-25 五文件合一为二）
+│   ├── labels.py            # ★ 标签（compute_median_open 回归标签 + compute_forward_returns 门禁基准 + compute_nextopen_limit_mask 比率口径）；泄漏断言 C4 依赖其源码可 inspect
+│   └── lgb.py               # ★ LGBStrategy（纯回归）+ walk_forward（固定测试集）+ buffered_train_end + rank_ic/ic_summary + combine_scores3
 │
 ├── backtest/
-│   ├── run_lgb.py           # ★ 主回测：融合分 + 开盘市价执行 + 卖出零点平移；权重/列名单源
-│   ├── signals.py           # 组合模拟器（market_open 语义/ST/退市/费用/长空诊断件）
-│   └── mainboard_microcap/  # 输出（equity_lgb_combined_daily_v8mo_* 等 + folds/）
+│   ├── run_lgb.py           # ★ 主回测：融合分 + 开盘市价模拟器（原 signals.py 已并入；limit/长空已删）+ 时点池基准；PRED_COLS/W2D/W6D/W20D 融合单源
+│   └── mainboard_microcap/  # 输出（equity_lgb_combined_daily_v8mo_rebalance.csv 等 + folds/）
 │
 ├── forecast_display/
-│   ├── generate_lgb.py      # ★ v8 报告：读三 parquet+meta 融合出榜；三级降级永不 exit 1
-│   └── html_lgb/{pool}/     # HTML 报告
+│   └── generate_lgb.py      # ★ v8 报告：三 parquet+meta 融合出榜 + LIVE 前沿实时推理；三级降级永不 exit 1
 │
-├── models/{pool}/           # lgb_{model}.joblib ×4 + folds/（旧 lgb_multi.joblib 为泄漏三分类，勿用）
-├── data/                    # 摄入层与主区同构（pull/sources/trading_calendar/lock）；ashare.duckdb → 主区符号链接
-├── document/llm_factor_mining/  # LLM 挖矿假设库（300 条）
-└── docs/superpowers/        # spec 与 plan（dual-regression-models）
+├── pools/
+│   └── membership.py        # ★ 池时点化单源：查询 API（member_mask/union_codes/latest_codes/codes_on/reset_points）+ 快照构建器（python -m pools.membership --from 2015）
+│
+├── data/                    # 摄入层（cron 路径，勿乱动）
+│   ├── pull.py              # 统一拉取入口（增量/全量/对账；末尾 integrity 硬失败 exit 1）
+│   ├── sources.py           # 数据源注册表（拉取范围=membership 快照并集）
+│   ├── trading_calendar.py / lock.py / _ts.py / build_industry.py（pull 子进程调用）
+│   └── ashare.duckdb        # DB 实体（勿提交）
+│
+├── models/{pool}/           # lgb_{model}.joblib ×4 + nn_gap1d_state.joblib + folds/（折产物）
+├── document/                # 参考资料：llm_factor_mining（300 假设库）/ alpha101 论文 / tushare API 文档 / vnpy 源码拷贝（研究参考，不参与运行）
+└── docs/superpowers/        # spec 与 plan
 ```
 
 ## Key Architectural Decisions
 
-### 1. 因子分层范式与五铁律（单源：`factors/registry.py` 头注释）
+### 1. 因子分层范式与五铁律（单源：本文件；mf_ 注册表机制已删）
+分层见横幅。铁律执行靠纪律与 review，不再有 registry 代码强制；gb_/nn_ 脚本头部注释声明列所有权与输入白名单。
 
-```
-第0层数据表 → 第1层公式因子（确定性公式）→ 第2层模型因子（OOF）→ 第3层主模型 → 第4层 combiner（手工权重）
-```
-
-- **DAG 无环**（构造性保证：模型因子输入只允许公式因子与 OHLCV，永不引用任何模型输出）
-- **OHLCV 一律后复权**（hfq 水平时点诚实、永不重绘；水平型因子禁用 qfq——LogClose 教训）
-- **删除公式因子前必须查反向依赖**（registry 血缘）
-- **模型因子无结构特权**（不是门控、不进模型结构）
-- **分层不混同**：模型因子不参与公式因子簇竞争；准入走独立门=对整个在任集合的边际贡献 A/B
-
-裁定史与实验全记录在 agent memory（dual-regression-bench-status），勿在代码注释外重复堆细节。
-
-### 2. 三模型 + 融合 + 输出校准
-- **模型**（`config.py MODEL_CONFIGS`）：open2d（T+2 开盘/open[T+1]，buffer 2）、6d（T+4~6 中位开盘，buffer 6）、20d（T+16~20，buffer 20）；均 `objective=regression_l1`、固定测试集 walk-forward（训练 2020 起，测试 2025-06-01~2026-06-01）
-- **融合**：`score = 0.4×p2d + 0.35×p6d + 0.25×p20d`（`strategies/combine.py combine_scores3`，缺失侧重归一）；权重是用户手工配比，**勿改**；调优留到实盘前
-- **输出校准**（run_lgb.py 训练尾部）：训练窗留出尾段 60 交易日训校准模型测 OOS 收缩斜率 k（L1 过原点=|x| 加权中位数），输出×k；meta 存 `calib_slope`/`calib_median`。parquet 里的预测**已乘 k**（诚实幅度）；模型 joblib 的裸输出**未乘**（如手动推理需自行套用 meta 斜率）
-- **卖出零点**：回测侧 `sell_threshold = Σwᵢ×calib_medianᵢ`（L1 中位数输出的典型水平为负）；仅平移卖出判定，排序与 parquet 不变
+### 2. 三模型 + 融合 + 输出校准（代码单源 strategies/lgb.py）
+- **模型**（`config.py MODEL_CONFIGS`）：open2d（T+2 开盘/open[T+1]，buffer 2）、6d（T+4~6 中位开盘，buffer 6）、20d（T+16~20，buffer 20）、gap1d（窗口(1,1)+close 锚，buffer 1，独立实验不入 score）；均 `objective=regression_l1`、固定测试集 walk-forward（训练 2020 起，测试 2025-06-01~2026-06-01）
+- **融合**：`score = 0.4×p2d + 0.35×p6d + 0.25×p20d`（combine_scores3，缺失侧重归一）；权重是用户手工配比，**勿改**；调优留到实盘前
+- **输出校准**（run_lgb.py 训练尾部）：训练窗留出尾段 60 交易日训校准模型测 OOS 收缩斜率 k（L1 过原点=|x| 加权中位数），输出×k；meta 存 `calib_slope`/`calib_median`。parquet 里的预测**已乘 k**；模型 joblib 裸输出**未乘**（手动推理需自行套用 meta 斜率）
+- **卖出零点**：回测侧 `sell_threshold = Σwᵢ×calib_medianᵢ`；仅平移卖出判定，排序与 parquet 不变
 
 ### 3. 标签体系（`strategies/labels.py`）
 - 回归标签 `compute_median_open(kline, start_day, end_day, baseline)`：前向窗口开盘价中位数 / baseline − 1；`baseline="next_open"`（open[T+1]，与回测开盘市价成交对齐）
-- **锚裁定史**：close 锚曾在 v4/v6 使用、next_open 在 v3/v7/v8 使用，最终 v8 全系 next_open（分母=可成交入场价）；close 锚 open2d 永久废弃（不可交易的隔夜跳空污染）
-- `label_buffer`（排他上界，`buffered_train_end`）：训练掩码截到 test_start 前 buffer 个交易日；**buffer ≥ 标签窗末日**（20d=20/6d=6/open2d=2/gap1d=1）
-- 标签只做**部分窗口中位数**（退市前真实可成交价携带崩盘信号），全缺窗口 NaN 丢弃；无 -1.0 归零填充（死代码已证不触发，退市风险在组合层处理）
+- 锚裁定史：v8 全系 next_open；close 锚 open2d 永久废弃（不可交易的隔夜跳空污染）
+- `label_buffer`（排他上界，`buffered_train_end`）：训练掩码截到 test_start 前 buffer 个交易日；buffer ≥ 标签窗末日
+- 标签只做部分窗口中位数（退市前真实可成交价携带崩盘信号），全缺窗口 NaN 丢弃
 
-### 4. 执行语义（开盘市价）
-- 买=次日开盘必成交（取分数前 k 填空仓位）；卖=score 低于平移零点时开盘市价卖出，否则持有（无目标价止盈）
+### 4. 执行语义（开盘市价，唯一）
+- 买=次日开盘必成交（取分数前 k 填空仓位，开盘一字涨停跳过）；卖=score 低于平移零点时开盘市价卖出（一字跌停顺延），否则持有（无目标价止盈）；T+1 锁定
+- 退市持仓到达退市日强制清仓计零（与基准侧同口径，审计 #9）；封板判定纯比率口径 ±0.05% 容差
 - `backtest/run_lgb.py` 的 `PRED_COLS`/`W2D/W6D/W20D` 是融合列名与权重的**单源**（forecast_display 直接 import）
-- **limit 执行语义已判死**（7 折平均 +3.9% 跑输基准；`--exec limit` 仅对照）
-- 多空信号（`run_long_short`）是纯诊断件，历史极不稳定，勿当版本优劣依据
 
-### 5. 泄漏断言（`_leak_check.py`，2026-08-23 重写）
-对主窗口盘上产物四类断言（52 项，当前全过，exit 1=有失败）：
-- **C1** 训练掩码终点=重算 `buffered_train_end`；末训练日标签最远引用 < 测试窗首日
-- **C2** 输出校准尾段全部 < train_end 且不触测试期
-- **C3** 预测行集与复刻过滤链（IsST/退市/次日封板排除）逐行一致，行数=meta.n_pred
-- **C4** 标签函数源码只含 `shift(-d)` + 合成面板对拍
-折产物由 `fold_cv.py` 内置 `leak_checks` 覆盖。重训/改标签/改 buffer 后必跑。
+### 5. 泄漏断言（`_leak_check.py`）
+对主窗口盘上产物四类断言（四模型共 56 项，exit 1=有失败）：C1 训练掩码终点、C2 校准尾段、C3 预测行集与复刻过滤链逐行一致、C4 标签函数源码只含 `shift(-d)` + 合成面板对拍。折产物由 `fold_cv.py` 内置 `leak_checks` 覆盖。重训/改标签/改 buffer 后必跑。
 
 ### 6. 折 CV 验证框架（`fold_cv.py`）
-连续 7 折半年窗（F1=2022H2 … F7=2025-06~2026-06），训练起点锁 2020 扩张窗口，每折**独立重跑筛选+训练+双语义回测**（折清单强制读 `factors/folds/{fid}/`，防筛选泄漏）。44 因子版干净折（全修复语义）：market 平均 +23.4%/半年 vs 基准 +9.4%、6/7 折超额为正、最差折 −17.5%（F4 崩盘折超额 +6.8pp）、平均夏普 1.93。**搭便车清洗版折验证（`fold_cv_slim.py`，2026-08-23 用户裁定"精简版"）**：每折重演 v8 配方的机械段——贡献分析（`factor_contribution --fold`）→ 零增益且零边际贡献因子剔除 → 重训 → market 回测；结果 平均 +23.9%/最差折 −7.9%（崩盘折 F4 防御大幅优于胖版）/平均夏普 1.82/超额 5/7（F2 失守）。诚实边界：清洗在折自己的测试窗上度量（配方复现，非纯 OOS）；未做 6d/open2d 极限瘦身（4/3 清单含人工裁定，不重演）；规则清洗幅度折间差异大（0~31 个）——对模型形态敏感，非处处温和。**v8 正式版（34/4/3）官方折验证经用户裁定跳过**（2026-08-23，省时）——引用折数字时注意区分版本；同日清单经折存活投票**定稿为 32/4/3**（见横幅），折内清洗产物已入库。纪律：F1-F6 开发迭代、F7/新数据终裁；`--skip-train` 复用折产物只重跑回测。
+连续 7 折半年窗（F1=2022H2 … F7=2025-06~2026-06），训练起点锁 2020 扩张窗口，每折**独立重跑筛选+训练+market 回测**（折清单强制读 `factors/folds/{fid}/`）。时点池口径官方折见横幅（market 平均 +20.9%/最差 F4 −22.8%）。搭便车清洗版验证（fold_cv_slim）与 v8 折验证裁定跳过的记录见 agent memory；脚本已删（2026-08-25，git 可恢复）。纪律：F1-F6 开发迭代、F7/新数据终裁；`--skip-train` 复用折产物只重跑回测。
 
-### 7. ST/退市三层防御（训练排除 + 回测过滤 + 报告过滤同款）
-1. `excluded_codes`：名称快照含 "ST"/"退"（兜底）
-2. `IsST` 因子（namechange 解析，当日时点，主力）
-3. `delist_info`（date >= delist_date）
-
-预测 parquet 在训练入口已排除三类观测（故下游计数为 0 属预期）。
+### 7. ST/退市三层防御（时点口径，2026-08-24 裁定）
+① 日度 IsST 因子（namechange 区间解析，含变级修复，主力）② delist_info（date >= delist_date）③ 训练排斥语义="仅训练"（预测照常输出，下游各自过滤）。名称快照层已退役。回测候选过滤（IsST/退市）在模拟器内执行。
 
 ### 8. IC 口径
-测试集 IC 剔除：① 次日开盘封板观测（`compute_nextopen_limit_mask`，纯比率判断 ±0.05% 容差——qfq 价格网格判断已修）② 当日 IsST=1。训练集同样排除三类（见 #7）。
+测试集 IC 剔除：① 次日开盘封板观测（`compute_nextopen_limit_mask`，纯比率判断 ±0.05% 容差）② 当日 IsST=1。训练集同样排除。
 
-### 9. gap1d / open2d 实验模型
-- **gap1d**（隔夜跳空，close 锚窗口(1,1)）：独立实验，IC ~0.19（隔夜信息最浓、跨风格稳），**不入 score/回测**；清单为历史拷贝（不随 6d 自动同步）
-- **open2d**：已转正入融合（2026-08-22）。锚对照实验定论：T 时点可预测性浓缩在 T→T+1 隔夜段，第二夜跳空基本不可预测
+### 9. gap1d / 模型因子
+- **gap1d**（主模型第四位，独立实验）：预测隔夜跳空，IC ~0.19，**不入 score/回测**；清单为 6d 清单历史拷贝
+- **gb_gap1d**（XGBoost 特征列）：盘上候审；**nn_gap1d**（MLP 特征列）：已入 6d/open2d 清单，每交易日前沿推理（冻结模型，绝不重训）
+- 因子表列所有权：公式因子列归 factors/update；gb_/nn_ 列归各构建脚本；全量重建自动保全他方列
 
-### 10. DuckDB 单一数据源（与主区共享）
-所有行情/因子在 `data/ashare.duckdb`（符号链接→主区）。前复权价格通过 VIEW `daily_kline`（`raw × adj_factor / latest_adj`，2026-08-20 修复分子分母写反）。**factor_values 双写入方分列所有权**：主区 compute/update 拥有 ~52 列基础因子；本分支拥有挖矿/短窗/mf_* 列。`(code,date)` 行级 INSERT/UPDATE，**勿整行替换**，date 保持 VARCHAR。**单写者锁跨进程互斥**：写库前 `ps aux | grep -E 'data\.pull|factors\.update'`，避开工作日 21:05 前后。
+### 10. DuckDB 单一数据源
+所有行情/因子在 `data/ashare.duckdb`。前复权价格通过 VIEW `daily_kline`（`raw × adj_factor / latest_adj`）。**单写者锁跨进程互斥**：写库前 `ps aux | grep -E 'data\.pull|factors\.update'`，避开工作日 21:05 前后（cron 流水线窗口）。`(code,date)` 行级 INSERT/UPDATE，勿整行替换（增量路径）；date 保持 VARCHAR。**membership 查询在持有写连接的进程内必须传 con**（`union_codes(con=con)`），否则自开只读连接会撞锁。
 
-### 11. 换手率/市值来源（与主区同）
-- 换手率实时算：`amount / NULLIF(circ_mv, 0) / 10`（`daily_kline.turn` 为 NULL）
-- `total_mv`/`circ_mv` 来自 `daily_basic`（单位万元；`daily_raw` 同名字段全 NULL）
+### 11. 换手率/市值来源
+换手率实时算：`amount / NULLIF(circ_mv, 0) / 10`；`total_mv`/`circ_mv` 来自 `daily_basic`（单位万元）。
 
 ### 12. 已判死清单（勿再提出）
-close 锚 open2d ｜ limit 执行语义 ｜ qfq 水平因子（latest_adj 未来信息）｜ 显式门控逻辑（非线性关系由模型自学）｜ 模型因子入簇竞争 ｜ ai_gz2000_*（in-sample 泄漏已删）
+close 锚 open2d ｜ limit 执行语义（已物理删除）｜ qfq 水平因子 ｜ 显式门控逻辑 ｜ 模型因子入簇竞争 ｜ ai_gz2000_*（泄漏已删）｜ 长空信号当版本依据 ｜ mf_ 注册表机制（已删，如重建走独立脚本范式）
 
 ### 13. 数据库表清单
-与主区同构（stock_info/daily_raw/daily_basic/daily_kline/cyq_perf/industry/index_daily/namechange/delist_info/trading_calendar/pending_pulls），差异仅在 `factor_values`：本分支额外写入挖矿因子、短窗因子（Return_3d 等 6 个）、水平替换（ATR_pct/MACD_hist_pct/CloseBIAS_20d）、模型因子（mf_*，所有权归 build_model_factors）。表结构详情见主区 AGENTS.md。
+stock_info/daily_raw/daily_basic/daily_kline(VIEW)/cyq_perf/industry/index_daily/namechange/delist_info/trading_calendar/pending_pulls/pool_snapshots/factor_values/macro_daily(shibor)。
 
 ## Common Workflows
 
-所有命令默认 `mainboard_microcap` 池；解释器用主区 `.venv`（`/Users/cui/Projects/quantlab/.venv/bin/python`，系统 python3 无 duckdb）。
+所有命令默认 `mainboard_microcap` 池；解释器用 `.venv/bin/python`（系统 python3 无 duckdb）。
 
-### 数据更新（与主区同构）
+### 数据更新（cron 每交易日 21:05 自动跑）
 ```bash
 python -m data.pull            # 增量拉取（勿用 --full，2-4 小时）
-python -m factors.update       # 增量因子（本分支新列在此写入）
+python -m factors.update       # 增量因子（--dry-run 预览 / --backfill-stocks 回补）
+python -m factors.update --full   # 全量重建 factor_values（勿轻易运行）
 python -m factors.build_nn_gap1d --infer-only   # nn 因子前沿推理（冻结 MLP，秒级）
 python -m factors.integrity    # 独立完整性校验
+python -m pools.membership     # 重建池快照（半年度，通常 6/12 月跑一次）
 ```
 
 ### 训练与评估
 ```bash
 python run_lgb.py                    # ★ 训练三模型+gap1d（约 5 分钟），写 models/ + predictions parquet + meta
-python _leak_check.py                # ★ 泄漏断言（52 项，重训后必跑）
+python _leak_check.py                # ★ 泄漏断言（56 项，重训后必跑）
 python -m backtest.run_lgb           # ★ 主回测（开盘市价，融合分+卖出零点）
 python fold_cv.py                    # 7 折全链（~35 分钟）；--skip-train 只重跑回测
-python fold_cv_slim.py               # 搭便车清洗版折验证（~80 分钟，单折 ~3 分钟）
 ```
 
 ### 预测报告（三级降级，永不 exit 1）
 ```bash
-python forecast_display/generate_lgb.py   # L1 完整 / L2 DOWNGRADED（缺成分重归一）/ L3 红色占位
+python forecast_display/generate_lgb.py   # L1 完整 / L2 DOWNGRADED / L3 红色占位
 ```
-报告读三 parquet+meta 融合出榜；**刻意不回退旧 lgb_multi.joblib**（2026-08-13 泄漏模型）。注意 parquet 止于 TEST_END，报告日期=产物最新可用日。
+报告读三 parquet+meta 融合出榜；LIVE 通道用冻结模型对最新因子日实时推理。**刻意不回退旧 lgb_multi.joblib**（2026-08-13 泄漏模型）。
 
 ### 挖矿工作流（新因子主路径）
 ```bash
-# 1. 候选批测（原生 pandas 实现，IC + 全池 max 相关）
-python factors/test_new_factors.py
+# 1. 候选批测（IC + 全池 max 相关）
+python -m factors.mining batch
 # 2. 画像审计（衰减/冗余对/口径）与模型内贡献（gain/permutation）
-python factors/factor_audit.py
-python factors/factor_contribution.py
+python -m factors.mining audit [--selected]
+python -m factors.mining contribution [--fold F4]
 # 3. 入池重筛（簇优先，每模型一份清单）→ 重训 → 回测
 python -m factors.select_factors --model 20d
 python run_lgb.py && python -m backtest.run_lgb
 ```
-纪律：加因子看 train-test 泛化缺口（20d 当前正则下事实容量 ~44 因子，靠替换不靠堆加）；相关性判定对全池取 max（<0.75 增量 / >0.95 冗余）；强因子替换弱因子优先。模型因子走 `build_model_factors.py` + registry 注册，独立准入门。
+纪律：加因子看 train-test 泛化缺口；相关性判定对全池取 max（<0.75 增量 / >0.95 冗余）；强因子替换弱因子优先。模型因子走独立构建脚本（gb_/nn_ 前缀），独立准入门。
 
 ### 门禁与审查
 ```bash
-python -m factors.baseline_check     # 评估器回归门禁（改标签/评估器必跑）
+python -m factors.baseline_check     # 评估器回归门禁（改标签/评估器必跑；--init 重冻结参考值）
 python _leak_check.py                # 泄漏断言
 ```
 
 ## Important Constraints
 
-- **勿启动 `--full` 全量构建**（2-4 小时，13800+ 次 API）；日常增量 `python -m data.pull`
-- **DB 单写者锁**（与主区共享）：写库前确认无 `data.pull`/`factors.update` 在跑；避开工作日 21:05 前后（流水线窗口，当前暂停但勿赌）；从持库进程 spawn 写库子进程前先 `con.close()`
-- **勿提交 DuckDB/.env**（.env 为符号链接）
-- **Tushare 中继限流** 200 次/分钟（上限 600）
+- **勿启动 `--full` 全量构建**（pull 2-4 小时 13800+ API；factor --full 整表重建）
+- **DB 单写者锁**：写库前确认无 `data.pull`/`factors.update` 在跑；避开工作日 21:05 前后；membership 在写连接进程内查询必须传 con
+- **勿提交 DuckDB/.env**
+- **Tushare 中继限流** 200 次/分钟
 - **无 notebook**；分析一律 Python 脚本
 - **权重/列名单源**：改融合相关代码从 `backtest/run_lgb.py` import，勿复制常量
-- **主区未提交改动不是本分支的事**：主工作区 fix 分支由另一 session/流水线维护，本分支只动 worktree 内文件
+- **cron 四步模块路径是契约**（data.pull / factors.update / factors.build_nn_gap1d / forecast_display/generate_lgb.py），改名必须同步改 cron automation-596d04c5
+- **池代码单源 pools/membership**：不新增任何 json 池读取（2026-08-25 已删干净）
 
 ## Coding Conventions
 
-- 新公式因子加 `factors/extra_factors.py`（原生 Polars）；候选批测用 `factors/test_new_factors.py` 范式（pandas，口径对齐筛选）
-- 模型因子注册进 `factors/registry.py`（白名单输入+超参指纹），构建走 `build_model_factors.py`
-- 新策略继承 `strategies/base.py`；时序窗口只用向后 shift
-- 类型标注按需；遵循各模块已有风格；路径基于 `__file__`
+- 新公式因子加 `factors/extra_factors.py`（原生 Polars）；候选批测 `python -m factors.mining batch`
+- 模型因子：独立构建脚本（gb_/nn_ 前缀），头部声明列所有权+输入白名单+超参指纹
+- 时序窗口只用向后 shift；类型标注按需；路径基于 `__file__`
 
 ## 八荣八耻
 以瞎猜接口为耻，以认真查询为荣；

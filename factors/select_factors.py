@@ -31,9 +31,10 @@ from scipy.stats import rankdata
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import (DB_PATH, POOL_NAME, get_pool_codes, SELECTED_FACTORS,
+from config import (DB_PATH, POOL_NAME, SELECTED_FACTORS,
                     MODEL_CONFIGS, FOLDS, FOLD_TRAIN_START, get_fold)
 from strategies.labels import compute_median_open
+from strategies.lgb import buffered_train_end
 from pools.membership import union_codes, member_mask
 from run_lgb import HISTORY_SINCE   # 成员起点单源（池时点化 2026-08-24）
 
@@ -123,7 +124,7 @@ def main():
     # 2026-08-24 修复：筛选 IC 窗口补 label_buffer——窗口末 e0 个交易日的标签
     # 引用 test_start 之后的开盘价（原实现裸取 [start, test_start)，尾部 IC
     # 吸收测试窗价格信息）。与训练侧 buffered_train_end 同一机制。
-    from strategies.base import buffered_train_end
+    from strategies.lgb import buffered_train_end
     panel_dates = sorted(date_level.unique())
     buf_end = buffered_train_end(panel_dates, test_start, cfg["label_buffer"])
     train_mask = (date_level >= train_start) & (date_level < buf_end)

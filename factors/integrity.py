@@ -29,7 +29,8 @@ import duckdb
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import DB_PATH, get_pool_codes
+from config import DB_PATH
+from pools.membership import union_codes
 
 log = logging.getLogger(__name__)
 
@@ -186,7 +187,7 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
         cols_to_check = []
         try:
             sel_path = Path(__file__).parent / \
-                f"selected_{(os.environ.get('QUANTLAB_POOL') or 'mainboard_microcap')}.json"
+                f"selected_{(os.environ.get('QUANTLAB_POOL') or 'mainboard_microcap')}_20d.json"
             if sel_path.exists():
                 sel = json.loads(sel_path.read_text(encoding="utf-8"))
                 cols_to_check += [c for c in sel.get("selected_factors", [])
@@ -212,7 +213,8 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> dict:
     try:
         from .update import STOCK_COVERAGE_MIN
 
-        pool_codes = get_pool_codes()
+        # 池时点化（2026-08-25）：快照全历史成员并集，经调用方连接查询
+        pool_codes = union_codes(con=con)
         rows = con.execute(
             """
             WITH pool AS (SELECT DISTINCT unnest(?::VARCHAR[]) AS code),

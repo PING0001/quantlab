@@ -20,7 +20,8 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from config import DB_PATH, TRACKED_INDICES, load_all_pool_stocks
+from config import DB_PATH, TRACKED_INDICES
+from pools.membership import union_codes
 
 from data._ts import retry_api
 
@@ -173,7 +174,7 @@ def _fetch_daily_basic(pro, td: str) -> pd.DataFrame:
 
 def _fetch_cyq(pro, td: str) -> pd.DataFrame:
     # 注：官方文档 ts_code 为必填，此处按日全市场拉取依赖 quicksync 中转的
-    # 宽松校验；如中转收紧，回退 build_cyq.py 的逐股拉取模式。
+    # 宽松校验；如中转收紧，从 git 历史恢复 build_cyq.py 的逐股拉取模式。
     df = retry_api(pro.cyq_perf, ts_code="", trade_date=td, fields=CYQ_FIELDS)
     if df is None or df.empty:
         return pd.DataFrame()
@@ -279,8 +280,15 @@ def pull_shibor(con, pro, dates: list[str]) -> int:
     return len(out)
 
 
-def _pool_union_codes() -> set[str]:
-    return {s["code"] for s in load_all_pool_stocks()}
+def _pool_union_codes(con) -> set[str]:
+    """池代码并集（时点快照全历史成员）--namechange 过滤与行业触发的范围。
+
+    必须传调用方已持有的连接（pull 进程持有写连接，membership 若自开
+    只读连接会撞 DuckDB 单写者文件锁）。pool_snapshots 缺表时此处大声
+    失败（fail-fast）：池快照是全系统宇宙定义，静默空集会让 namechange
+    停更、ST/退市事件断流（2026-08-25 json 池删除事故的教训）。
+    """
+    return set(union_codes(con=con))
 
 
 def dedup_namechange(df: pd.DataFrame) -> pd.DataFrame:
@@ -306,10 +314,9 @@ def _sync_delist_info(con):
     stock_basic(list_status='D') 的 delist_date 为主源（最后写入、覆盖补充值，
     为真实摘牌日）；namechange '终止上市' 仅补主源缺失的池内 code（其
     MIN(start_date) 可能早于摘牌日，只作补充）。不再按池并集 DELETE：
-    delist_info 以全市场退市档案为准，行集合不随池成员变动（与
-    build_delist_info.py 的全量重建同口径）。
+    delist_info 以全市场退市档案为准，行集合不随池成员变动。
     """
-    pool_codes = _pool_union_codes()
+    pool_codes = _pool_union_codes(con)
     if pool_codes:
         ph = ",".join(["?"] * len(pool_codes))
         con.execute(f"""
@@ -344,7 +351,7 @@ def pull_namechange(con, pro, dates: list[str]) -> int:
     if start_date <= end_date:
         df = retry_api(pro.namechange, start_date=start_date, end_date=end_date)
         if df is not None and not df.empty:
-            pool_codes = _pool_union_codes()
+            pool_codes = _pool_union_codes(con)
             df["code"] = df["ts_code"].str[:6]
             df = df[df["code"].isin(pool_codes)]
             if not df.empty:

@@ -47,7 +47,7 @@ from sklearn.neural_network import MLPRegressor
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config import DB_PATH, POOL_NAME, get_pool_codes
+from config import DB_PATH, POOL_NAME
 
 STATE_PATH = (Path(__file__).resolve().parents[1] / "models" / POOL_NAME
               / "nn_gap1d_state.joblib")
