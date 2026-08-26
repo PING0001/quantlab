@@ -27,6 +27,7 @@ pools/*.json
 # Backtest runtime outputs (regenerable via backtest.run_lgb / fold_cv.py,
 # 裁定 2026-08-27：回测产物一律不入库)
 backtest/mainboard_microcap/
+backtest/mainboard_all/
 
 # Editor/tool cache
 .zcode/
