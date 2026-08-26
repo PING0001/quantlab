@@ -2,7 +2,7 @@
 """
 评估器回归门禁：8 个基准因子（原生 Polars 重实现，2026-08-25 并入原
 factors/baseline_alphas.py）的固定窗口 rank IC 汇总，与冻结参考值
-（factors/baseline_reference.json）比对。
+（factors/baseline_reference_{pool}.json，按池独立冻结）比对。
 
 用途：评估口径（select_factors 的 IC 计算 / labels 前向收益）变更后，
 跑本工具确认"已知因子"的 IC 没有非预期漂移。手动工具，不进每日流水线。
@@ -45,10 +45,12 @@ import polars as pl
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import DB_PATH, POOL_NAME
+from config import DB_PATH
+from pools.spec import get_pool, PoolSpec
 from factors.select_factors import MIN_STOCKS_PER_DATE, _rank_ic_np
 from strategies.labels import compute_forward_returns
 from pools.membership import union_codes
+from factors import store
 
 TRAIN_START = "2018-01-01"
 TRAIN_END = "2025-06-01"
@@ -58,7 +60,9 @@ LOAD_TO = "2025-08-31"     # 标签需 T+20 收盘
 IC_MEAN_TOL = 0.01
 ICIR_TOL = 0.10
 
-REF_PATH = Path(__file__).resolve().parent / "baseline_reference.json"
+def _ref_path(spec: PoolSpec) -> Path:
+    """冻结参考值按池命名（原 baseline_reference.json 为微盘池冻结值 git mv 而来）。"""
+    return Path(__file__).resolve().parent / f"baseline_reference_{spec.name}.json"
 
 BASELINE_FACTORS = [
     "alpha1_v0", "alpha18_v0", "alpha50_v0", "alpha60_v0",
@@ -223,20 +227,16 @@ def load_delist_info(con) -> dict:
         return {}
 
 
-def load_isst(con, codes) -> pd.Series:
-    ph = ",".join(["?"] * len(codes))
-    df = con.execute(
-        f"SELECT code, date, IsST FROM factor_values WHERE code IN ({ph})",
-        codes,
-    ).fetchdf()
+def load_isst(con, spec, codes) -> pd.Series:
+    df = store.load_isst(con, spec, codes=codes)
     df["date"] = pd.to_datetime(df["date"])
     return df.set_index(["date", "code"])["IsST"]
 
 
-def compute_metrics() -> dict:
+def compute_metrics(spec: PoolSpec) -> dict:
     con = duckdb.connect(str(DB_PATH), read_only=True)
     # 池时点化（2026-08-25）：时点快照全历史成员并集（原 json 池并集已删）
-    codes = union_codes(con=con)
+    codes = union_codes(con=con, pool=spec.name)
 
     # 行情（polars 面板，供因子计算）
     ph = ",".join(["?"] * len(codes))
@@ -258,8 +258,8 @@ def compute_metrics() -> dict:
     delist_info = load_delist_info(con)
     fwd = compute_forward_returns(kline_pd, horizon=HORIZON, delist_info=delist_info)
 
-    # IsST（factor_values 现值）
-    isst = load_isst(con, codes)
+    # IsST（池因子表现值，走 store 单点）
+    isst = load_isst(con, spec, codes)
     con.close()
 
     # 对齐到 (date, code) 索引
@@ -310,7 +310,7 @@ def compute_metrics() -> dict:
             "n_dates": int(len(arr)),
         }
     metrics["_meta"] = {
-        "pool": POOL_NAME,
+        "pool": spec.name,
         "universe": "pool_snapshots union (2026-08-25)",
         "train_window": [TRAIN_START, TRAIN_END],
         "horizon": HORIZON,
@@ -323,10 +323,14 @@ def main():
     parser = argparse.ArgumentParser(description="Evaluator regression gate")
     parser.add_argument("--init", action="store_true",
                         help="freeze/refresh the reference values")
+    parser.add_argument("--pool", default=None,
+                        help="目标池（默认 env QUANTLAB_POOL / 微盘；每池独立参考值文件）")
     args = parser.parse_args()
+    spec = get_pool(args.pool)
+    ref_path = _ref_path(spec)
 
     t0 = time.time()
-    metrics = compute_metrics()
+    metrics = compute_metrics(spec)
 
     if args.init:
         ref = {
@@ -334,20 +338,20 @@ def main():
             "tolerances": {"ic_mean_abs": IC_MEAN_TOL, "icir_abs": ICIR_TOL},
             **metrics,
         }
-        REF_PATH.write_text(json.dumps(ref, indent=2, ensure_ascii=False),
+        ref_path.write_text(json.dumps(ref, indent=2, ensure_ascii=False),
                             encoding="utf-8")
-        print(f"Reference frozen -> {REF_PATH}")
+        print(f"Reference frozen -> {ref_path}")
         for f in BASELINE_FACTORS:
             m = metrics[f]
             print(f"  {f:<12} ic_mean={m['ic_mean']:+.4f}  icir={m['icir']:+.3f}"
                   f"  pos={m['pos_rate']:.2f}  n={m['n_dates']}")
         return
 
-    if not REF_PATH.exists():
-        print(f"ERROR: {REF_PATH} not found. Run with --init first.")
+    if not ref_path.exists():
+        print(f"ERROR: {ref_path} not found. Run with --init first.")
         sys.exit(2)
 
-    ref = json.loads(REF_PATH.read_text(encoding="utf-8"))
+    ref = json.loads(ref_path.read_text(encoding="utf-8"))
     print(f"reference frozen at {ref.get('frozen_at')}, "
           f"data_max_date={ref.get('_meta', {}).get('data_max_date')}")
     print(f"current  data_max_date={metrics['_meta']['data_max_date']}")

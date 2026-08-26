@@ -13,9 +13,10 @@ Rolling fold CV driver（2026-08-21 用户裁定：连续 7 折半年窗，训�
 
 Usage:
     python fold_cv.py --dry-run                 # 打印每折计划
-    python fold_cv.py                           # 7 折全链
+    python fold_cv.py                           # 7 折全链（默认池=env/微盘）
     python fold_cv.py --folds F1,F2
     python fold_cv.py --skip-train              # 复用折产物只重跑回测
+    python fold_cv.py --pool mainboard_all --folds F4
 """
 from __future__ import annotations
 
@@ -31,9 +32,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import (POOL_NAME, FOLDS, FOLD_TRAIN_START, get_fold,
-                    get_backtest_dir, get_lgb_predictions_path,
-                    get_lgb_predictions_meta_path)
+from config import FOLDS, FOLD_TRAIN_START, get_fold
+from pools.spec import get_pool
 
 PY = sys.executable
 ROOT = Path(__file__).resolve().parent
@@ -51,29 +51,29 @@ def run(cmd: list[str], log_path: Path) -> None:
     print(f"    done in {time.time() - t0:.0f}s")
 
 
-def leak_checks(fid: str) -> None:
+def leak_checks(fid: str, spec) -> None:
     """折产物泄漏断言：筛选窗口终点=折 test_start；训练截止<test_start；预测范围⊆折窗。"""
     test_start, test_end = get_fold(fid)
     ts, te = pd.Timestamp(test_start), pd.Timestamp(test_end)
     for m in ("20d", "6d"):
-        sj = ROOT / "factors" / "folds" / fid / f"selected_{POOL_NAME}_{m}.json"
+        sj = ROOT / "factors" / "folds" / fid / f"selected_{spec.name}_{m}.json"
         d = json.loads(sj.read_text())
         assert d["train_end"] == test_start, \
             f"{fid}/{m}: selected train_end={d['train_end']} != test_start={test_start}"
-        meta = json.loads(get_lgb_predictions_meta_path(m, fold=fid).read_text())
+        meta = json.loads(spec.lgb_predictions_meta_path(m, fold=fid).read_text())
         assert pd.Timestamp(meta["train_end"]) < ts, \
             f"{fid}/{m}: meta train_end={meta['train_end']} >= test_start"
         assert meta["test_start"] == test_start and meta["test_end"] == test_end, \
             f"{fid}/{m}: meta test window {meta['test_start']}~{meta['test_end']} != fold def"
-        pred = pd.read_parquet(get_lgb_predictions_path(m, fold=fid))
+        pred = pd.read_parquet(spec.lgb_predictions_path(m, fold=fid))
         dts = pred.index.get_level_values("date")
         assert dts.min() >= ts and dts.max() <= te, \
             f"{fid}/{m}: predictions [{dts.min()}~{dts.max()}] outside fold window"
 
 
-def fold_metrics(fid: str, exec_label: str) -> dict:
+def fold_metrics(fid: str, exec_label: str, spec) -> dict:
     """从折回测 CSV 计算：总收益/夏普/回撤/仓位/往返/单笔 t 值/胜率 + 基准。"""
-    bt = get_backtest_dir(fold=fid)
+    bt = spec.backtest_dir(fold=fid)
     e = pd.read_csv(bt / f"equity_lgb_combined_daily_{exec_label}_rebalance.csv",
                     index_col=0, parse_dates=True)["Equity"]
     r = e.pct_change().dropna()
@@ -122,14 +122,18 @@ def main():
     parser.add_argument("--skip-train", action="store_true",
                         help="复用已有折筛选/模型/预测，只重跑回测与汇总")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--pool", default=None,
+                        help="目标池（默认 env QUANTLAB_POOL / 微盘）")
     args = parser.parse_args()
+    spec = get_pool(args.pool)
 
     fids = [x.strip() for x in args.folds.split(",") if x.strip()]
     for fid in fids:
         assert fid in FOLDS, f"unknown fold {fid}"
-    log_path = ROOT / "data" / "fold_cv_run.log"
+    log_path = ROOT / "data" / f"fold_cv_run_{spec.name}.log"
 
-    print(f"Fold CV: {fids} | exec=market | train_start={FOLD_TRAIN_START}（扩张窗口）")
+    print(f"Fold CV: {fids} | pool={spec.name} | exec=market | "
+          f"train_start={FOLD_TRAIN_START}（扩张窗口）")
     for fid in fids:
         ts, te = get_fold(fid)
         n_years = (pd.Timestamp(ts) - pd.Timestamp(FOLD_TRAIN_START)).days / 365.25
@@ -138,29 +142,31 @@ def main():
     if args.dry_run:
         print("\n[dry-run] 每折将依次执行：")
         print("  1) python -m factors.select_factors --model 20d/6d --fold F*")
-        print("  2) python run_lgb.py --model all --fold F*")
-        print("  3) python -m backtest.run_lgb --fold F*")
-        print(f"  产物：factors/folds/F*/、models/{POOL_NAME}/folds/F*/、data/folds/F*/、"
-              f"backtest/{POOL_NAME}/folds/F*/")
+        print("  2) python run_lgb.py --model all --fold F* --pool {pool}")
+        print("  3) python -m backtest.run_lgb --fold F* --pool {pool}")
+        print(f"  产物：factors/folds/F*/、models/{spec.name}/folds/F*/、data/folds/F*/、"
+              f"backtest/{spec.name}/folds/F*/")
         return
 
     t_all = time.time()
+    pool_args = ["--pool", spec.name]   # 子进程显式传池，不靠 env 继承
     for fid in fids:
         print(f"\n===== {fid} =====")
         if not args.skip_train:
             for m in ("20d", "6d"):
-                run([PY, "-m", "factors.select_factors", "--model", m, "--fold", fid], log_path)
-            run([PY, "run_lgb.py", "--model", "all", "--fold", fid], log_path)
-        leak_checks(fid)
+                run([PY, "-m", "factors.select_factors", "--model", m, "--fold", fid,
+                     *pool_args], log_path)
+            run([PY, "run_lgb.py", "--model", "all", "--fold", fid, *pool_args], log_path)
+        leak_checks(fid, spec)
         print(f"    leak checks passed")
-        run([PY, "-m", "backtest.run_lgb", "--fold", fid], log_path)
+        run([PY, "-m", "backtest.run_lgb", "--fold", fid, *pool_args], log_path)
 
     # ---- summary ----
     report = {}
     for ex in ["market"]:
         rows = {}
         for fid in fids:
-            rows[fid] = fold_metrics(fid, ex)
+            rows[fid] = fold_metrics(fid, ex, spec)
         df = pd.DataFrame(rows).T
         report[ex] = {
             "per_fold": rows,
@@ -172,7 +178,7 @@ def main():
             if "benchmark_return" in df else None,
         }
 
-    out_path = ROOT / "data" / "fold_cv_report.json"
+    out_path = ROOT / "data" / f"fold_cv_report_{spec.name}.json"
     out_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
 
     for ex in ["market"]:

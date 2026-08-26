@@ -11,8 +11,8 @@ training set. 在平均相关矩阵上做 average-linkage 层次聚类（距离 
 每模型一份清单，输出 selected_{pool}_{model}.json。
 
 Usage:
-    python -m factors.select_factors --model 20d
-    python -m factors.select_factors --model 6d
+    python -m factors.select_factors --model 20d            # 默认池=env/微盘
+    python -m factors.select_factors --model 6d --pool mainboard_all
 """
 from __future__ import annotations
 
@@ -31,12 +31,13 @@ from scipy.stats import rankdata
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import (DB_PATH, POOL_NAME, SELECTED_FACTORS,
+from config import (DB_PATH, SELECTED_FACTORS,
                     MODEL_CONFIGS, FOLDS, FOLD_TRAIN_START, get_fold)
+from pools.spec import get_pool
 from strategies.labels import compute_median_open
 from strategies.lgb import buffered_train_end
-from pools.membership import union_codes, member_mask
-from run_lgb import HISTORY_SINCE   # 成员起点单源（池时点化 2026-08-24）
+from pools.membership import member_mask
+from dataset import load_factors, load_kline
 
 
 # 口径说明：2026-08-21 用户裁定筛选与训练对齐——IC 与相关度均自 2020 起
@@ -48,23 +49,6 @@ CLUSTER_CORR = 0.7   # 簇优先：average-linkage 距离=1-|corr|，簇内相�
 EXCLUDE_PREFIXES = ("alpha",)   # 2026-08-21 用户裁定：alpha 开头因子（vnpy 移植 101 个及变体）全部不入筛选
 MIN_STOCKS_PER_DATE = 30
 MUST_INCLUDE = ["CSI_return_20d"]
-
-
-def load_factors(con):
-    pool_codes = union_codes(since=HISTORY_SINCE)
-    placeholders = ",".join(["?"] * len(pool_codes))
-    query = f"SELECT * FROM factor_values WHERE code IN ({placeholders})"
-    df = con.execute(query, pool_codes).fetchdf()
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.set_index(["date", "code"]).sort_index()
-    return df
-
-
-def load_kline(con):
-    pool_codes = union_codes(since=HISTORY_SINCE)
-    placeholders = ",".join(["?"] * len(pool_codes))
-    query = f"SELECT code, date, open, close FROM daily_kline WHERE code IN ({placeholders}) ORDER BY code, date"
-    return con.execute(query, pool_codes).fetchdf()
 
 
 def compute_model_label(kline, cfg: dict) -> pd.Series:
@@ -95,7 +79,10 @@ def main():
                         help="模型（决定标签窗口/基准价，spec §3.4）")
     parser.add_argument("--fold", choices=sorted(FOLDS), default=None,
                         help="滚动折 CV：筛选窗口终点=折 test_start，输出 factors/folds/{fid}/")
+    parser.add_argument("--pool", default=None,
+                        help="目标池（默认 env QUANTLAB_POOL / 微盘）")
     args = parser.parse_args()
+    spec = get_pool(args.pool)
     cfg = MODEL_CONFIGS[args.model]
     horizon_name = cfg["horizon"]
 
@@ -103,13 +90,13 @@ def main():
     test_start = pd.Timestamp(get_fold(args.fold)[0]) if args.fold else TEST_START
     train_start = pd.Timestamp(FOLD_TRAIN_START) if args.fold else TRAIN_START
 
-    print(f"Pool: {POOL_NAME} | model: {args.model} "
+    print(f"Pool: {spec.name} | model: {args.model} "
           f"(label T+{cfg['label_window'][0]}..T+{cfg['label_window'][1]}, baseline={cfg['baseline']})"
           f"{' | fold=' + args.fold if args.fold else ''}")
     con = duckdb.connect(str(DB_PATH), read_only=True)
 
     print("Loading factors ...")
-    factors_raw = load_factors(con)
+    factors_raw = load_factors(con, spec)
     available = [f for f in SELECTED_FACTORS
                  if f in factors_raw.columns and not f.startswith(EXCLUDE_PREFIXES)]
     missing = [f for f in SELECTED_FACTORS if f not in factors_raw.columns]
@@ -131,7 +118,8 @@ def main():
     factors = factors.loc[train_mask]
     # 池时点化：IC 只在当期档成员行上算（横截面口径 = 各档当时的池）
     mm = member_mask(factors.index.get_level_values("date"),
-                     factors.index.get_level_values("code"))
+                     factors.index.get_level_values("code"),
+                     con=con, pool=spec.name)
     factors = factors.loc[mm]
     print(f"  Training range: {factors.index.get_level_values('date').min().date()} ~ "
           f"{factors.index.get_level_values('date').max().date()} "
@@ -139,7 +127,7 @@ def main():
     print(f"  Training rows: {len(factors)}")
 
     print("Loading kline ...")
-    kline = load_kline(con)
+    kline = load_kline(con, spec)
     con.close()
 
     print("Computing labels ...")
@@ -345,11 +333,11 @@ def main():
     if args.fold:
         fold_dir = Path(__file__).resolve().parent / "folds" / args.fold
         fold_dir.mkdir(parents=True, exist_ok=True)
-        output_path = fold_dir / f"selected_{POOL_NAME}_{args.model}.json"
+        output_path = fold_dir / f"selected_{spec.name}_{args.model}.json"
     else:
-        output_path = Path(__file__).resolve().parent / f"selected_{POOL_NAME}_{args.model}.json"
+        output_path = Path(__file__).resolve().parent / f"selected_{spec.name}_{args.model}.json"
     result = {
-        "pool": POOL_NAME,
+        "pool": spec.name,
         "model": args.model,
         "fold": args.fold,
         "label_fn": "compute_median_open",

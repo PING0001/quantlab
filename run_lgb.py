@@ -8,9 +8,9 @@ before TEST_START stepped back label_buffer trading days, predict the whole
 test period.
 
 Usage:
-    python run_lgb.py                # train all models (20d / 6d / open2d / gap1d)
+    python run_lgb.py                # train all models (20d / 6d / open2d / gap1d)；默认池=env/微盘
     python run_lgb.py --model 20d
-    python run_lgb.py --model 6d
+    python run_lgb.py --pool mainboard_all
 """
 from __future__ import annotations
 
@@ -28,28 +28,15 @@ from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import (DB_PATH, POOL_NAME, SELECTED_FACTORS,
-                    MODEL_CONFIGS, get_lgb_model_path, get_lgb_predictions_path,
-                    get_lgb_predictions_meta_path, FOLDS, get_fold)
+from config import DB_PATH, SELECTED_FACTORS, MODEL_CONFIGS, FOLDS, get_fold
+from pools.spec import get_pool, PoolSpec
 
 from strategies.lgb import (LGBStrategy, walk_forward, buffered_train_end,
                             rank_ic, ic_summary)
-from strategies.labels import compute_median_open, compute_nextopen_limit_mask
-from pools.membership import union_codes, member_mask
-
-# 池时点化（2026-08-24）：数据加载 = 2019-12 首档起成员并集；行级资格 =
-# 各档成员期内。首档 2019-12-02 覆盖训练起点 2020-01 的完整成员。
-HISTORY_SINCE = "2019-12-02"
-
-
-# --- config ---
-TRAIN_START = pd.Timestamp("2020-01-01")
-TEST_START = pd.Timestamp("2025-06-01")
-TEST_END = pd.Timestamp("2026-06-01")
-WARMUP_DAYS = 90
-# 输出校准：训练窗内留出尾段（交易日数）估计 out-of-sample 收缩斜率，见下方 calibration 注释
-CALIB_TAIL_DAYS = 60
-MIN_TRAIN = 252
+import dataset
+from dataset import (assemble, compute_model_label,
+                     TRAIN_START, TEST_START, TEST_END, WARMUP_DAYS,
+                     CALIB_TAIL_DAYS, MIN_TRAIN)
 
 # 超参沿用分类时代调参（num_leaves/min_child/colsample 均为分类调出），
 # 回归首跑结果即基线，之后按回归目标重调（spec §3.3 超参注意）
@@ -78,47 +65,6 @@ LGB_KWARGS = dict(
 )
 
 
-def load_industry_sw_l3(con: duckdb.DuckDBPyConnection) -> tuple[pd.Series, dict[str, int]]:
-    """Load SW L3 codes for all stocks, encode into deterministic integers."""
-    df = con.execute(
-        "SELECT code, sw_l3_code FROM industry WHERE sw_l3_code IS NOT NULL"
-    ).fetchdf()
-    if df.empty:
-        return pd.Series(dtype=int), {}
-
-    categories = sorted(df["sw_l3_code"].astype(str).unique())
-    mapping = {code: i for i, code in enumerate(categories)}
-    codes = df["sw_l3_code"].map(mapping).fillna(-1).astype(int)
-    return pd.Series(codes.values, index=df["code"], name="sw_l3"), mapping
-
-
-def load_factors(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
-    pool_codes = union_codes(since=HISTORY_SINCE)
-    placeholders = ",".join(["?"] * len(pool_codes))
-    query = f"SELECT * FROM factor_values WHERE code IN ({placeholders})"
-    df = con.execute(query, pool_codes).fetchdf()
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.set_index(["date", "code"]).sort_index()
-    return df
-
-
-def load_kline(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
-    pool_codes = union_codes(since=HISTORY_SINCE)
-    placeholders = ",".join(["?"] * len(pool_codes))
-    query = f"SELECT code, date, open, close FROM daily_kline WHERE code IN ({placeholders}) ORDER BY code, date"
-    return con.execute(query, pool_codes).fetchdf()
-
-
-def load_delist_info(con: duckdb.DuckDBPyConnection) -> dict[str, pd.Timestamp]:
-    try:
-        df = con.execute("SELECT code, delist_date FROM delist_info").fetchdf()
-        if df.empty:
-            return {}
-        return {r["code"]: pd.Timestamp(r["delist_date"]) for _, r in df.iterrows()}
-    except Exception:
-        return {}
-
-
 def decile_analysis(pred: pd.Series, label: pd.Series) -> tuple[list[float], float]:
     """Per-date decile buckets -> mean label per decile + Spearman(decile, mean).
 
@@ -137,15 +83,16 @@ def decile_analysis(pred: pd.Series, label: pd.Series) -> tuple[list[float], flo
 
 def train_model(
     model: str,
-    factors_raw: pd.DataFrame,
+    data,
     label: pd.Series,
-    st_series: pd.Series | None,
-    limit_mask: pd.Series,
-    delist_info: dict[str, pd.Timestamp],
-    industry_sw_l3: pd.Series,
-    sw_l3_mapping: dict[str, int],
     fold: str | None = None,
 ) -> dict:
+    spec, factors_raw = data.spec, data.factors
+    st_series = data.st_series
+    limit_mask = data.limit_mask
+    delist_info = data.delist_info
+    industry_sw_l3 = data.industry_sw_l3
+    sw_l3_mapping = data.sw_l3_mapping
     cfg = MODEL_CONFIGS[model]
     h = cfg["horizon"]
     label_buffer = cfg["label_buffer"]
@@ -169,13 +116,13 @@ def train_model(
     # 折模式强制读折专属筛选清单（防筛选泄漏：折筛选不得见过折内及以后数据）
     if fold:
         selected_path = (Path(__file__).resolve().parent / "factors" / "folds" / fold
-                         / f"selected_{POOL_NAME}_{model}.json")
+                         / f"selected_{spec.name}_{model}.json")
         if not selected_path.exists():
             raise FileNotFoundError(
                 f"fold {fold} selected list not found: {selected_path}\n"
                 f"Run first: python -m factors.select_factors --model {model} --fold {fold}")
     else:
-        selected_path = Path(__file__).resolve().parent / "factors" / f"selected_{POOL_NAME}_{model}.json"
+        selected_path = Path(__file__).resolve().parent / "factors" / f"selected_{spec.name}_{model}.json"
     if selected_path.exists():
         selected_data = json.loads(selected_path.read_text())
         use_factors = selected_data["selected_factors"]
@@ -202,22 +149,12 @@ def train_model(
     # ---- label (regression target, continuous) ----
     y = label.to_frame(h)
 
-    # ---- align + train window ----
-    common = X.index.intersection(y.index)
-    X, y = X.loc[common], y.loc[common]
-
-    mask = y.notna().all(axis=1)
-    X, y = X.loc[mask], y.loc[mask]
-
-    # 池时点化：只保留 (date ∈ 当期档成员) 的行
-    mm = member_mask(X.index.get_level_values("date"),
-                     X.index.get_level_values("code"))
-    X, y = X.loc[mm], y.loc[mm]
+    # ---- align + train window（过滤链单源 dataset.training_panel_index，
+    #      与 _leak_check C3 复刻同一实现；行谓词交换律下与旧实现逐行等价）----
+    keep_idx = dataset.training_panel_index(X.index, label, TRAIN_START, spec=spec)
+    X, y = X.loc[keep_idx], y.loc[keep_idx]
 
     date_level = X.index.get_level_values("date")
-    mask = date_level >= TRAIN_START
-    X, y = X.loc[mask], y.loc[mask]
-
     print(f"  aligned samples: {len(X)}")
     print(f"  date range: {date_level.min().date()} ~ {date_level.max().date()}")
 
@@ -241,12 +178,8 @@ def train_model(
 
     lm = limit_mask.reindex(X.index, fill_value=False)
 
-    date_s = pd.Series(idx_date, index=X.index)
     e0 = cfg["label_window"][1]
-    far_max = pd.concat(
-        [date_s.groupby(level="code", sort=False).shift(-lag) for lag in range(1, e0 + 1)],
-        axis=1).max(axis=1)
-    far_cross = (far_max >= test_start).fillna(False)
+    far_cross = dataset.label_far_cross(X.index, e0, test_start)
 
     train_exclude = (st_mask | delist_mask | lm | far_cross).fillna(False)
     # 计数只统计训练侧（date < test_start）——far_cross 对测试窗行恒真但
@@ -379,12 +312,12 @@ def train_model(
         print(f"  predictions: NONE ({time.time() - t0:.1f}s)")
 
     # ---- persist ----
-    model_path = get_lgb_model_path(model, fold=fold)
+    model_path = spec.lgb_model_path(model, fold=fold)
     model_path.parent.mkdir(parents=True, exist_ok=True)
     strategy.save(model_path)
     print(f"  model saved: {model_path}")
 
-    pred_path = get_lgb_predictions_path(model, fold=fold)
+    pred_path = spec.lgb_predictions_path(model, fold=fold)
     pred_path.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(preds, pd.DataFrame) and not preds.empty:
         preds.to_parquet(pred_path)
@@ -414,7 +347,7 @@ def train_model(
         "predictions_path": str(pred_path),
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
-    meta_path = get_lgb_predictions_meta_path(model, fold=fold)
+    meta_path = spec.lgb_predictions_meta_path(model, fold=fold)
     meta_path.parent.mkdir(parents=True, exist_ok=True)
     meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"  meta saved: {meta_path}")
@@ -430,41 +363,27 @@ def main():
     parser.add_argument("--fold", choices=sorted(FOLDS), default=None,
                         help="滚动折 CV：test 窗=折定义，模型/预测写 fold 路径，"
                              "selected json 强制读 factors/folds/{fid}/")
+    parser.add_argument("--pool", default=None,
+                        help="目标池（默认 env QUANTLAB_POOL / 微盘）")
     args = parser.parse_args()
     models = sorted(MODEL_CONFIGS) if args.model == "all" else [args.model]
+    spec = get_pool(args.pool)
 
-    print(f"=== Loading data (pool: {POOL_NAME}, models: {models}"
+    print(f"=== Loading data (pool: {spec.name}, models: {models}"
           f"{', fold: ' + args.fold if args.fold else ''}) ===")
     con = duckdb.connect(str(DB_PATH), read_only=True)
-
-    print("  loading factors ...")
-    factors_raw = load_factors(con)
-
-    print("  loading kline ...")
-    kline = load_kline(con)
-
-    print("  loading delist_info ...")
-    delist_info = load_delist_info(con)
-    print(f"  delisted stocks: {len(delist_info)}")
-
-    print("  loading industry sw_l3 ...")
-    industry_sw_l3, sw_l3_mapping = load_industry_sw_l3(con)
-    print(f"  industry categories: {industry_sw_l3.nunique()}")
+    data = assemble(con, spec)
+    kline = data.kline
     con.close()
-
-    st_series = factors_raw["IsST"].astype(bool) if "IsST" in factors_raw.columns else None
-    limit_mask = compute_nextopen_limit_mask(kline, st_series=st_series)
 
     all_results = {}
     for m in models:
-        cfg = MODEL_CONFIGS[m]
-        s0, e0 = cfg["label_window"]
-        print(f"  computing label {m}: median open T+{s0}..T+{e0}, baseline={cfg['baseline']} ...")
-        label = compute_median_open(kline, start_day=s0, end_day=e0, baseline=cfg["baseline"])
-        all_results[m] = train_model(
-            m, factors_raw, label, st_series, limit_mask, delist_info,
-            industry_sw_l3, sw_l3_mapping, fold=args.fold,
-        )
+        print(f"  computing label {m} ({'fold ' + args.fold + ': ' if args.fold else ''}"
+              f"median open T+{MODEL_CONFIGS[m]['label_window'][0]}.."
+              f"{MODEL_CONFIGS[m]['label_window'][1]}, "
+              f"baseline={MODEL_CONFIGS[m]['baseline']}) ...")
+        label = compute_model_label(kline, m)
+        all_results[m] = train_model(m, data, label, fold=args.fold)
 
     print(f"\n{'=' * 60}")
     print("=== Summary ===")

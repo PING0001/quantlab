@@ -27,14 +27,14 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config import (DB_PATH, POOL_NAME, SELECTED_FACTORS, FOLDS,
-                    get_fold, get_lgb_model_path)
+from config import DB_PATH, SELECTED_FACTORS, FOLDS, get_fold
+from pools.spec import get_pool
 from factors.select_factors import _rank_ic_np, MIN_STOCKS_PER_DATE
-from factors.select_factors import load_factors as _sf_load_factors
-from run_lgb import load_kline, load_industry_sw_l3
+from dataset import load_factors, load_kline, load_industry_sw_l3
 from strategies.lgb import LGBStrategy
 from strategies.labels import compute_median_open
 from pools.membership import union_codes
+from factors import store
 
 
 def _layer(col: str) -> str:
@@ -75,14 +75,14 @@ AUDIT_CAVEATS = {
 
 def run_audit(args) -> None:
     """对筛选池全部因子产出健康报告：IC 四标签/ICIR/逐年/衰减/全池 max 相关/口径。"""
+    spec = get_pool(args.pool)
     con = duckdb.connect(str(DB_PATH), read_only=True)
-    codes = union_codes(con=con)
+    codes = union_codes(con=con, pool=spec.name)
     ph = ",".join(["?"] * len(codes))
     k = con.execute(
         f"SELECT code, date, open, close FROM daily_kline WHERE code IN ({ph}) "
         f"ORDER BY code, date", codes).fetchdf()
-    fv = con.execute(
-        f"SELECT * FROM factor_values WHERE code IN ({ph})", codes).fetchdf()
+    fv = store.load_panel(con, spec, codes=codes)
     con.close()
     k["date"] = pd.to_datetime(k["date"])
     fv["date"] = pd.to_datetime(fv["date"])
@@ -90,7 +90,7 @@ def run_audit(args) -> None:
     if args.selected:
         factor_cols = []
         for m in ("6d", "20d", "open2d"):
-            p = Path(__file__).resolve().parent / f"selected_{POOL_NAME}_{m}.json"
+            p = Path(__file__).resolve().parent / f"selected_{spec.name}_{m}.json"
             factor_cols += json.loads(p.read_text())["selected_factors"]
         factor_cols = sorted(set(factor_cols) & set(fv.columns))
     else:
@@ -195,7 +195,8 @@ def run_audit(args) -> None:
 
     rep = pd.DataFrame(rows).sort_values("_health", ascending=False)
     rep_out = rep.drop(columns=["_health"])
-    out = Path(__file__).resolve().parents[1] / "data" / "factor_audit_report.json"
+    out = (Path(__file__).resolve().parents[1] / "data"
+           / f"factor_audit_report_{spec.name}.json")
     out.write_text(json.dumps(
         {"generated": str(date.today()),
          "window": f"{AUDIT_MINE_START.date()}~{AUDIT_MINE_END.date()}",
@@ -243,9 +244,10 @@ def run_contribution(args) -> None:
         ts, te = CONTRIB_TEST_START, CONTRIB_TEST_END
     tag = f" | fold={args.fold}" if args.fold else ""
 
+    spec = get_pool(args.pool)
     con = duckdb.connect(str(DB_PATH), read_only=True)
-    factors_raw = _sf_load_factors(con)
-    kline = load_kline(con)
+    factors_raw = load_factors(con, spec)
+    kline = load_kline(con, spec)
     sw_l3, _ = load_industry_sw_l3(con)
     con.close()
 
@@ -255,7 +257,7 @@ def run_contribution(args) -> None:
 
     report = {}
     for m in CONTRIB_MODELS:
-        model_path = get_lgb_model_path(m, fold=args.fold)
+        model_path = spec.lgb_model_path(m, fold=args.fold)
         strategy = LGBStrategy.load(model_path)
         fnames = list(strategy.factor_names)
         cols = [f for f in fnames if f != "sw_l3"]
@@ -308,10 +310,11 @@ def run_contribution(args) -> None:
                      "rows": rep.drop(columns=["abs_drop"]).to_dict(orient="records")}
 
     if args.fold:
-        out = Path(__file__).resolve().parents[1] / "data" / "folds" / args.fold / \
-            "factor_contribution_report.json"
+        out = (Path(__file__).resolve().parents[1] / "data" / "folds" / args.fold /
+               f"factor_contribution_report_{spec.name}.json")
     else:
-        out = Path(__file__).resolve().parents[1] / "data" / "factor_contribution_report.json"
+        out = (Path(__file__).resolve().parents[1] / "data"
+               / f"factor_contribution_report_{spec.name}.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(
         {"generated": str(date.today()), "fold": args.fold, **report},
@@ -431,9 +434,10 @@ def build_candidates(k: pd.DataFrame) -> pd.DataFrame:
 def run_batch(args) -> None:
     """候选批测：IC + 与全池现有因子的逐日横截面 Spearman max 相关。"""
     start, end = pd.Timestamp(args.start), pd.Timestamp(args.end)
+    spec = get_pool(args.pool)
 
     con = duckdb.connect(str(DB_PATH), read_only=True)
-    codes = union_codes(con=con)
+    codes = union_codes(con=con, pool=spec.name)
     ph = ",".join(["?"] * len(codes))
     k = con.execute(
         f"""SELECT k.code, k.date, k.open, k.high, k.low, k.close, k.volume, k.amount, b.circ_mv
@@ -443,9 +447,7 @@ def run_batch(args) -> None:
             ORDER BY k.code, k.date""",
         [*codes, str(start.date()), str(end.date())],
     ).fetchdf()
-    existing = con.execute(
-        f"SELECT * FROM factor_values WHERE code IN ({ph})", codes
-    ).fetchdf()
+    existing = store.load_panel(con, spec, codes=codes)
     con.close()
 
     k["date"] = pd.to_datetime(k["date"])
@@ -553,6 +555,9 @@ def main():
     ap_batch = sub.add_parser("batch", help="候选因子批测（IC + 全池 max 相关）")
     ap_batch.add_argument("--start", default="2020-01-01")
     ap_batch.add_argument("--end", default="2025-06-01")
+
+    ap.add_argument("--pool", default=None,
+                    help="目标池（默认 env QUANTLAB_POOL / 微盘）")
 
     args = ap.parse_args()
     if args.cmd == "audit":
