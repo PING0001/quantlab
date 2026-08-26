@@ -22,28 +22,10 @@ log = logging.getLogger("config")
 DB_PATH = Path(os.environ.get("QUANTLAB_DB") or (ROOT / "data" / "ashare.duckdb"))
 
 # ---- Stock pool ----
-# 池代码单源（2026-08-25）：pools/membership.py（DB 表 pool_snapshots，
-# 时点快照）。旧 pools/*.json 历史并集已物理删除，config 不再提供任何
-# json 池读取；需要池代码一律 `from pools.membership import ...`。
-# 2026-08-26 多池化：每池独立快照表与因子表（见 pools.membership.POOLS），
-# 横截面因子参考系按池隔离，绝不可共表。
-POOLS_DIR = ROOT / "pools"
-
-# 每池一张因子表（列所有权同构：update 公式列 + gb_/nn_ 模型因子列）。
-# 微盘池沿用现名 factor_values（现役零改名）；新池表名带池后缀。
-FACTOR_TABLES = {
-    "mainboard_microcap": "factor_values",
-    "mainboard_all": "factor_values_mainboard_all",
-}
-
-
-def get_factor_table(pool: str | None = None) -> str:
-    """池 -> 因子表名。缺省 = config.POOL_NAME（env QUANTLAB_POOL）。"""
-    p = pool or POOL_NAME
-    if p not in FACTOR_TABLES:
-        raise ValueError(f"no factor table registered for pool {p!r}, "
-                         f"expected one of {sorted(FACTOR_TABLES)}")
-    return FACTOR_TABLES[p]
+# 池注册表单源（2026-08-27）：pools/spec.py 的 POOLS（PoolSpec：快照表/
+# 因子表/带宽/data_since/路径族）。本文件不含任何池表名或池路径。
+# 池代码查询走 pools/membership，因子表 SQL 走 factors/store。
+# 旧 pools/*.json 历史并集已物理删除，config 不再提供任何 json 池读取。
 
 
 # ---- Selected factor set (single source of truth) ----
@@ -197,6 +179,10 @@ def get_fold(fid: str) -> tuple[str, str]:
 
 
 # ---- Model ----
+# 池路径 helper（deprecated，2026-08-27）：池路径族已单源化到
+# pools.spec.PoolSpec 方法（model_dir/lgb_model_path/...，ROOT 锚定）。
+# 本组 helper 仅为存量消费方（run_lgb/fold_cv/backtest 等）过渡保留，
+# 消费方迁移完毕后整体删除（Phase E config 池概念清零）。
 def get_model_dir(name: str = None, fold: str = None) -> Path:
     d = ROOT / "models" / (name or POOL_NAME)
     return d / "folds" / fold if fold else d

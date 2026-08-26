@@ -24,7 +24,8 @@ from scipy.stats import rankdata
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import DB_PATH, POOL_NAME, SELECTED_FACTORS, get_factor_table
+from config import DB_PATH, POOL_NAME, SELECTED_FACTORS
+from pools.spec import get_pool
 from pools.membership import union_codes, member_mask
 from strategies.labels import compute_median_open, compute_nextopen_limit_mask
 from factors.select_factors import _rank_ic_np
@@ -34,18 +35,14 @@ LABEL_WINDOW = (16, 20)       # 20d 模型（主 horizon）
 MIN_STOCKS_PER_DATE = 50      # 每日期最少样本（全主板截面宽，门槛水涨船高）
 
 
-def load_pool_panel(con, pool: str, table: str) -> pd.DataFrame:
-    # 先查表内可用列，SELECT 限定所需（省内存，缺失列显式跳过）
-    cols = {r[0] for r in con.execute(
-        "SELECT column_name FROM information_schema.columns WHERE table_name = ?",
-        [table]).fetchall()}
+def load_pool_panel(con, spec) -> pd.DataFrame:
+    # 先查表内可用列，SELECT 限定所需（省内存，缺失列显式跳过）；
+    # 因子表 SQL 走 factors/store 单点
+    from factors import store
+    cols = set(store.columns(con, spec))
     wanted = [f for f in dict.fromkeys(SELECTED_FACTORS + ["IsST"]) if f in cols]
-    codes = union_codes(since=EVAL_START, con=con, pool=pool)
-    ph = ",".join(["?"] * len(codes))
-    col_sql = ", ".join(f'"{c}"' for c in wanted)
-    df = con.execute(
-        f"SELECT code, date, {col_sql} FROM {table} WHERE code IN ({ph})",
-        codes).fetchdf()
+    codes = union_codes(since=EVAL_START, con=con, pool=spec.name)
+    df = store.load_panel(con, spec, codes=codes, cols=wanted)
     df["date"] = pd.to_datetime(df["date"])
     return df.set_index(["date", "code"]).sort_index()
 
@@ -53,11 +50,12 @@ def load_pool_panel(con, pool: str, table: str) -> pd.DataFrame:
 def main():
     print(f"Pool: {POOL_NAME} | label: median_open T+{LABEL_WINDOW[0]}..{LABEL_WINDOW[1]} "
           f"(next_open 锚) | eval since {EVAL_START}")
-    table = get_factor_table()
+    spec = get_pool()
+    table = spec.factor_table
     con = duckdb.connect(str(DB_PATH), read_only=True)
 
     print("Loading factor panel ...")
-    fv = load_pool_panel(con, POOL_NAME, table)
+    fv = load_pool_panel(con, spec)
     available = [f for f in SELECTED_FACTORS if f in fv.columns]
     missing = [f for f in SELECTED_FACTORS if f not in fv.columns]
     if missing:
@@ -66,7 +64,7 @@ def main():
 
     # 池时点化：仅当期档成员行（与 select_factors 同口径）
     mm = member_mask(fv.index.get_level_values("date"),
-                     fv.index.get_level_values("code"), con=con, pool=POOL_NAME)
+                     fv.index.get_level_values("code"), con=con, pool=spec.name)
     fv = fv.loc[mm]
 
     print("Loading kline & labels ...")

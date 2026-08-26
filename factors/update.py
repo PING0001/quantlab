@@ -3,28 +3,26 @@
 Factor pipeline: incremental update（日常，cron 路径）+ full rebuild（--full）。
 
 2026-08-25 简化合并：原 factors/compute.py（全量构建）并入本文件。
+2026-08-27 多池化重写：编排/IO 分离——池因子表 SQL 全部下沉 factors/store.py
+（铁律：表 SQL 只在 store），本文件只保留面板计算内核（compute_panel 及其
+数据装载，读的是源表 daily_kline/daily_basic/cyq_perf/...，不碰因子表）
+与增量编排；池身份经 pools.spec。
 
 增量模式（默认）：
-    python -m factors.update                     # 日期级增量
+    python -m factors.update                     # 日期级增量（默认池=env/微盘）
+    python -m factors.update --pool mainboard_all
     python -m factors.update --dry-run           # 预览目标日期 + 股票级回补清单
     python -m factors.update --backfill-stocks   # 额外执行股票级历史回补（大计算）
 
-对账驱动：不再只比较 MAX(date)，而是对账 daily_kline 与 factor_values 的
+对账驱动：不再只比较 MAX(date)，而是对账 daily_kline 与池因子表的
 日期集合--历史空洞（某天因子算到一半失败、人为删除）也会被找出并回补。
-股票级对账：池内代码在 factor_values 缺失或历史覆盖显著偏低（相对其在
+股票级对账：池内代码在因子表缺失或历史覆盖显著偏低（相对其在
 daily_kline 的应有交易日数）的纳入回补清单--池扩容后新成员的历史缺口
 对日期级对账不可见。默认只告警，需显式 --backfill-stocks 才执行回补写入。
 
 全量重建模式（勿轻易运行，整表 DROP 重建）：
     python -m factors.update --full              # 全历史重建
     python -m factors.update --full --from 2024-01-01 --to 2025-06-30
-
-列所有权写入（factor_values 是多写入方共享表：本管道公式因子列 +
-build_gb_gap1d / build_nn_gap1d 等脚本持有的 gb_/nn_ 列）：
-- 增量：缺失 (code,date) 行 -> INSERT（列子集；PK (code,date) 兜底防重）；
-  已有行 -> UPDATE ... FROM（绝不整行替换，保护他方列）
-- 全量：重建前保全旧表全部非面板列（模型因子等），重建后回填
-  （2026-08-24 拆弹：nn_gap1d 已是 6d/open2d 生产输入）
 """
 from __future__ import annotations
 
@@ -40,18 +38,14 @@ import polars as pl
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import DB_PATH, POOL_NAME, get_factor_table
+from config import DB_PATH
+from pools.spec import get_pool
 
 from .extra_factors import compute_non_alpha_factors, third_friday
+from . import store
 from . import integrity
 
 log = logging.getLogger(__name__)
-
-LOOKBACK_DAYS = 260  # trading days (~1 year, covers 250d windows + margin)
-
-# 股票级对账覆盖阈值：池代码在 factor_values 的行数 < 其 daily_kline 行数
-# ×该值即纳入回补清单（阈值不敏感；留 5% 容差吸收个别数据缺口）
-STOCK_COVERAGE_MIN = 0.95
 
 
 # ============================================================================
@@ -505,221 +499,7 @@ def compute_panel(
     return merged
 
 
-# ============================================================================
-# 全量写入（--full：整表 DROP 重建，保全他方列）
-# ============================================================================
-
-def store_factor_values(con: duckdb.DuckDBPyConnection, panel: pl.DataFrame,
-                        table: str = "factor_values"):
-    """Store factor panel into the per-pool factor table (full rebuild).
-
-    factor_values 系多写入方共享表（每池一张，config.FACTOR_TABLES）：
-    本管道拥有公式因子列，gb_/nn_ 列归构建脚本所有。重建前保全旧表全部
-    非面板列，重建后回填--原实现只备份 ai 列，一次全量重建会静默清空
-    模型因子列（2026-08-24 拆弹）。重建时必须重建 PRIMARY KEY (code, date)
-    （旧实现 CREATE TABLE AS 会丢掉约束，属 schema 回归）。
-    """
-    if panel.is_empty():
-        log.warning("Empty panel, nothing to store.")
-        return
-
-    # Deduplicate on (code, date)
-    panel = panel.unique(subset=["code", "date"], keep="last")
-
-    # 首次建表（新池）无旧表可保全；keep_schema 置空壳保持形状不变
-    exists = con.execute(
-        "SELECT count(*) FROM information_schema.tables "
-        "WHERE table_schema = 'main' AND table_name = ?", [table]).fetchone()[0]
-    if exists:
-        con.execute(f"CREATE OR REPLACE TEMP TABLE _fv_keep AS SELECT * FROM {table}")
-        keep_schema = con.execute("DESCRIBE _fv_keep").fetchdf()[["column_name", "column_type"]]
-    else:
-        keep_schema = pd.DataFrame(columns=["column_name", "column_type"])
-
-    con.execute(f"DROP TABLE IF EXISTS {table}")
-
-    # Build table from pandas (date 列保持 VARCHAR 'YYYY-MM-DD' 约定)
-    pandas_df = panel.to_pandas()
-    pandas_df = pandas_df.sort_values(["date", "code"])
-    con.execute(f"CREATE TABLE {table} AS SELECT * FROM pandas_df")
-
-    # 恢复非面板列结构 + 主键
-    panel_cols = set(pandas_df.columns)
-    kept = [(r.column_name, r.column_type) for r in keep_schema.itertuples()
-            if r.column_name not in panel_cols and r.column_name not in ("code", "date")]
-    for col, dtype in kept:
-        con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {dtype}")
-    con.execute(f"ALTER TABLE {table} ADD PRIMARY KEY (code, date)")
-
-    # 回填保全列数据（SET 目标列不可带表限定--DuckDB 解析器限制，
-    # 原 f.{c} 写法在有保全列的全量重建中必触发 ParserException）
-    if kept:
-        sets = ", ".join(f"{c} = k.{c}" for c, _ in kept)
-        con.execute(f"""
-            UPDATE {table} f SET {sets}
-            FROM _fv_keep k
-            WHERE f.code = k.code AND f.date = k.date
-        """)
-        n_kept = con.execute(
-            f"SELECT COUNT(*) FROM {table} WHERE {kept[0][0]} IS NOT NULL"
-        ).fetchone()[0]
-        log.info("non-panel columns restored: %d 列, %d 行非空", len(kept), n_kept)
-
-    con.execute("CHECKPOINT")
-    log.info("%s table created with %d rows, %d columns (PK on code,date)",
-             table, len(pandas_df), len(pandas_df.columns) + len(kept))
-
-
-# ============================================================================
-# 增量对账与写入（默认模式）
-# ============================================================================
-
-def get_latest_date(con: duckdb.DuckDBPyConnection, table: str = "factor_values") -> str | None:
-    """Get the maximum date currently in the pool's factor table."""
-    try:
-        result = con.execute(f"SELECT max(date) FROM {table}").fetchone()
-        if result and result[0]:
-            return str(result[0])[:10]
-    except Exception:
-        pass
-    return None
-
-
-def get_missing_dates(con: duckdb.DuckDBPyConnection,
-                      table: str = "factor_values") -> list[str]:
-    """池因子表自身时间范围内的历史空洞（升序）。
-
-    锚定表内最早日期：2020 起的新池表不会被 2008~2019 的 kline 日期
-    误判为缺失（表范围外的日期不属于该池口径）。
-    """
-    rows = con.execute(f"""
-        WITH scope AS (SELECT CAST(MIN(date) AS DATE) AS lo FROM {table})
-        SELECT DISTINCT date FROM daily_kline, scope
-        WHERE date >= scope.lo
-        EXCEPT
-        SELECT DISTINCT date FROM {table}
-        ORDER BY date
-    """).fetchall()
-    return [str(r[0])[:10] for r in rows]
-
-
-def get_backfill_stocks(
-    con: duckdb.DuckDBPyConnection, codes: list[str],
-    table: str = "factor_values",
-) -> list[tuple[str, int, int]]:
-    """股票级对账：池内代码在池因子表覆盖不足的清单。
-
-    返回 [(code, 应有行数, 实有行数)]（升序）。应有 = 该码在 daily_kline
-    的行数（限定池表自身时间范围：2020 起的新池表不把 2008~2019 计入
-    应有；停牌日本就无行），实有 < 应有 × STOCK_COVERAGE_MIN 即纳入。
-    日期级对账看不见这类缺口：池扩容后新码的历史日期在 factor_values
-    里已有旧池股票的行，"日期集合"判定无缺失。
-    """
-    rows = con.execute(
-        f"""
-        WITH pool AS (SELECT DISTINCT unnest(?::VARCHAR[]) AS code),
-        k AS (SELECT code, COUNT(*) AS n FROM daily_kline
-              WHERE date >= (SELECT CAST(MIN(date) AS DATE) FROM {table})
-              GROUP BY code),
-        f AS (SELECT code, COUNT(*) AS n FROM {table} GROUP BY code)
-        SELECT p.code, COALESCE(k.n, 0), COALESCE(f.n, 0)
-        FROM pool p
-        LEFT JOIN k ON k.code = p.code
-        LEFT JOIN f ON f.code = p.code
-        WHERE COALESCE(k.n, 0) > 0
-          AND COALESCE(f.n, 0) < COALESCE(k.n, 0) * ?
-        ORDER BY p.code
-        """,
-        [codes, STOCK_COVERAGE_MIN],
-    ).fetchall()
-    return [(str(r[0]), int(r[1]), int(r[2])) for r in rows]
-
-
-def get_lookback_start(con: duckdb.DuckDBPyConnection, from_date: str) -> str:
-    """from_date 往前 LOOKBACK_DAYS 个交易日（含 from_date）窗口的最早日。
-
-    必须基于 DISTINCT 交易日计算。原实现 `LIMIT 1 OFFSET LOOKBACK_DAYS-1`
-    作用在行级 daily_kline（约 5500 行/天）上：259 行不足半日，返回的
-    仍是 from_date 当天--增量因子因此只装到 1 天历史，长窗口因子
-    （Return_20d/Reversal_60d 等）全 NULL，min_samples=1 类因子用短窗
-    算出错误值（2026-07-13~08-17 因子污染事故根因）。
-    """
-    result = con.execute(
-        """
-        SELECT MIN(d) FROM (
-            SELECT DISTINCT date AS d FROM daily_kline
-            WHERE date <= ?::DATE
-            ORDER BY date DESC LIMIT ?
-        )
-        """,
-        [from_date, LOOKBACK_DAYS],
-    ).fetchone()
-    if result and result[0]:
-        return str(result[0])[:10]
-    return from_date
-
-
-def write_panel(con: duckdb.DuckDBPyConnection, pdf: pd.DataFrame,
-                table: str = "factor_values"):
-    """列所有权写入：缺失 (code,date) 行 INSERT，已有行 UPDATE FROM。
-
-    pdf 需含 code/date 及因子列；date 为 'YYYY-MM-DD' 字符串。
-
-    行级（而非日期级）分流：股票级回补的新码，其历史日期在表内已存在
-    （旧池股票的行），按日期分流会把这些行全部判进 UPDATE 分支而静默
-    丢失（P0-B 机制之一）。
-    """
-    if pdf.empty:
-        return 0, 0
-
-    existing_cols = {r[0] for r in con.execute(
-        "SELECT column_name FROM information_schema.columns WHERE table_name = ?",
-        [table]).fetchall()}
-    factor_cols = [c for c in pdf.columns if c not in ("code", "date")]
-    insert_cols = ["code", "date"] + [c for c in factor_cols if c in existing_cols]
-    upd_factor_cols = [c for c in factor_cols if c in existing_cols]
-
-    pdf = pdf.copy()
-    pdf["date"] = pdf["date"].astype(str).str[:10]
-    con.execute("CREATE OR REPLACE TEMP TABLE _panel_upd AS SELECT * FROM pdf")
-
-    # 表内缺失行 -> INSERT（列子集；PK (code,date) 兜底防重）
-    n_ins = con.execute(f"""
-        SELECT COUNT(*) FROM _panel_upd p
-        WHERE NOT EXISTS (
-            SELECT 1 FROM {table} f
-            WHERE f.code = p.code AND f.date = p.date
-        )
-    """).fetchone()[0]
-    if n_ins:
-        cols_str = ", ".join(insert_cols)
-        con.execute(f"""
-            INSERT INTO {table} ({cols_str})
-            SELECT {cols_str} FROM _panel_upd p
-            WHERE NOT EXISTS (
-                SELECT 1 FROM {table} f
-                WHERE f.code = p.code AND f.date = p.date
-            )
-        """)
-
-    # 已有行 -> UPDATE 回补（保留他方列）
-    if upd_factor_cols:
-        set_clause = ", ".join(f"{c} = p.{c}" for c in upd_factor_cols)
-        con.execute(f"""
-            UPDATE {table} f SET {set_clause}
-            FROM _panel_upd p
-            WHERE f.code = p.code AND f.date = p.date
-        """)
-    n_upd = con.execute(f"""
-        SELECT COUNT(*) FROM _panel_upd p
-        JOIN {table} f ON f.code = p.code AND f.date = p.date
-    """).fetchone()[0]
-
-    return n_ins, n_upd
-
-
-def run_stock_backfill(con: duckdb.DuckDBPyConnection, codes: list[str],
-                       table: str = "factor_values"):
+def run_stock_backfill(con: duckdb.DuckDBPyConnection, spec, codes: list[str]):
     """股票级历史回补：复用 compute_panel 全历史重算 + 列所有权写入。"""
     log.info("Backfilling %d codes (full history via compute_panel) ...", len(codes))
     panel = compute_panel(con, codes)
@@ -729,7 +509,7 @@ def run_stock_backfill(con: duckdb.DuckDBPyConnection, codes: list[str],
     panel = panel.unique(subset=["code", "date"], keep="last")
     pdf = panel.to_pandas()
     pdf = pdf.sort_values(["date", "code"])
-    n_ins, n_upd = write_panel(con, pdf, table)
+    n_ins, n_upd = store.upsert_panel(con, spec, pdf)
     con.execute("CHECKPOINT")
     log.info("Stock backfill written: %d inserted, %d updated", n_ins, n_upd)
 
@@ -741,13 +521,15 @@ def run_stock_backfill(con: duckdb.DuckDBPyConnection, codes: list[str],
 def main():
     parser = argparse.ArgumentParser(
         description="Factor pipeline: incremental update (default) or full rebuild (--full)")
+    parser.add_argument("--pool", default=None, choices=None,
+                        help="目标池（默认 env QUANTLAB_POOL / 微盘；cron 无参=微盘契约）")
     parser.add_argument("--dry-run", action="store_true",
                         help="只预览目标日期与股票级回补清单，不计算不写库")
     parser.add_argument("--backfill-stocks", action="store_true",
                         help="对股票级对账发现的覆盖不足代码执行全历史回补写入"
                              "（大计算，默认关闭，仅告警）")
     parser.add_argument("--full", action="store_true",
-                        help="全量重建 factor_values（整表 DROP 重建，保全 gb_/nn_ "
+                        help="全量重建池因子表（整表 DROP 重建，保全 gb_/nn_ "
                              "等他方列；原 factors/compute.py 入口）")
     parser.add_argument("--from", dest="start_date", default=None,
                         help="全量模式起始日期（YYYY-MM-DD）")
@@ -762,37 +544,36 @@ def main():
     )
     from pools.membership import latest_codes, union_codes
 
-    # 池感知（2026-08-26 多池化）：池 = config.POOL_NAME（env QUANTLAB_POOL），
-    # 因子表 = config.FACTOR_TABLES[池]。微盘默认行为不变。
-    fv_table = get_factor_table()
-    log.info("Pool: %s -> factor table: %s", POOL_NAME, fv_table)
+    spec = get_pool(args.pool)
+    pool = spec.name
+    log.info("Pool: %s -> factor table: %s", pool, spec.factor_table)
 
     if args.full:
         # ---- 全量重建：池 = 时点快照全历史成员并集 ----
         con = duckdb.connect(str(DB_PATH))
         con.execute("SET threads = 4")
         try:
-            codes = union_codes(con=con, pool=POOL_NAME)
+            codes = union_codes(con=con, pool=pool)
             log.info("Pool: %d stocks (snapshot union, all periods)", len(codes))
             panel = compute_panel(con, codes, start_date=args.start_date,
                                   end_date=args.end_date)
             if not panel.is_empty():
-                store_factor_values(con, panel, fv_table)
+                store.rebuild_table(con, spec, panel)
         finally:
             con.close()
         log.info("Done.")
         return
 
-    codes = sorted(latest_codes(pool=POOL_NAME))   # 池时点化：日更只算最新档成员
+    codes = sorted(latest_codes(pool=pool))   # 池时点化：日更只算最新档成员
     log.info("Pool: %d stocks (latest snapshot members)", len(codes))
 
     con = duckdb.connect(str(DB_PATH))
     con.execute("SET threads = 4")
 
     try:
-        latest = get_latest_date(con, fv_table)
+        latest = store.latest_date(con, spec)
         if not latest:
-            log.warning("factor_values table is empty. Run with --full first.")
+            log.warning("factor table %s is empty. Run with --full first.", spec.factor_table)
             return
 
         kline_max = con.execute("SELECT max(date) FROM daily_kline").fetchone()[0]
@@ -802,7 +583,7 @@ def main():
             return
 
         # ---- 对账：新增日期 + 历史空洞 ----
-        missing = get_missing_dates(con, fv_table)
+        missing = store.missing_dates(con, spec)
         new_dates = sorted(d for d in
                            [str(r[0])[:10] for r in con.execute(
                                "SELECT DISTINCT date FROM daily_kline WHERE date > ?",
@@ -811,24 +592,25 @@ def main():
         target_dates = sorted(set(missing) | set(new_dates))
 
         # ---- 对账：股票级覆盖（池扩容后新成员历史缺口，日期级对账盲区）----
-        backfill = get_backfill_stocks(con, codes, fv_table)
+        backfill = store.stock_coverage(con, spec, codes)
         if backfill:
             est_rows = sum(k - f for _, k, f in backfill)
             sample = ", ".join(c for c, _, _ in backfill[:5])
             log.warning(
-                "Stock-level gaps: %d/%d pool codes under-covered in factor_values "
+                "Stock-level gaps: %d/%d pool codes under-covered in %s "
                 "(<%.0f%% of daily_kline rows), ~%d rows to backfill. Sample: %s%s "
                 "Run with --backfill-stocks to fix.",
-                len(backfill), len(codes), STOCK_COVERAGE_MIN * 100, est_rows,
+                len(backfill), len(codes), spec.factor_table,
+                store.STOCK_COVERAGE_MIN * 100, est_rows,
                 sample, "..." if len(backfill) > 5 else "",
             )
         else:
             log.info("Stock-level coverage OK (all pool codes >= %.0f%%).",
-                     STOCK_COVERAGE_MIN * 100)
+                     store.STOCK_COVERAGE_MIN * 100)
 
         if not target_dates and not backfill:
             log.info("Factors are up to date (kline: %s).", kline_max)
-            report = integrity.check(con, pool=POOL_NAME)
+            report = integrity.check(con, pool=pool)
             return
 
         if missing:
@@ -852,7 +634,7 @@ def main():
             # 目标日则任意跨度完整（窗口 [t0−260, kline_max] ⊇ 全部目标日需求
             # [t0−252, tN]）。
             from_date = target_dates[0]
-            lookback_start = get_lookback_start(con, from_date)
+            lookback_start = store.get_lookback_start(con, from_date)
             log.info("Incremental range: lookback %s -> kline max %s", lookback_start, kline_max)
 
             panel = compute_panel(con, codes, start_date=lookback_start)
@@ -875,21 +657,21 @@ def main():
                     pdf = panel.to_pandas()
                     pdf = pdf.sort_values(["date", "code"])
 
-                    n_ins, n_upd = write_panel(con, pdf, fv_table)
+                    n_ins, n_upd = store.upsert_panel(con, spec, pdf)
                     con.execute("CHECKPOINT")
                     log.info("Written: %d inserted (new dates), %d updated (backfill)",
                              n_ins, n_upd)
 
         # ---- 股票级回补：需显式 --backfill-stocks，复用全历史计算路径 ----
         if backfill and args.backfill_stocks:
-            run_stock_backfill(con, [c for c, _, _ in backfill], fv_table)
+            run_stock_backfill(con, spec, [c for c, _, _ in backfill])
         elif backfill:
             log.info("Stock backfill skipped (%d codes, ~%d rows); "
                      "pass --backfill-stocks to execute.",
                      len(backfill), sum(k - f for _, k, f in backfill))
 
         # ---- 完整性校验（硬失败 exit 1 阻断下游；软警告仅记录）----
-        report = integrity.check(con, pool=POOL_NAME)
+        report = integrity.check(con, pool=pool)
         if report["hard_fail"]:
             sys.exit(1)
     finally:

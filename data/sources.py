@@ -21,7 +21,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 from config import DB_PATH, POOL_NAME, TRACKED_INDICES
-from pools.membership import POOLS, union_codes
+from pools.spec import POOLS
+from pools.membership import union_codes
 
 from data._ts import retry_api
 
@@ -294,17 +295,17 @@ def _pool_union_codes(con) -> set[str]:
     delist 记录（IsST/退市因子依赖）。
     """
     codes = set(union_codes(con=con))   # 默认池，缺表即 CatalogException fail-fast
-    for p in POOLS:
-        if p == POOL_NAME:
+    for spec in POOLS.values():
+        if spec.name == POOL_NAME:
             continue
-        tbl = POOLS[p]["snap_table"]
         exists = con.execute(
             "SELECT count(*) FROM information_schema.tables "
-            "WHERE table_schema = 'main' AND table_name = ?", [tbl]).fetchone()[0]
+            "WHERE table_schema = 'main' AND table_name = ?",
+            [spec.snap_table]).fetchone()[0]
         if not exists:
-            log.warning("池 %s 快照表 %s 缺失，拉取范围暂不含该池", p, tbl)
+            log.warning("池 %s 快照表 %s 缺失，拉取范围暂不含该池", spec.name, spec.snap_table)
             continue
-        codes |= set(union_codes(con=con, pool=p))
+        codes |= set(union_codes(con=con, pool=spec.name))
     return codes
 
 

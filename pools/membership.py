@@ -31,13 +31,13 @@ import argparse
 import json
 import logging
 from datetime import datetime
-from pathlib import Path
 
 import duckdb
 import numpy as np
 import pandas as pd
 
 from config import DB_PATH, POOL_NAME
+from pools.spec import POOLS, get_pool
 
 log = logging.getLogger(__name__)
 
@@ -46,56 +46,38 @@ _IVS_CACHE: dict[str, list] = {}
 
 # ---- 带规则（原 pools/build_microcap.py 同源复制，勿漂移）----
 # 2026-08-24 用户裁定：带宽放宽至 1~40 亿（流通市值；原 1~20 亿时点池仅
-# 150-400 只/档，用户认为过窄）
+# 150-400 只/档，用户认为过窄）。带宽静态值注册在 pools.spec（PoolSpec.band），
+# 通胀衰减规则（BASE_YEAR/DECAY_RATIO/TOTAL_YEARS）留在此处。
 BASE_YEAR = 2026
-BASE_LOW_YI = 1.0
-BASE_HIGH_YI = 40.0
+BASE_LOW_YI, BASE_HIGH_YI = POOLS["mainboard_microcap"].band
 TOTAL_YEARS = 11.0
 DECAY_RATIO = 11.0 / 20.0
 MIN_LISTED_TRADING_DAYS = 252   # 次新股门槛（用户裁定 2026-08-24）
 
-# ---- 池注册表（2026-08-26 多池化）：每池独立快照表，band=None 即无市值带 ----
-# 横截面因子参考系按池隔离（factor_values 每池一表，见 config.FACTOR_TABLES）；
-# 两池代码大量重叠（全主板 ⊇ 微盘），绝不可共表共列。
-POOLS = {
-    "mainboard_microcap": dict(
-        snap_table="pool_snapshots",
-        band=(BASE_LOW_YI, BASE_HIGH_YI),
-    ),
-    "mainboard_all": dict(
-        snap_table="pool_snapshots_mainboard_all",
-        band=None,
-    ),
-}
-
-
-def _history_path(pool: str) -> Path:
-    # 人读版 JSON（构建器副产物，regenerable，gitignore）；命名沿用 main 的
-    # neat-freak 改名裁定：{pool}_snapshots.json
-    return DB_PATH.parent.parent / "pools" / f"{pool}_snapshots.json"
+# 池注册表（2026-08-27 单源化）：唯一注册处 = pools.spec.POOLS（PoolSpec：
+# snap_table/factor_table/band/data_since）。本模块只消费 snap_table/band
+# （快照查询与构建）；横截面因子表归 factors/store。
 
 
 # ============================================================================
 # 查询 API
 # ============================================================================
 
-def _resolve_pool(pool: str | None) -> str:
-    """缺省池 = config.POOL_NAME（env QUANTLAB_POOL，默认微盘）。"""
-    p = pool or POOL_NAME
-    if p not in POOLS:
-        raise ValueError(f"unknown pool {p!r}, expected one of {sorted(POOLS)}")
-    return p
+def _resolve_pool(pool: str | None = None):
+    """缺省池 = config.POOL_NAME（env QUANTLAB_POOL，默认微盘）。返回 PoolSpec。"""
+    return get_pool(pool)
 
 
 def _load(pool: str | None = None, con: duckdb.DuckDBPyConnection | None = None):
-    p = _resolve_pool(pool)
+    spec = _resolve_pool(pool)
+    p = spec.name
     if p in _IVS_CACHE:
         return _IVS_CACHE[p]
     own = con is None
     c = con or duckdb.connect(str(DB_PATH), read_only=True)
     try:
         rows = c.execute(
-            f"SELECT effective_date, list(code) FROM {POOLS[p]['snap_table']} "
+            f"SELECT effective_date, list(code) FROM {spec.snap_table} "
             "GROUP BY effective_date ORDER BY effective_date").fetchall()
     finally:
         if own:
@@ -217,9 +199,10 @@ def _periods(con: duckdb.DuckDBPyConnection, from_year: int) -> list[tuple[str, 
 
 def rebuild_snapshots(from_year: int = 2015, pool: str | None = None) -> None:
     """重建指定池的快照表（幂等，DROP+CREATE 该池自己的表）+ 人读版 JSON。"""
-    p = _resolve_pool(pool)
-    snap_table = POOLS[p]["snap_table"]
-    band = POOLS[p]["band"]
+    spec = _resolve_pool(pool)
+    p = spec.name
+    snap_table = spec.snap_table
+    band = spec.band
     con = duckdb.connect(str(DB_PATH))
 
     periods = _periods(con, from_year)
@@ -278,7 +261,8 @@ def rebuild_snapshots(from_year: int = 2015, pool: str | None = None) -> None:
     con.close()
     refresh()
 
-    # ---- 写 JSON（人读版）----
+    # ---- 写 JSON（人读版；路径 spec.snapshots_json_path()，ROOT 锚定本仓
+    #      而非 DB 所在仓——dev bench 经 QUANTLAB_DB 共享主仓 DB 时产物不越界）----
     rule = ("半年度快照：生效=6/12月首个交易日；选样=前一月末最后交易日；"
             "主板+通胀调整带(1-40亿@2026, decay 0.55/11y)；"
             f"次新排除=上市不满 {MIN_LISTED_TRADING_DAYS} 交易日"
@@ -296,7 +280,7 @@ def rebuild_snapshots(from_year: int = 2015, pool: str | None = None) -> None:
                     for s in snapshots],
         "snapshots": snapshots,
     }
-    history_path = _history_path(p)
+    history_path = spec.snapshots_json_path()
     history_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2),
                             encoding="utf-8")
 
