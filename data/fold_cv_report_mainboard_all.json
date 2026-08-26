@@ -1,0 +1,23 @@
+{
+  "market": {
+    "per_fold": {
+      "F4": {
+        "total_return": -0.19880969175324203,
+        "sharpe": -1.054166112664271,
+        "max_dd": -0.29623105566419394,
+        "n_days": 116,
+        "n_trips": 13,
+        "hold_days_median": 36.0,
+        "trip_mean": 0.056255855125804714,
+        "trip_t": 1.1545803084430002,
+        "win_rate": 0.6153846153846154,
+        "benchmark_return": -0.1632008967611085
+      }
+    },
+    "mean_total_return": -0.19880969175324203,
+    "worst_total_return": -0.19880969175324203,
+    "mean_sharpe": -1.054166112664271,
+    "worst_sharpe": -1.054166112664271,
+    "mean_benchmark_return": -0.1632008967611085
+  }
+}

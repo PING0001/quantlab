@@ -153,7 +153,9 @@ def main():
     for fid in fids:
         print(f"\n===== {fid} =====")
         if not args.skip_train:
-            for m in ("20d", "6d"):
+            # 全四模型折清单（run_lgb --model all 折模式强制读折清单；旧版只
+            # 选 20d/6d，微盘靠历史遗留 json 才未断——新池暴露此缝，2026-08-27 修复）
+            for m in ("20d", "6d", "gap1d", "open2d"):
                 run([PY, "-m", "factors.select_factors", "--model", m, "--fold", fid,
                      *pool_args], log_path)
             run([PY, "run_lgb.py", "--model", "all", "--fold", fid, *pool_args], log_path)
