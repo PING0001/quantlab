@@ -70,7 +70,7 @@ quantlab/
 │
 ├── backtest/
 │   ├── run_lgb.py           # ★ 主回测：融合分 + 开盘市价模拟器（原 signals.py 已并入；limit/长空已删）+ 时点池基准；PRED_COLS/W2D/W6D/W20D 融合单源
-│   └── mainboard_microcap/  # 输出（equity_lgb_combined_daily_v8mo_rebalance.csv 等 + folds/）
+│   └── mainboard_microcap/  # 运行时输出目录（equity/trades/benchmark CSV + folds/，可再生，2026-08-27 裁定不入库）
 │
 ├── forecast_display/
 │   └── generate_lgb.py      # ★ v8 报告：三 parquet+meta 融合出榜 + LIVE 前沿实时推理；三级降级永不 exit 1
@@ -139,6 +139,8 @@ close 锚 open2d ｜ limit 执行语义（已物理删除）｜ qfq 水平因子
 
 ### 13. 数据库表清单
 stock_info/daily_raw/daily_basic/daily_kline(VIEW)/cyq_perf/industry/index_daily/namechange/delist_info/trading_calendar/pending_pulls/pool_snapshots/factor_values/macro_daily(shibor)。
+
+**在途实验表（用户 2026-08-27 确认为新工作合法成果，勿清理）**：`pool_snapshots_mainboard_all`（全主板无市值带时点快照，23 档）+ `factor_values_mainboard_all`（配套因子表，79 列）+ 人读版 `pools/mainboard_all_history.json`（gitignore）。生成代码暂未入库——清理孤儿表前先问用户。
 
 ## Common Workflows
 
