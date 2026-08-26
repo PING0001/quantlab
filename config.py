@@ -188,40 +188,7 @@ def get_fold(fid: str) -> tuple[str, str]:
 
 
 # ---- Model ----
-# 池路径 helper（deprecated，2026-08-27）：池路径族已单源化到
-# pools.spec.PoolSpec 方法（model_dir/lgb_model_path/...，ROOT 锚定）。
-# 本组 helper 仅为存量消费方（run_lgb/fold_cv/backtest 等）过渡保留，
-# 消费方迁移完毕后整体删除（Phase E config 池概念清零）。
-def get_model_dir(name: str = None, fold: str = None) -> Path:
-    d = ROOT / "models" / (name or POOL_NAME)
-    return d / "folds" / fold if fold else d
-
-
-def get_lgb_model_path(model: str = "20d", name: str = None, fold: str = None) -> Path:
-    return get_model_dir(name, fold) / f"lgb_{model}.joblib"
-
-
-# ---- Predictions cache ----
-def get_lgb_predictions_path(model: str = "20d", name: str = None, fold: str = None) -> Path:
-    p = name or POOL_NAME
-    if fold:
-        return ROOT / "data" / "folds" / fold / f"predictions__{p}_lgb_{model}.parquet"
-    return ROOT / "data" / f"predictions__{p}_lgb_{model}.parquet"
-
-
-def get_lgb_predictions_meta_path(model: str = "20d", name: str = None, fold: str = None) -> Path:
-    p = name or POOL_NAME
-    if fold:
-        return ROOT / "data" / "folds" / fold / f"predictions__{p}_lgb_{model}_meta.json"
-    return ROOT / "data" / f"predictions__{p}_lgb_{model}_meta.json"
-
-
-# ---- Backtest output ----
-def get_backtest_dir(name: str = None, fold: str = None) -> Path:
-    d = ROOT / "backtest" / (name or POOL_NAME)
-    return d / "folds" / fold if fold else d
-
-
-# ---- Forecast HTML ----
-def get_forecast_lgb_dir(name: str = None) -> Path:
-    return ROOT / "forecast_display" / "html_lgb" / (name or POOL_NAME)
+# 池路径族（2026-08-27 池概念清零）：models/{pool}/、data/predictions__{pool}_*、
+# backtest/{pool}/、forecast html_lgb/{pool}/ 一律经 pools.spec.PoolSpec 方法
+# （model_dir/lgb_model_path/lgb_predictions_path/...，ROOT 锚定）。本文件
+# 不再含任何池路径。

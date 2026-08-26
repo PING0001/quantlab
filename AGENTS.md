@@ -2,6 +2,15 @@
 
 > **⚠️ 本仓库（`/Users/cui/Projects/quantlab`，`main` 分支）是双回归体系唯一工作区（2026-08-24 从 quantlab-dual 合并入 main；dual worktree 仍留在磁盘上但已停用，不碰）。2026-08-25 完成破坏性简化瘦身（用户指令"合并/删功能/删重写"）：py 文件 62→28（净删 35 个、新增 mining.py），详见 `docs/superpowers/specs/2026-08-25-destructive-simplification-design.md`**
 >
+> **🏛 本 worktree（`quantlab-bench-mainboard-all`，分支 `bench-mainboard-all`）：2026-08-27 全链多池化重写已落地（方案 `docs/superpowers/plans/2026-08-27-multipool-fullchain-rewrite.md`）。微盘全链等价门全绿（重训 parquet 逐值相等 / 泄漏断言 56/56 / baseline 零漂移 / 回测对横幅精确复现）。在此分支工作时：**
+> - **环境**：`QUANTLAB_DB=/Users/cui/Projects/quantlab/data/ashare.duckdb`（共享主仓 DB 实体，本 worktree 无本地 DB）+ `QUANTLAB_POOL`（缺省微盘；或各入口 `--pool`）。主仓 `main` 不动。
+> - **三个单源模块（架构核心）**：`pools/spec.py`（唯一池注册表 PoolSpec：snap_table/factor_table/band/data_since/路径族方法；`python -m pools.spec` 自描述）、`factors/store.py`（因子表 SQL 唯一点，**铁律：池因子表 SQL 只准出现在 store.py**）、`dataset.py`（训练装配单点：装载 + training_panel_index/label_far_cross 纯函数 + 训练协议常量）。config 已池概念清零（无池表名/池路径）。
+> - **现役双池**：`mainboard_microcap`（微盘，生产池，cron 无参默认）与 `mainboard_all`（全 A 主板，bench 验证池）。横截面参考系按池隔离，绝不可共表。
+> - **池化边界**：池感知入口 = update/integrity/gb/nn/select_factors/mining/baseline_check/run_lgb/_leak_check/fold_cv/backtest/generate_lgb/ic_probe（均有 `--pool`，缺省 env）；`data/pull`、`strategies/*`、`extra_factors.py` 计算内核、cron 四步路径不感知池（契约：无参=微盘）。
+> - **产物池命名**：selected_{pool}_{model}.json、integrity_report_{pool}.json、factor_audit/contribution_report_{pool}.json、baseline_reference_{pool}.json、fold_cv_report_{pool}.json（跨池互覆写已根治）。
+> - **死列已清**（2026-08-27）：GZ2000 7 死列 + shibor_on/1m + alpha*_v0 ×4 + mf_volchg3 共 14 列（计算源头+双表 DROP，保留 GZ2000_return_5d/20d）；微盘表 72 列、全主板表 70 列。
+> - **陈旧值审计**：`python -m factors.store [--pool X]`（staleness_audit：抽样重算 vs 存量 diff，只报告不修复；已知微盘 2020+ 存在 kline 重述致 ~13.3k 行级漂移）。
+>
 > **本分支现役架构（v8 正式版）速览**：
 > - **三模型 LightGBM 回归（objective=regression_l1，条件中位数），全部 next_open 锚**：open2d / 6d / 20d（+gap1d 独立实验模型）；训练起点锁 2020-01，固定测试集 walk-forward
 > - **股票池已时点化（2026-08-24 用户四项裁定）**：沪深300式半年度快照（pool_snapshots 表，`pools/membership.py` 单源：查询 API + 快照构建器）；带宽 **1~40 亿流通市值**（通胀调整带）+ 主板 + 次新排除（上市 <252 交易日）；生效日=6/12 月首个交易日、选样截止=前一月末。**旧池 json（历史并集，非时点）已于 2026-08-25 物理删除**——池代码一律走 membership（config 不再有 json 池读取）；基准=半年重置等权指数。宇宙口径已换，与旧版本数字不可直接比较
@@ -47,46 +56,50 @@ Tushare 数据 → DuckDB 存储（data/pull）
 
 ```
 quantlab/
-├── config.py                # ★ 中心配置：DB 路径、MODEL_CONFIGS（四模型标签窗/锚/buffer）、FOLDS、SELECTED_FACTORS、输出路径
-├── run_lgb.py               # ★ 训练入口：三回归模型+gap1d，L1 目标 + 输出校准（calib_slope/median 入 meta）；HISTORY_SINCE 单源
-├── fold_cv.py               # 滚动 7 折 CV 驱动：每折独立筛选+训练+market 回测+泄漏断言
-├── _leak_check.py           # ★ 主窗口泄漏断言（C1 训练掩码/C2 校准尾段/C3 样本排除/C4 标签方向，56 项）
+├── config.py                # ★ 中心配置：DB 路径、MODEL_CONFIGS（四模型标签窗/锚/buffer）、FOLDS、SELECTED_FACTORS、PRED_COLS/W2D/W6D/W20D 融合单源（池概念已清零）
+├── dataset.py               # ★ 训练装配单点：装载（factors/kline/delist/industry/IsST）+ assemble 束 + training_panel_index/label_far_cross 纯函数 + 训练协议常量
+├── run_lgb.py               # ★ 训练入口：装配→训练→校准→落盘（三回归+gap1d，L1 目标 + 输出校准）
+├── fold_cv.py               # 滚动 7 折 CV 驱动：每折独立筛选+训练+market 回测+泄漏断言（子进程显式 --pool）
+├── _leak_check.py           # ★ 主窗口泄漏断言（C1 训练掩码/C2 校准尾段/C3 样本排除/C4 标签方向，56 项；IO 独立构建 + dataset 共享纯函数）
 │
 ├── factors/
 │   ├── extra_factors.py     # ★ 公式因子主载体（原生 Polars）；新公式因子加这里
-│   ├── update.py            # ★ 因子管道：增量日更（日期+股票级对账，lookback 锚=最早目标日）+ --full 全量重建（原 compute.py 已并入）
-│   ├── integrity.py         # 完整性校验（硬失败 exit 1 / 软警告；pull/update 末尾自动调用）
-│   ├── select_factors.py    # ★ 筛选：簇优先（average-linkage，相关度>IC），每模型 selected_{pool}_{model}.json；研究工具共享库（_rank_ic_np/load_factors）
+│   ├── store.py             # ★ 因子表 SQL 唯一点（铁律）：读写/对账/列操作/staleness_audit；表名一律经 spec
+│   ├── update.py            # ★ 因子管道编排：增量日更（日期+股票级对账）+ --full 全量重建；compute_panel 计算内核
+│   ├── integrity.py         # 完整性校验（硬失败 exit 1 / 软警告 + check_errors 显性化；integrity_report_{pool}.json）
+│   ├── select_factors.py    # ★ 筛选：簇优先（average-linkage，相关度>IC），每模型 selected_{pool}_{model}.json
 │   ├── mining.py            # ★ 挖矿三件套：audit（画像）/ contribution（gain+permutation）/ batch（候选批测）
-│   ├── baseline_check.py    # ★ 评估器回归门禁（含 8 个基准 alpha 原生 Polars 实现 + 冻结参考值比对）
-│   ├── build_gb_gap1d.py    # XGBoost 隔夜跳空因子（11 公式因子，rank IC 0.198）
-│   ├── build_nn_gap1d.py    # MLP 隔夜跳空因子（cron 每日 --infer-only 前沿推理）
-│   ├── selected_*_{model}.json # 各模型入模清单（定稿 20d 32 / 6d 5 / open2d 4 / gap1d 35-拷贝）
+│   ├── baseline_check.py    # ★ 评估器回归门禁（8 基准 alpha + baseline_reference_{pool}.json 冻结比对）
+│   ├── build_gb_gap1d.py    # XGBoost 隔夜跳空因子（11 公式因子，rank IC 0.198；--pool）
+│   ├── build_nn_gap1d.py    # MLP 隔夜跳空因子（cron 每日 --infer-only 前沿推理；状态按池隔离）
+│   ├── selected_{pool}_{model}.json # 各池各模型入模清单（微盘定稿 20d 32 / 6d 5 / open2d 4）
 │   └── folds/{F1..F7}/      # 折专属筛选清单（防筛选泄漏，fold_cv 消费）
 │
-├── strategies/              # 策略库（2026-08-25 五文件合一为二）
+├── strategies/              # 策略库（池无关）
 │   ├── labels.py            # ★ 标签（compute_median_open 回归标签 + compute_forward_returns 门禁基准 + compute_nextopen_limit_mask 比率口径）；泄漏断言 C4 依赖其源码可 inspect
 │   └── lgb.py               # ★ LGBStrategy（纯回归）+ walk_forward（固定测试集）+ buffered_train_end + rank_ic/ic_summary + combine_scores3
 │
 ├── backtest/
-│   ├── run_lgb.py           # ★ 主回测：融合分 + 开盘市价模拟器（原 signals.py 已并入；limit/长空已删）+ 时点池基准；PRED_COLS/W2D/W6D/W20D 融合单源
-│   └── mainboard_microcap/  # 运行时输出目录（equity/trades/benchmark CSV + folds/，可再生，2026-08-27 裁定不入库）
+│   ├── run_lgb.py           # ★ 主回测：融合分 + 开盘市价模拟器 + 时点池基准；--pool；PRED_COLS/W 自 config
+│   └── {pool}/              # 输出（equity_lgb_combined_daily_v8mo_rebalance.csv 等 + folds/）
 │
 ├── forecast_display/
-│   └── generate_lgb.py      # ★ v8 报告：三 parquet+meta 融合出榜 + LIVE 前沿实时推理；三级降级永不 exit 1
+│   └── generate_lgb.py      # ★ v8 报告：三 parquet+meta 融合出榜 + LIVE 前沿实时推理；三级降级永不 exit 1；--pool
 │
 ├── pools/
-│   └── membership.py        # ★ 池时点化单源：查询 API（member_mask/union_codes/latest_codes/codes_on/reset_points）+ 快照构建器（python -m pools.membership --from 2015）
+│   ├── spec.py              # ★ 唯一池注册表：PoolSpec（snap_table/factor_table/band/data_since + 路径族方法）；python -m pools.spec 自描述
+│   └── membership.py        # ★ 池时点化：查询 API（member_mask/union_codes/latest_codes/codes_on/reset_points）+ 快照构建器
 │
-├── data/                    # 摄入层（cron 路径，勿乱动）
+├── data/                    # 摄入层（cron 路径，勿乱动；拉取范围=全部注册池快照并集）
 │   ├── pull.py              # 统一拉取入口（增量/全量/对账；末尾 integrity 硬失败 exit 1）
-│   ├── sources.py           # 数据源注册表（拉取范围=membership 快照并集）
+│   ├── sources.py           # 数据源注册表（POOLS 自 spec）
 │   ├── trading_calendar.py / lock.py / _ts.py / build_industry.py（pull 子进程调用）
-│   └── ashare.duckdb        # DB 实体（勿提交）
+│   └── ashare.duckdb        # DB 实体（勿提交；bench worktree 经 QUANTLAB_DB 共享主仓）
 │
 ├── models/{pool}/           # lgb_{model}.joblib ×4 + nn_gap1d_state.joblib + folds/（折产物）
 ├── document/                # 参考资料：llm_factor_mining（300 假设库）/ alpha101 论文 / tushare API 文档 / vnpy 源码拷贝（研究参考，不参与运行）
 └── docs/superpowers/        # spec 与 plan
+```
 ```
 
 ## Key Architectural Decisions
@@ -138,13 +151,16 @@ quantlab/
 close 锚 open2d ｜ limit 执行语义（已物理删除）｜ qfq 水平因子 ｜ 显式门控逻辑 ｜ 模型因子入簇竞争 ｜ ai_gz2000_*（泄漏已删）｜ 长空信号当版本依据 ｜ mf_ 注册表机制（已删，如重建走独立脚本范式）
 
 ### 13. 数据库表清单
-stock_info/daily_raw/daily_basic/daily_kline(VIEW)/cyq_perf/industry/index_daily/namechange/delist_info/trading_calendar/pending_pulls/pool_snapshots/factor_values/macro_daily(shibor)。
+stock_info/daily_raw/daily_basic/daily_kline(VIEW)/cyq_perf/industry/index_daily/namechange/delist_info/trading_calendar/pending_pulls/macro_daily(shibor)。
+池资产（每池一套，见 pools/spec.py）：mainboard_microcap = pool_snapshots + factor_values（72 列）；mainboard_all = pool_snapshots_mainboard_all + factor_values_mainboard_all（70 列）。
 
 **在途实验表（用户 2026-08-27 确认为新工作合法成果，勿清理）**：`pool_snapshots_mainboard_all`（全主板无市值带时点快照，23 档）+ `factor_values_mainboard_all`（配套因子表，79 列）+ 人读版 `pools/mainboard_all_history.json`（gitignore）。生成代码暂未入库——清理孤儿表前先问用户。
 
 ## Common Workflows
 
-所有命令默认 `mainboard_microcap` 池；解释器用 `.venv/bin/python`（系统 python3 无 duckdb）。
+所有命令默认 `mainboard_microcap` 池（env `QUANTLAB_POOL` 或各入口 `--pool` 可切换；
+本 bench worktree 另需 `QUANTLAB_DB=/Users/cui/Projects/quantlab/data/ashare.duckdb`）；
+解释器用 `.venv/bin/python`（系统 python3 无 duckdb）。
 
 ### 数据更新（cron 每交易日 21:05 自动跑）
 ```bash
@@ -158,10 +174,13 @@ python -m pools.membership     # 重建池快照（半年度，通常 6/12 月�
 
 ### 训练与评估
 ```bash
-python run_lgb.py                    # ★ 训练三模型+gap1d（约 5 分钟），写 models/ + predictions parquet + meta
+python run_lgb.py                    # ★ 训练三模型+gap1d（约 5 分钟），写 models/{pool}/ + predictions parquet + meta
 python _leak_check.py                # ★ 泄漏断言（56 项，重训后必跑）
 python -m backtest.run_lgb           # ★ 主回测（开盘市价，融合分+卖出零点）
 python fold_cv.py                    # 7 折全链（~35 分钟）；--skip-train 只重跑回测
+python -m factors.spec               # 池注册表自描述（表名/带宽/行数/最新档）
+python -m factors.store --pool X     # 因子表陈旧值审计（抽样重算 vs 存量，只报告）
+# 换池：QUANTLAB_POOL=mainboard_all <命令>  或  <命令> --pool mainboard_all
 ```
 
 ### 预测报告（三级降级，永不 exit 1）

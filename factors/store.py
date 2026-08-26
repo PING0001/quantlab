@@ -27,6 +27,7 @@ from __future__ import annotations
 import logging
 
 import duckdb
+import numpy as np
 import pandas as pd
 import polars as pl
 
@@ -413,3 +414,138 @@ def get_lookback_start(con: duckdb.DuckDBPyConnection, from_date: str) -> str:
     if result and result[0]:
         return str(result[0])[:10]
     return from_date
+
+
+# ============================================================================
+# 审计（staleness：存量值 vs 现算值）
+# ============================================================================
+
+# 横截面宇宙依赖列：值依赖"当时写入面板的代码集"（rank 百分位 / 池等权
+# 收益），重算宇宙（codes_on 抽样并集）≠ 历史写入宇宙（当日增量最新档/
+# 历次全量并集）时必然系统性不同——非陈旧值信号，审计中排除（2026-08-27
+# 实测：不排除则 rank 列 100% 行漂移，淹没真实发现）
+UNIVERSE_DEPENDENT_SUFFIXES = ("_rank",)
+UNIVERSE_DEPENDENT_COLS = {"StockIndexCorr_20d"}
+
+
+def staleness_audit(con: duckdb.DuckDBPyConnection, spec: PoolSpec,
+                    n_dates: int = 20, rtol: float = 1e-4,
+                    atol: float = 1e-12) -> dict:
+    """陈旧值审计：抽样历史日期，compute_panel 纯 CPU 重算 vs 存量 diff。
+
+    背景（2026-08-27 审查发现）：daily_kline 被重述（adj_factor/价格修正）
+    后因子行不重算——日期级对账（missing_dates）与股票级对账
+    （stock_coverage）都看不见"行在、值旧"。本审计按时间均匀分层抽样
+    n_dates 个交易日，一次性重算这些日期的当期池成员面板，与存量值
+    逐列比对（NaN==NaN 视为相等；横截面宇宙依赖列排除，见
+    UNIVERSE_DEPENDENT_*），输出漂移清单。rtol=1e-4（1bp）为物质阈值：
+    qfq VIEW 随 latest_adj 漂移的良性缩放尘不计为漂移。抽样限定池纪元
+    （首档生效日起——此前存量行属旧 json 并集宇宙，非本池口径）。
+    已知量级（微盘 2020+，价格类口径）：~13.3k 行/~350 只。
+
+    **只报告不修复**：修复动作（回补/重建）由人裁定后走
+    factors.update --backfill-stocks 或 --full。
+    """
+    # 延迟 import：factors.update 依赖本模块（编排/IO 分离），模块级互指成环
+    from factors.update import compute_panel
+    from pools.membership import codes_on, _load
+
+    all_dates = dates(con, spec)
+    if not all_dates:
+        return {"pool": spec.name, "error": "因子表无日期"}
+    pool_era_start = _load(pool=spec.name, con=con)[0][0]   # 首档生效日
+    era_dates = [d for d in all_dates if d >= pool_era_start]
+    step = max(1, len(era_dates) // n_dates)
+    sampled = era_dates[::step][:n_dates]
+
+    codes_per_date = {d: sorted(codes_on(d, con=con, pool=spec.name)) for d in sampled}
+    all_codes = sorted(set().union(*codes_per_date.values())) if codes_per_date else []
+    if not all_codes:
+        return {"pool": spec.name, "error": "抽样日期均无池成员"}
+
+    lookback_start = get_lookback_start(con, min(sampled))
+    panel = compute_panel(con, all_codes, start_date=lookback_start,
+                          end_date=max(sampled))
+    panel = panel.filter(pl.col("date").is_in(sampled))
+
+    stored = load_panel(con, spec, codes=all_codes, start=min(sampled),
+                        end=max(sampled))
+    stored = stored[stored["date"].isin(sampled)]
+
+    fv_cols = [c for c in panel.columns
+               if c not in ("code", "date") and c in set(stored.columns)
+               and not c.endswith(UNIVERSE_DEPENDENT_SUFFIXES)
+               and c not in UNIVERSE_DEPENDENT_COLS]
+    panel_pd = panel.to_pandas().set_index(["code", "date"]).sort_index()
+    stored_pd = stored.set_index(["code", "date"]).sort_index()
+    common = panel_pd.index.intersection(stored_pd.index)
+
+    P = panel_pd.loc[common, fv_cols].to_numpy(dtype=float)
+    S = stored_pd.loc[common, fv_cols].to_numpy(dtype=float)
+    with np.errstate(invalid="ignore"):
+        drift = ~np.isclose(P, S, rtol=rtol, atol=atol, equal_nan=True)
+    drift[np.isnan(P) & np.isnan(S)] = False
+
+    per_date: dict[str, dict] = {}
+    date_level = common.get_level_values("date")
+    code_level = common.get_level_values("code")
+    for d in sampled:
+        m = np.asarray(date_level == d)
+        n_drift = int(drift[m].any(axis=1).sum())
+        cols_drift = {fv_cols[j]: int(drift[m][:, j].sum())
+                      for j in range(len(fv_cols)) if drift[m][:, j].any()}
+        per_date[d] = {
+            "rows": int(m.sum()),
+            "drifted_rows": n_drift,
+            "drifted_codes": int(len(set(code_level[m][drift[m].any(axis=1)]))),
+            "drifted_cols": cols_drift,
+        }
+
+    total_rows = int(drift.shape[0])
+    drifted_mask = drift.any(axis=1)
+    return {
+        "pool": spec.name,
+        "n_sampled_dates": len(sampled),
+        "sampled_dates": sampled,
+        "compared_rows": total_rows,
+        "compared_cols": len(fv_cols),
+        "drifted_rows": int(drifted_mask.sum()),
+        "drifted_codes": int(len(set(code_level[drifted_mask]))),
+        "drifted_cols": {fv_cols[j]: int(drift[:, j].sum())
+                         for j in range(len(fv_cols)) if drift[:, j].any()},
+        "per_date": per_date,
+        "note": "陈旧值=daily_kline 重述后因子行未重算；只报告不修复，"
+                "修复走 factors.update --backfill-stocks / --full（人裁定）",
+    }
+
+
+def _main():
+    """staleness_audit CLI（只读审计）：python -m factors.store [--pool X] [--n-dates 20]"""
+    import argparse
+    import json as _json
+
+    import duckdb as _duckdb
+
+    from config import DB_PATH
+    from pools.spec import get_pool
+
+    ap = argparse.ArgumentParser(description="因子表陈旧值审计（抽样重算 vs 存量）")
+    ap.add_argument("--pool", default=None, help="目标池（默认 env/微盘）")
+    ap.add_argument("--n-dates", type=int, default=20, help="抽样交易日数")
+    args = ap.parse_args()
+    spec = get_pool(args.pool)
+    con = _duckdb.connect(str(DB_PATH), read_only=True)
+    try:
+        rep = staleness_audit(con, spec, n_dates=args.n_dates)
+    finally:
+        con.close()
+    print(_json.dumps({k: v for k, v in rep.items() if k != "per_date"},
+                     ensure_ascii=False, indent=2))
+    for d, info in rep.get("per_date", {}).items():
+        if info["drifted_rows"]:
+            print(f"  {d}: {info['drifted_rows']}/{info['rows']} 行漂移 "
+                  f"({info['drifted_codes']} 只) {list(info['drifted_cols'])[:5]}")
+
+
+if __name__ == "__main__":
+    _main()
