@@ -26,7 +26,7 @@ ST/退市三层防御与 backtest/run_lgb.py 同款：
 产物中最新可用日，非自然"今天"。
 
 Usage:
-    python forecast_display/generate_lgb.py [--date YYYY-MM-DD]
+    python forecast_display/generate_lgb.py [--date YYYY-MM-DD] [--pool mainboard_all]
 """
 from __future__ import annotations
 
@@ -41,28 +41,28 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import (DB_PATH, POOL_NAME, get_lgb_predictions_path,
-                    get_lgb_predictions_meta_path, get_forecast_lgb_dir)
+from config import DB_PATH, PRED_COLS, W2D, W6D, W20D
+from pools.spec import get_pool, PoolSpec
+from factors import store
 
-# 融合权重与预测列名单源：直接 import 回测入口，防两处漂移暗改有效权重
-# （v8 的核心教训--幅度/权重漂移曾在主窗口摆动 ±20pp）
-from backtest.run_lgb import PRED_COLS, W2D, W6D, W20D
+# 融合权重与预测列名单源：config（backtest 与本文件同源 import），防两处
+# 漂移暗改有效权重（v8 的核心教训--幅度/权重漂移曾在主窗口摆动 ±20pp）
 from strategies.lgb import combine_scores3
 
-# 报告成分（gap1d 独立实验模型，刻意排除）
+# 报告成分（gap1d 独立实验模型，刻意排除）。池身份与 HTML 目录在入口
+# 解析（原模块级 HTML_DIR 随 env 求值，改 --pool 后需入口化）
 COMPONENTS: dict[str, float] = {"open2d": W2D, "6d": W6D, "20d": W20D}
-HTML_DIR = get_forecast_lgb_dir()
 
 
 # ============================================================================
 # 数据加载（每层独立 try，任何一层失败都只影响该层/该成分，不致命）
 # ============================================================================
-def load_components() -> dict[str, dict]:
+def load_components(spec: PoolSpec) -> dict[str, dict]:
     """读三成分 parquet+meta；单成分任何问题 → 该成分缺席（进入 L2）。"""
     comps: dict[str, dict] = {}
     for m, w in COMPONENTS.items():
-        ppath = get_lgb_predictions_path(m)
-        mpath = get_lgb_predictions_meta_path(m)
+        ppath = spec.lgb_predictions_path(m)
+        mpath = spec.lgb_predictions_meta_path(m)
         if not (ppath.exists() and mpath.exists()):
             continue
         try:
@@ -92,7 +92,7 @@ def load_name_map(codes: list[str]) -> dict[str, str]:
         con.close()
 
 
-def load_st_delist_excluded(target_date: pd.Timestamp,
+def load_st_delist_excluded(spec: PoolSpec, target_date: pd.Timestamp,
                             codes: list[str]) -> tuple[set[str], list[str]]:
     """三层防御的 ②③：IsST 当日时点 + delist_date。①名称快照由调用方合并。
 
@@ -105,12 +105,8 @@ def load_st_delist_excluded(target_date: pd.Timestamp,
         ph = ",".join(["?"] * len(codes))
         day = str(target_date.date())
 
-        isst = con.execute(
-            f"SELECT code FROM factor_values WHERE code IN ({ph}) "
-            f"AND date = ? AND IsST = 1",
-            [*codes, day],
-        ).fetchall()
-        st_set = {c for (c,) in isst}
+        isst_df = store.load_isst(con, spec, codes=codes, start=day, end=day)
+        st_set = set(isst_df.loc[isst_df["IsST"] == 1, "code"])
         excluded |= st_set
         parts.append(f"IsST@{day}={len(st_set)}")
 
@@ -133,7 +129,7 @@ def load_st_delist_excluded(target_date: pd.Timestamp,
 # ============================================================================
 # 报告构建
 # ============================================================================
-def live_day_predictions(target_date: pd.Timestamp,
+def live_day_predictions(spec: PoolSpec, target_date: pd.Timestamp,
                          comps: dict[str, dict]) -> tuple[dict[str, pd.Series], list[str]]:
     """前沿日期实时推理：冻结 joblib × calib_slope（parquet 止于 TEST_END，不含前沿）。
 
@@ -142,11 +138,9 @@ def live_day_predictions(target_date: pd.Timestamp,
     SQL 加池过滤防池外行混入（2026-08-24 审计 #11）。
     返回 ({model: 当日预测 Series(code 索引)}, 缺失/降级披露)。"""
     from strategies.lgb import LGBStrategy
-    from config import get_lgb_model_path
     from pools.membership import latest_codes
 
-    pool_codes = sorted(latest_codes())   # 池时点化：LIVE 过滤 = 最新档成员
-    ph = ",".join(["?"] * len(pool_codes))
+    pool_codes = sorted(latest_codes(pool=spec.name))   # 池时点化：LIVE 过滤 = 最新档成员
     day = str(target_date.date())
     day_series: dict[str, pd.Series] = {}
     notes: list[str] = []
@@ -158,14 +152,12 @@ def live_day_predictions(target_date: pd.Timestamp,
         sw_map = dict(zip(sw["code"], sw["sw_l3_code"]))
         for m, c in comps.items():
             try:
-                strategy = LGBStrategy.load(get_lgb_model_path(m))
+                strategy = LGBStrategy.load(spec.lgb_model_path(m))
                 meta = c["meta"]
                 fnames = list(strategy.factor_names)
                 fcols = [f for f in fnames if f != "sw_l3"]
-                df = con.execute(
-                    f"SELECT code, {', '.join(fcols)} FROM factor_values "
-                    f"WHERE date = ? AND code IN ({ph})",
-                    [day, *pool_codes]).fetchdf()
+                df = store.load_panel(con, spec, codes=pool_codes, cols=fcols,
+                                      start=day, end=day)
                 if df.empty:
                     notes.append(f"{m}: 因子表当日无池内行")
                     continue
@@ -190,7 +182,7 @@ def live_day_predictions(target_date: pd.Timestamp,
     return day_series, notes
 
 
-def build_day_frame(comps: dict[str, dict], target_date: pd.Timestamp,
+def build_day_frame(spec: PoolSpec, comps: dict[str, dict], target_date: pd.Timestamp,
                     name_st: set[str], day_series: dict[str, pd.Series] | None = None,
                     live_notes: list[str] | None = None, is_live: bool = False,
                     ) -> tuple[pd.DataFrame, dict] | None:
@@ -230,7 +222,7 @@ def build_day_frame(comps: dict[str, dict], target_date: pd.Timestamp,
 
     codes = sorted(score.index.astype(str))
     name_map = load_name_map(codes)
-    st_delist, layer_notes = load_st_delist_excluded(target_date, codes)
+    st_delist, layer_notes = load_st_delist_excluded(spec, target_date, codes)
     excluded = name_st & set(codes) | st_delist
 
     df = pd.DataFrame({"code": score.index.astype(str), "score": score.values})
@@ -259,6 +251,7 @@ def build_day_frame(comps: dict[str, dict], target_date: pd.Timestamp,
         })
 
     report_meta = {
+        "pool": spec.name,
         "prediction_date": str(target_date.date()),
         "generated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "missing": missing,
@@ -463,7 +456,7 @@ def build_html(df: pd.DataFrame, meta: dict) -> str:
     m = dict(meta)
     m.update({
         "banner": banner,
-        "pool_name": POOL_NAME,
+        "pool_name": meta.get("pool", ""),
         "table_rows": "\n".join(rows),
         "model_cards_html": "\n".join(cards),
         "n_stocks": len(df),
@@ -524,14 +517,14 @@ PLACEHOLDER_TEMPLATE = """<!DOCTYPE html>
 </html>"""
 
 
-def write_placeholder(reason: str) -> Path:
+def write_placeholder(html_dir: Path, reason: str) -> Path:
     # 不用 .format：reason 可能含 traceback 花括号
     html = (PLACEHOLDER_TEMPLATE
             .replace("{generated_at}",
                      datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             .replace("{reason}", reason))
-    HTML_DIR.mkdir(parents=True, exist_ok=True)
-    out = HTML_DIR / f"{datetime.date.today():%Y-%m-%d}_forecast_lgb.html"
+    html_dir.mkdir(parents=True, exist_ok=True)
+    out = html_dir / f"{datetime.date.today():%Y-%m-%d}_forecast_lgb.html"
     out.write_text(html, encoding="utf-8")
     return out
 
@@ -544,15 +537,20 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Dual-regression v8 forecast HTML")
     parser.add_argument("--date", type=str, default=None,
                         help="Target prediction date (YYYY-MM-DD). Default: latest in parquets.")
+    parser.add_argument("--pool", default=None,
+                        help="目标池（默认 env QUANTLAB_POOL / 微盘；cron 无参=微盘）")
     args = parser.parse_args()
+    spec = get_pool(args.pool)
+    html_dir = spec.forecast_lgb_dir()
 
-    print("Generating dual-regression (v8) forecast HTML ...")
+    print(f"Generating dual-regression (v8) forecast HTML (pool: {spec.name}) ...")
     try:
-        comps = load_components()
+        comps = load_components(spec)
         if not comps:
             out = write_placeholder(
+                html_dir,
                 "三个预测 parquet（open2d/6d/20d）全部缺失或不可读 — "
-                f"期望路径 {get_lgb_predictions_path('<model>')}（run_lgb.py 产物）")
+                f"期望路径 {spec.lgb_predictions_path('<model>')}（run_lgb.py 产物）")
             print(f"  [L3] 全部成分缺失 → 占位报告: {out}")
             return
 
@@ -564,14 +562,14 @@ def main() -> None:
 
         # 因子表最新日期（前沿）：预测产物止于 TEST_END，前沿日期走实时推理
         con = duckdb.connect(str(DB_PATH), read_only=True)
-        latest_factor_date = pd.Timestamp(
-            con.execute("SELECT max(date) FROM factor_values").fetchone()[0])
+        latest_factor_date = pd.Timestamp(store.latest_date(con, spec))
         con.close()
 
         if args.date is not None:
             target = pd.Timestamp(args.date)
             if target not in avail_dates and target != latest_factor_date:
                 out = write_placeholder(
+                    html_dir,
                     f"指定日期 {args.date} 不在预测产物范围内且非因子表最新日；"
                     f"产物范围 {min(last_dates.values()).date()} ~ "
                     f"{max(last_dates.values()).date()}，因子最新 {latest_factor_date.date()}")
@@ -590,20 +588,20 @@ def main() -> None:
         if is_live:
             print(f"  [LIVE] {target.date()} 超出预测产物范围 "
                   f"(止于 {max(last_dates.values()).date()})，冻结模型实时推理")
-            day_series, live_notes = live_day_predictions(target, comps)
-            built = build_day_frame(comps, target, name_st, day_series=day_series,
+            day_series, live_notes = live_day_predictions(spec, target, comps)
+            built = build_day_frame(spec, comps, target, name_st, day_series=day_series,
                                     live_notes=live_notes, is_live=True)
         else:
-            built = build_day_frame(comps, target, name_st)
+            built = build_day_frame(spec, comps, target, name_st)
         if built is None:
-            out = write_placeholder(f"目标日 {target.date()} 无任何预测行")
+            out = write_placeholder(html_dir, f"目标日 {target.date()} 无任何预测行")
             print(f"  [L3] 当日无预测行 → 占位报告: {out}")
             return
         df, meta = built
 
         html = build_html(df, meta)
-        HTML_DIR.mkdir(parents=True, exist_ok=True)
-        out = HTML_DIR / f"{meta['prediction_date']}_forecast_lgb.html"
+        html_dir.mkdir(parents=True, exist_ok=True)
+        out = html_dir / f"{meta['prediction_date']}_forecast_lgb.html"
         out.write_text(html, encoding="utf-8")
 
         level = "L2 DOWNGRADED" if meta["degraded"] else "L1 完整"
@@ -621,6 +619,7 @@ def main() -> None:
         print(f"\n=== HTML written to: {out} ===")
     except Exception:  # noqa: BLE001 — 夜间流水线末段，任何异常都转占位不断流
         out = write_placeholder(
+            html_dir,
             "生成过程异常：<pre>" + traceback.format_exc(limit=8) + "</pre>")
         print(f"  [L3] 异常 → 占位报告: {out}")
         print(traceback.format_exc())

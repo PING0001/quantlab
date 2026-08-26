@@ -18,7 +18,7 @@ Price limits: regular ±10%, ST ±5% (from factor_values.IsST)。
 退市持仓到达退市日强制清仓计零（与基准侧同口径）。
 
 Run from project root:
-    python -m backtest.run_lgb [--fold F*]
+    python -m backtest.run_lgb [--fold F*] [--pool mainboard_all]
 """
 from __future__ import annotations
 
@@ -33,8 +33,10 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import (DB_PATH, POOL_NAME, get_backtest_dir,
-                    get_lgb_predictions_path, MODEL_CONFIGS, FOLDS, get_fold)
+from config import (DB_PATH, MODEL_CONFIGS, FOLDS, get_fold,
+                    PRED_COLS, W2D, W6D, W20D)
+from pools.spec import get_pool, PoolSpec
+from factors import store
 
 from strategies.lgb import rank_ic, ic_summary, combine_scores3
 from strategies.labels import compute_median_open, compute_nextopen_limit_mask
@@ -44,8 +46,7 @@ from strategies.labels import compute_median_open, compute_nextopen_limit_mask
 # ============================================================================
 TEST_START = pd.Timestamp("2025-06-01")
 
-PRED_COLS = {"open2d": "pred_label_open2d", "6d": "pred_label_6d", "20d": "pred_label_20d"}
-W2D, W6D, W20D = 0.40, 0.35, 0.25  # v8：score = 0.4*p2d + 0.35*p6d + 0.25*p20d（三模型均 next_open 锚，2026-08-22 用户裁定）
+# PRED_COLS / W2D / W6D / W20D 单源 config（backtest 与 forecast 同源 import）
 
 MAX_POSITIONS = 10
 REBALANCE_FREQ = 1          # 每日调仓（2026-08-21 用户裁定，spec §3.6）
@@ -465,7 +466,8 @@ def compute_benchmark_pit(ohlcv_map, test_dates, reset_points, delist_info=None)
 # ============================================================================
 # Data loading
 # ============================================================================
-def load_ohlcv_map(con: duckdb.DuckDBPyConnection, codes: list[str]) -> dict[str, pd.DataFrame]:
+def load_ohlcv_map(con: duckdb.DuckDBPyConnection, spec: PoolSpec,
+                   codes: list[str]) -> dict[str, pd.DataFrame]:
     placeholders = ",".join(["?"] * len(codes))
 
     df = con.execute(
@@ -477,10 +479,7 @@ def load_ohlcv_map(con: duckdb.DuckDBPyConnection, codes: list[str]) -> dict[str
     df["date"] = pd.to_datetime(df["date"])
 
     try:
-        isst = con.execute(
-            f"SELECT code, date, IsST FROM factor_values WHERE code IN ({placeholders})",
-            codes,
-        ).fetchdf()
+        isst = store.load_isst(con, spec, codes=codes)
         if not isst.empty:
             isst["date"] = pd.to_datetime(isst["date"])
             df = df.merge(isst, on=["code", "date"], how="left")
@@ -504,10 +503,10 @@ def load_ohlcv_map(con: duckdb.DuckDBPyConnection, codes: list[str]) -> dict[str
     return ohlcv_map
 
 
-def load_predictions(fold: str | None = None) -> dict[str, pd.Series]:
+def load_predictions(spec: PoolSpec, fold: str | None = None) -> dict[str, pd.Series]:
     preds = {}
     for m, col in PRED_COLS.items():
-        path = get_lgb_predictions_path(m, fold=fold)
+        path = spec.lgb_predictions_path(m, fold=fold)
         if not path.exists():
             print(f"  ERROR: predictions for {m} not found at {path}")
             print(f"  Run: python run_lgb.py --model all"
@@ -551,7 +550,10 @@ def main():
     parser.add_argument("--fold", choices=sorted(FOLDS), default=None,
                         help="滚动折 CV：预测走 fold 路径，TEST_START=折 test_start，"
                              "输出 backtest/{pool}/folds/{fid}/")
+    parser.add_argument("--pool", default=None,
+                        help="目标池（默认 env QUANTLAB_POOL / 微盘）")
     args = parser.parse_args()
+    spec = get_pool(args.pool)
 
     fold = args.fold
     test_start = pd.Timestamp(get_fold(fold)[0]) if fold else TEST_START
@@ -559,13 +561,13 @@ def main():
     print("=" * 60)
     print(f"  Dual-Regression Backtest - DAILY, v8 score = 0.4*p2d + 0.35*p6d + 0.25*p20d"
           f"{f' | fold={fold}' if fold else ''} | exec=market_open")
-    print(f"  Pool: {POOL_NAME} | label anchor: next_open | "
+    print(f"  Pool: {spec.name} | label anchor: next_open | "
           f"开盘市价（买=开盘必成交，卖=score<零点）")
     print("=" * 60)
 
     # ---- 1. Load + combine predictions ----
     print("\n[1/4] Loading predictions ...")
-    preds = load_predictions(fold)
+    preds = load_predictions(spec, fold)
 
     # ---- 卖出零点平移（2026-08-22 审计 F8）----
     # L1 中位数输出下三成分典型水平为负（池内典型股票远期中位收益为负），
@@ -575,8 +577,7 @@ def main():
     sell_zero = 0.0
     med_parts = []
     for m, w in (("open2d", W2D), ("6d", W6D), ("20d", W20D)):
-        p = get_lgb_predictions_path(m, fold=fold)
-        meta_path = p.with_name(p.name.replace(".parquet", "_meta.json"))
+        meta_path = spec.lgb_predictions_meta_path(m, fold=fold)
         if meta_path.exists():
             try:
                 med = json.loads(meta_path.read_text())["results"].get("calib_median")
@@ -607,11 +608,12 @@ def main():
     con = duckdb.connect(str(DB_PATH), read_only=True)
     from pools.membership import reset_points as pool_reset_points
     pred_end = str(score.index.get_level_values("date").max().date())
-    bench_reset_pts = pool_reset_points(str(test_start.date()), pred_end)
+    bench_reset_pts = pool_reset_points(str(test_start.date()), pred_end,
+                                        con=con, pool=spec.name)
     bench_codes = sorted(set().union(*[m for _, m in bench_reset_pts]))
     pred_codes = sorted(score.index.get_level_values("code").unique())
-    ohlcv_map = load_ohlcv_map(con, pred_codes)
-    full_ohlcv = load_ohlcv_map(con, bench_codes)
+    ohlcv_map = load_ohlcv_map(con, spec, pred_codes)
+    full_ohlcv = load_ohlcv_map(con, spec, bench_codes)
     print(f"  OHLCV: {len(ohlcv_map)} prediction stocks, {len(full_ohlcv)} "
           f"bench stocks（池时点化：窗口内成员并集，半年重置 {len(bench_reset_pts)} 段）")
 
@@ -640,10 +642,7 @@ def main():
     ).fetchdf()
 
     try:
-        st_df = con_r.execute(
-            f"SELECT code, date, IsST FROM factor_values WHERE code IN ({placeholders})",
-            ic_codes,
-        ).fetchdf()
+        st_df = store.load_isst(con_r, spec, codes=ic_codes)
         if not st_df.empty:
             st_df["date"] = pd.to_datetime(st_df["date"])
             st_series = st_df.set_index(["date", "code"])["IsST"].astype(bool)
@@ -757,7 +756,7 @@ def main():
         print(f"\n  {'Excess Return:':<22} {port_stats.get('total_return', 0) - bench_total:>+10.2%}")
 
     # ---- save outputs ----
-    bt_dir = get_backtest_dir(fold=fold)
+    bt_dir = spec.backtest_dir(fold=fold)
     bt_dir.mkdir(parents=True, exist_ok=True)
     if fold:
         th_suffix = "_market"   # folds/{fid}/equity_lgb_combined_daily_market_rebalance.csv
