@@ -121,6 +121,9 @@ def main():
                         help="逗号分隔折号（默认全部 7 折）")
     parser.add_argument("--skip-train", action="store_true",
                         help="复用已有折筛选/模型/预测，只重跑回测与汇总")
+    parser.add_argument("--skip-select", action="store_true",
+                        help="复用已存在的折清单，跳过每折 select_factors"
+                             "（如沿用他池名单跑固定清单 CV）")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--pool", default=None,
                         help="目标池（默认 env QUANTLAB_POOL / 微盘）")
@@ -155,9 +158,16 @@ def main():
         if not args.skip_train:
             # 全四模型折清单（run_lgb --model all 折模式强制读折清单；旧版只
             # 选 20d/6d，微盘靠历史遗留 json 才未断——新池暴露此缝，2026-08-27 修复）
-            for m in ("20d", "6d", "gap1d", "open2d"):
-                run([PY, "-m", "factors.select_factors", "--model", m, "--fold", fid,
-                     *pool_args], log_path)
+            if args.skip_select:
+                for m in ("20d", "6d", "gap1d", "open2d"):
+                    p = ROOT / "factors" / "folds" / fid / f"selected_{spec.name}_{m}.json"
+                    if not p.exists():
+                        raise FileNotFoundError(f"--skip-select 但折清单缺失: {p}")
+                print("    skip-select: 复用已有折清单")
+            else:
+                for m in ("20d", "6d", "gap1d", "open2d"):
+                    run([PY, "-m", "factors.select_factors", "--model", m, "--fold", fid,
+                         *pool_args], log_path)
             run([PY, "run_lgb.py", "--model", "all", "--fold", fid, *pool_args], log_path)
         leak_checks(fid, spec)
         print(f"    leak checks passed")
