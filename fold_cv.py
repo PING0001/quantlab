@@ -1,22 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-Rolling fold CV driver（2026-08-21 用户裁定：连续 7 折半年窗，训练起点锁 2020-01）。
+Rolling fold CV driver（2026-09-03 简化重写，spec: mb1-simplification）。
 
-每折独立全链，防两类泄漏：
-- 标签前视：run_lgb 的 label_buffer 机制（复用，无新代码）
-- 筛选泄漏：每折重跑 select_factors，窗口 [2020, 折 test_start)，训练强制读折专属清单
+每折顺序：ML 因子同步训练（防泄漏 scoped）→ 三主模型训练（固定主清单，
+权重覆盖主路径）→ 泄漏断言 → market 回测。汇总 = 每模型 test IC/ICIR +
+组合收益/夏普，写 data/fold_cv_report_{pool}.json。
 
-每折产出开盘市价（market）语义回测；limit 语义已判死删除（2026-08-25）。
-汇总报告：每折指标 + 跨折平均 + 最差折，写 data/fold_cv_report.json。
+防泄漏：run_lgb 的 label_buffer（复用）；ML 因子训练截止 = 折 test_start
+（build_gb_gap1d --cutoff，内部自带标签 buffer 回退与测试窗冻结推理）。
+折清单机制已退场（2026-09-03 用户裁定：固定主清单折，筛选走 tmp 临时脚本）。
 
-全程 DB 只读，与夜间流水线无锁冲突。
+全程 DB 写仅限本池因子表 ML 列（store.update_columns）——避开 cron 窗口。
 
 Usage:
-    python fold_cv.py --dry-run                 # 打印每折计划
-    python fold_cv.py                           # 7 折全链（默认池=env/微盘）
-    python fold_cv.py --folds F1,F2
-    python fold_cv.py --skip-train              # 复用折产物只重跑回测
-    python fold_cv.py --pool mainboard_all --folds F4
+    python fold_cv.py --pool mainboard_all            # 7 折全链
+    python fold_cv.py --pool mainboard_all --folds F7 # 单折（冒烟）
 """
 from __future__ import annotations
 
@@ -32,12 +30,15 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import FOLDS, FOLD_TRAIN_START, get_fold
+from config import FOLDS, FOLD_TRAIN_START, MODEL_CONFIGS, get_fold
 from pools.spec import get_pool
 
 PY = sys.executable
 ROOT = Path(__file__).resolve().parent
 RF = 0.025  # 与 backtest/run_lgb.py 同口径
+# ML 因子列 -> scoped 构建器模块（折同步训练；nn_gap1d 无 scoped 模式，
+# 引用即 fail-fast——本简化边界 = mainboard_all，其清单不含 nn）
+ML_BUILDERS = {"gb_gap1d": "factors.build_gb_gap1d"}
 
 
 def run(cmd: list[str], log_path: Path) -> None:
@@ -51,15 +52,21 @@ def run(cmd: list[str], log_path: Path) -> None:
     print(f"    done in {time.time() - t0:.0f}s")
 
 
+def ml_factors_in_lists(spec) -> list[str]:
+    """主清单实际引用的 ML 因子列（gb_/nn_ 前缀自动发现，换清单自动跟随）。"""
+    cols: set[str] = set()
+    for m in sorted(MODEL_CONFIGS):
+        p = ROOT / "factors" / f"selected_{spec.name}_{m}.json"
+        cols |= {f for f in json.loads(p.read_text())["selected_factors"]
+                 if f.startswith(("gb_", "nn_"))}
+    return sorted(cols)
+
+
 def leak_checks(fid: str, spec) -> None:
-    """折产物泄漏断言：筛选窗口终点=折 test_start；训练截止<test_start；预测范围⊆折窗。"""
+    """折产物泄漏断言：训练截止<test_start；测试窗=折定义；预测范围⊆折窗。"""
     test_start, test_end = get_fold(fid)
     ts, te = pd.Timestamp(test_start), pd.Timestamp(test_end)
-    for m in ("20d", "6d"):
-        sj = ROOT / "factors" / "folds" / fid / f"selected_{spec.name}_{m}.json"
-        d = json.loads(sj.read_text())
-        assert d["train_end"] == test_start, \
-            f"{fid}/{m}: selected train_end={d['train_end']} != test_start={test_start}"
+    for m in sorted(MODEL_CONFIGS):
         meta = json.loads(spec.lgb_predictions_meta_path(m, fold=fid).read_text())
         assert pd.Timestamp(meta["train_end"]) < ts, \
             f"{fid}/{m}: meta train_end={meta['train_end']} >= test_start"
@@ -69,6 +76,17 @@ def leak_checks(fid: str, spec) -> None:
         dts = pred.index.get_level_values("date")
         assert dts.min() >= ts and dts.max() <= te, \
             f"{fid}/{m}: predictions [{dts.min()}~{dts.max()}] outside fold window"
+
+
+def fold_model_ic(fid: str, spec) -> dict:
+    """每模型折内 test IC/ICIR（读折 meta；退化臂 = {"n_periods": 0} 口径）。"""
+    out = {}
+    for m in sorted(MODEL_CONFIGS):
+        t = json.loads(spec.lgb_predictions_meta_path(m, fold=fid)
+                        .read_text())["results"]["test_ic"]
+        out[m] = {"mean_ic": t.get("mean_ic"), "ir": t.get("ir"),
+                  "n_periods": t.get("n_periods", 0)}
+    return out
 
 
 def fold_metrics(fid: str, exec_label: str, spec) -> dict:
@@ -112,6 +130,7 @@ def fold_metrics(fid: str, exec_label: str, spec) -> dict:
     if bench.exists():
         b = pd.read_csv(bench, index_col=0, parse_dates=True)["equity"]
         out["benchmark_return"] = float(b.iloc[-1] / b.iloc[0] - 1)
+    out["model_ic"] = fold_model_ic(fid, spec)
     return out
 
 
@@ -119,11 +138,6 @@ def main():
     parser = argparse.ArgumentParser(description="Rolling fold CV driver")
     parser.add_argument("--folds", default=",".join(FOLDS),
                         help="逗号分隔折号（默认全部 7 折）")
-    parser.add_argument("--skip-train", action="store_true",
-                        help="复用已有折筛选/模型/预测，只重跑回测与汇总")
-    parser.add_argument("--skip-select", action="store_true",
-                        help="复用已存在的折清单，跳过每折 select_factors"
-                             "（如沿用他池名单跑固定清单 CV）")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--pool", default=None,
                         help="目标池（默认 env QUANTLAB_POOL / 微盘）")
@@ -135,8 +149,15 @@ def main():
         assert fid in FOLDS, f"unknown fold {fid}"
     log_path = ROOT / "data" / f"fold_cv_run_{spec.name}.log"
 
+    ml_cols = ml_factors_in_lists(spec)
+    for f in ml_cols:
+        if f not in ML_BUILDERS:
+            raise RuntimeError(
+                f"主清单引用 ML 因子 {f}，但无 scoped 构建器（nn_gap1d 未适配折同步；"
+                f"本简化边界 = mainboard_all）")
+
     print(f"Fold CV: {fids} | pool={spec.name} | exec=market | "
-          f"train_start={FOLD_TRAIN_START}（扩张窗口）")
+          f"train_start={FOLD_TRAIN_START}（扩张窗口）| ML 同步: {ml_cols or '无'}")
     for fid in fids:
         ts, te = get_fold(fid)
         n_years = (pd.Timestamp(ts) - pd.Timestamp(FOLD_TRAIN_START)).days / 365.25
@@ -144,33 +165,26 @@ def main():
 
     if args.dry_run:
         print("\n[dry-run] 每折将依次执行：")
-        print("  1) python -m factors.select_factors --model 20d/6d --fold F*")
-        print("  2) python run_lgb.py --model all --fold F* --pool {pool}")
-        print("  3) python -m backtest.run_lgb --fold F* --pool {pool}")
-        print(f"  产物：factors/folds/F*/、models/{spec.name}/folds/F*/、data/folds/F*/、"
-              f"backtest/{spec.name}/folds/F*/")
+        for f in ml_cols:
+            print(f"  1) python -m {ML_BUILDERS[f]} --pool {{pool}} --cutoff {{test_start}} --through {{test_end}}")
+        print("  2) python run_lgb.py --model all --fold F* --pool {pool}（固定主清单，权重覆盖主路径）")
+        print("  3) leak checks（折内断言）")
+        print("  4) python -m backtest.run_lgb --fold F* --pool {pool}")
+        print(f"  产物：data/folds/F*/（预测+meta）、backtest/{spec.name}/folds/F*/、"
+              f"权重=主路径覆盖（终态=F7 折口径，供实盘）")
         return
 
     t_all = time.time()
     pool_args = ["--pool", spec.name]   # 子进程显式传池，不靠 env 继承
     for fid in fids:
+        ts, te = get_fold(fid)
         print(f"\n===== {fid} =====")
-        if not args.skip_train:
-            # 全四模型折清单（run_lgb --model all 折模式强制读折清单；旧版只
-            # 选 20d/6d，微盘靠历史遗留 json 才未断——新池暴露此缝，2026-08-27 修复）
-            if args.skip_select:
-                for m in ("20d", "6d", "gap1d", "open2d"):
-                    p = ROOT / "factors" / "folds" / fid / f"selected_{spec.name}_{m}.json"
-                    if not p.exists():
-                        raise FileNotFoundError(f"--skip-select 但折清单缺失: {p}")
-                print("    skip-select: 复用已有折清单")
-            else:
-                for m in ("20d", "6d", "gap1d", "open2d"):
-                    run([PY, "-m", "factors.select_factors", "--model", m, "--fold", fid,
-                         *pool_args], log_path)
-            run([PY, "run_lgb.py", "--model", "all", "--fold", fid, *pool_args], log_path)
+        for f in ml_cols:
+            run([PY, "-m", ML_BUILDERS[f], *pool_args,
+                 "--cutoff", str(ts)[:10], "--through", str(te)[:10]], log_path)
+        run([PY, "run_lgb.py", "--model", "all", "--fold", fid, *pool_args], log_path)
         leak_checks(fid, spec)
-        print(f"    leak checks passed")
+        print("    leak checks passed")
         run([PY, "-m", "backtest.run_lgb", "--fold", fid, *pool_args], log_path)
 
     # ---- summary ----
@@ -188,6 +202,12 @@ def main():
             "worst_sharpe": float(df["sharpe"].min()),
             "mean_benchmark_return": float(df.get("benchmark_return", pd.Series(dtype=float)).mean())
             if "benchmark_return" in df else None,
+            "mean_model_ic": {
+                m: {"mean_ic": float(np.nanmean([rows[fid]["model_ic"][m]["mean_ic"]
+                                                 for fid in fids])),
+                    "ir": float(np.nanmean([rows[fid]["model_ic"][m]["ir"]
+                                            for fid in fids]))}
+                for m in sorted(MODEL_CONFIGS)},
         }
 
     out_path = ROOT / "data" / f"fold_cv_report_{spec.name}.json"
@@ -203,6 +223,8 @@ def main():
               f" | 平均夏普 {agg['mean_sharpe']:.2f} | 最差夏普 {agg['worst_sharpe']:.2f}"
               + (f" | 平均基准 {agg['mean_benchmark_return']:+.1%}"
                  if agg["mean_benchmark_return"] is not None else ""))
+        for m, v in agg["mean_model_ic"].items():
+            print(f"  模型 {m}: 平均 test IC {v['mean_ic']:+.4f} | 平均 ICIR {v['ir']:.3f}")
     print(f"\n报告: {out_path} | 总耗时 {(time.time() - t_all) / 60:.1f} 分钟")
 
 
