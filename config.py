@@ -155,9 +155,10 @@ MODEL_CONFIGS = {
 # 融合列名与权重的唯一出处（2026-08-27 自 backtest/run_lgb.py 迁入）：
 # backtest 与 forecast_display 同源 import，防两处漂移暗改有效权重
 # （v8 的核心教训——幅度/权重漂移曾在主窗口摆动 ±20pp）。
-# 权重是用户手工配比（2026-08-22 裁定），勿改；调优留到实盘前。
+# 权重是用户手工配比（2026-08-22 裁定 0.40/0.35/0.25；2026-08-28 用户裁定改为
+# 0.30/0.40/0.30——6d 加重、open2d 减负），勿改；调优留到实盘前。
 PRED_COLS = {"open2d": "pred_label_open2d", "6d": "pred_label_6d", "20d": "pred_label_20d"}
-W2D, W6D, W20D = 0.40, 0.35, 0.25  # score = 0.4*p2d + 0.35*p6d + 0.25*p20d
+W2D, W6D, W20D = 0.30, 0.40, 0.30  # score = 0.3*p2d + 0.4*p6d + 0.3*p20d
 
 
 def get_model_config(model: str = "20d") -> dict:

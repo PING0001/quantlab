@@ -6,8 +6,9 @@ LightGBM 回归策略 + walk-forward 框架 + IC 评估 + 融合分。
 合一；删除三分类 classifier 分支、peak loss、dart、滚动 walk-forward 分支
 （均无调用方）与旧双模型 combine_scores。行为对 v8 回归路径保持逐行等价。
 
-融合分 v8（2026-08-22 用户裁定）：
-    score = 0.4 * pred_2d + 0.35 * pred_6d + 0.25 * pred_20d
+融合分 v8（2026-08-22 用户裁定 0.4/0.35/0.25；2026-08-28 用户裁定改 0.3/0.4/0.3，
+权威值在 config.W2D/W6D/W20D，此处默认值仅 Fallback）：
+    score = 0.3 * pred_2d + 0.4 * pred_6d + 0.3 * pred_20d
 三模型统一 next_open 锚；某侧缺失时按可用权重重归一。
 """
 from __future__ import annotations
@@ -182,7 +183,7 @@ def _blend(pairs: list[tuple[pd.Series, float]]) -> pd.Series:
 
 
 def combine_scores3(pred_2d: pd.Series, pred_6d: pd.Series, pred_20d: pd.Series,
-                    w2d: float = 0.40, w6: float = 0.35, w20: float = 0.25) -> pd.Series:
+                    w2d: float = 0.30, w6: float = 0.40, w20: float = 0.30) -> pd.Series:
     """v8 三模型融合分（均 next_open 锚）。缺失侧按可用权重重归一。"""
     return _blend([(pred_2d, w2d), (pred_6d, w6), (pred_20d, w20)])
 
