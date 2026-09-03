@@ -362,8 +362,8 @@ def main():
                         choices=["all"] + sorted(MODEL_CONFIGS),
                         help="train which model (default: all)")
     parser.add_argument("--fold", choices=sorted(FOLDS), default=None,
-                        help="滚动折 CV：test 窗=折定义，模型/预测写 fold 路径，"
-                             "selected json 强制读 factors/folds/{fid}/")
+                        help="滚动折 CV：test 窗=折定义；清单固定读主清单，"
+                             "权重覆盖主路径（单文件），预测/meta 写 fold 路径")
     parser.add_argument("--pool", default=None,
                         help="目标池（默认 env QUANTLAB_POOL / 微盘）")
     args = parser.parse_args()
