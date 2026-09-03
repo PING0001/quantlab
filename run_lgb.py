@@ -272,8 +272,12 @@ def train_model(
         tr_ic = rank_ic(preds_train[col], y.loc[train_mask, h])
         tr_s = ic_summary(tr_ic)
         results["train_ic"] = tr_s
+        # ic_summary 对空 IC 序列返回 {"n_periods": 0}（退化口径）——打印用 .get
+        # 防裸键崩溃，结果字典原样落 meta（2026-09-03 F6 变体臂实测踩中）
         print(f"  train: MAE={results['train_mae']:.4f}  "
-              f"IC mean={tr_s['mean_ic']:.4f}  IR={tr_s['ir']:.3f}")
+              f"IC mean={tr_s.get('mean_ic', float('nan')):.4f}  "
+              f"IR={tr_s.get('ir', float('nan')):.3f}"
+              f"{'  (DEGENERATE: no valid train IC dates)' if tr_s.get('n_periods') == 0 else ''}")
 
     # ---- test-set evaluation ----
     if isinstance(preds, pd.DataFrame) and not preds.empty and col in preds.columns:
@@ -295,8 +299,10 @@ def train_model(
 
         n_dates = preds.index.get_level_values("date").nunique()
         print(f"  predictions: {len(preds)} rows over {n_dates} dates ({time.time() - t0:.1f}s)")
-        print(f"  TEST  rank IC: mean={s['mean_ic']:.4f}  IR={s['ir']:.3f}  "
-              f"hit={s['hit_rate']:.2%}  ({s['n_periods']} dates)")
+        print(f"  TEST  rank IC: mean={s.get('mean_ic', float('nan')):.4f}  "
+              f"IR={s.get('ir', float('nan')):.3f}  "
+              f"hit={s.get('hit_rate', float('nan')):.2%}  "
+              f"({s.get('n_periods', 0)} dates)")
         print(f"  TEST  MAE={mae:.4f}  decile monotonicity rho={dec_rho:.3f}")
         print(f"  decile mean labels: {[f'{v:+.4f}' for v in dec_means]}")
         print(f"  excluded (limit/ST): {int((~safe).sum())} obs")

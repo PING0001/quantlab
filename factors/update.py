@@ -182,6 +182,17 @@ def _load_index_data(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         market = market.join(r["HS300"], on="datetime", how="left") if not market.is_empty() else r["HS300"]
     if "GZ2000" in r:
         market = market.join(r["GZ2000"], on="datetime", how="left") if not market.is_empty() else r["GZ2000"]
+    # SizeSpread_20d（2026-09-03 用户裁定新增）：GZ2000_return_20d − HS300_return_20d，
+    # 国证2000（小盘）相对沪深300（大盘）的 20 日超额收益 = 大小盘风格差 regime 列
+    # （正值=小盘风格占优）。横截面常数广播列——截面 rank IC 不适用，考察口径=
+    # 入模边际贡献 A/B（CSI_return_20d 同类）。任一父列 NULL（GZ2000 2008 年前
+    # 回看不足等）则诚实留 NULL。
+    # 终裁（2026-09-03）：保留列，不入任何组合——6d 七折 A/B ΔIC 6/6 负 + F6 塌缩；
+    # 主窗单窗 +0.0037 系单窗彩票（HighVol 系/CSI_return_252d 同款处置）。
+    if "GZ2000" in r and "HS300" in r and not market.is_empty():
+        market = market.with_columns(
+            (pl.col("GZ2000_return_20d") - pl.col("HS300_return_20d")).alias("SizeSpread_20d")
+        )
     return market
 
 

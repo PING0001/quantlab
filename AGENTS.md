@@ -211,6 +211,7 @@ python _leak_check.py                # 泄漏断言
 ## Important Constraints
 
 - **勿启动 `--full` 全量构建**（pull 2-4 小时 13800+ API；factor --full 整表重建）
+- **数据窗口裁定（2026-09-03 用户立规）**：模型训练/回测/判断只使用 2020-01-01 起的交易日；数据装载最早回看 2019-01-01（最长因子回看 ≤1 年的 headroom）。单源 `dataset.DATA_FLOOR`，`load_factors/load_kline` 钳制式封顶（显式传更早 start 也会被抬到 FLOOR）——2020 前行集本就被 `training_panel_index` 截去，封顶对训练/预测/回测零漂移，纯装载瘦身
 - **DB 单写者锁**：写库前确认无 `data.pull`/`factors.update` 在跑；避开工作日 21:05 前后；membership 在写连接进程内查询必须传 con
 - **勿提交 DuckDB/.env**
 - **Tushare 中继限流** 200 次/分钟

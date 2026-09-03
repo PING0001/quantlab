@@ -16,8 +16,15 @@ factors.mining / _leak_check / factors.baseline_check）：
 数据加载范围 = union_codes(since=spec.data_since)（池时点化 2026-08-24 语义：
 首档覆盖训练起点 2020-01 的完整成员）。
 
-等价性契约：load_factors/load_kline 的行集与列序与旧 run_lgb 实现逐字节
-一致（SELECT * + 同谓词 + set_index.sort_index），重训 parquet 可对拍。
+数据窗口（2026-09-03 用户裁定）：训练/回测/判断只使用 2020 起的交易日，
+装载最早回看 DATA_FLOOR（两装载器钳制封顶）。2020 前的行本就被
+training_panel_index 的 date>=TRAIN_START 截去（预测行集同），封顶对
+训练/预测/回测零漂移，纯装载瘦身。
+
+对拍口径（2026-09-03 用户裁定：等价性契约退役）：原"SELECT * + 列序逐字节
+一致"契约是 2026-08-27 多池化重写的一次性验收门（重训 parquet 对拍），验收
+全绿即完结退役；现行口径 = X 行集与数值等价（行集由 DATA_FLOOR + 过滤链唯一
+决定），列序不再锁定，load_factors 支持 cols 按需列读取。
 """
 from __future__ import annotations
 
@@ -45,32 +52,40 @@ WARMUP_DAYS = 90
 # 输出校准：训练窗内留出尾段（交易日数）估计 out-of-sample 收缩斜率
 CALIB_TAIL_DAYS = 60
 MIN_TRAIN = 252
+# 数据装载下限（2026-09-03 用户裁定）：训练/回测/判断只使用 2020 起的交易日；
+# 最长因子回看 ≤1 年（252d 族），装载最早回看到 2019-01-01 即可保证 2020-01-01
+# 起因子值完整。load_factors/load_kline 两装载器由此封顶（钳制式：显式传更早
+# 的 start 也会被抬到 DATA_FLOOR）。
+DATA_FLOOR = "2019-01-01"
 
 
 # ============================================================================
 # 装载
 # ============================================================================
 
-def load_factors(con: duckdb.DuckDBPyConnection, spec: PoolSpec) -> pd.DataFrame:
-    """因子宽表面板：union_codes(since=data_since) 成员的全列行集，
-    (date, code) MultiIndex 日期升序。"""
+def load_factors(con: duckdb.DuckDBPyConnection, spec: PoolSpec,
+                 cols: list[str] | None = None) -> pd.DataFrame:
+    """因子宽表面板：union_codes(since=data_since) 成员、date>=DATA_FLOOR 的
+    行集，(date, code) MultiIndex 日期升序。cols=None 全列（assemble 缺省路径，
+    含 IsST）；cols 按需列读取（探针/单模型装载——需 IsST 时调用方自理）。"""
     codes = union_codes(since=spec.data_since, con=con, pool=spec.name)
-    df = store.load_panel(con, spec, codes=codes)
+    df = store.load_panel(con, spec, codes=codes, cols=cols, start=DATA_FLOOR)
     df["date"] = pd.to_datetime(df["date"])
     return df.set_index(["date", "code"]).sort_index()
 
 
 def load_kline(con: duckdb.DuckDBPyConnection, spec: PoolSpec,
                start: str | None = None) -> pd.DataFrame:
-    """标签 K 线（open/close，后复权 VIEW）。"""
+    """标签 K 线（open/close，后复权 VIEW）。start 缺省=DATA_FLOOR；
+    显式传更早也会被钳到 DATA_FLOOR（2026-09-03 用户裁定）。"""
     codes = union_codes(since=spec.data_since, con=con, pool=spec.name)
     ph = ",".join(["?"] * len(codes))
     sql = (f"SELECT code, date, open, close FROM daily_kline "
            f"WHERE code IN ({ph})")
     params = list(codes)
-    if start is not None:
-        sql += " AND date >= ?"
-        params.append(str(start)[:10])
+    eff_start = DATA_FLOOR if start is None else max(str(start)[:10], DATA_FLOOR)
+    sql += " AND date >= ?"
+    params.append(eff_start)
     sql += " ORDER BY code, date"
     return con.execute(sql, params).fetchdf()
 
