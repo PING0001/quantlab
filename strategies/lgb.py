@@ -14,7 +14,6 @@ LightGBM 回归策略 + walk-forward 框架 + IC 评估 + 融合分。
 from __future__ import annotations
 
 import bisect
-import inspect
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -22,6 +21,7 @@ import joblib
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
+from scipy.stats import rankdata
 
 
 # ============================================================================
@@ -149,6 +149,30 @@ def ic_summary(ic_series: pd.Series) -> dict:
         "min_ic": float(ic.min()),
         "max_ic": float(ic.max()),
     }
+
+
+# ============================================================================
+# 截面 rank IC 积木（2026-09-03 自 factors/select_factors.py 迁入——挖矿层
+# 已删，后续挖矿/因子筛选一律 tmp/ 临时脚本，从本处 import）
+# ============================================================================
+
+MIN_STOCKS_PER_DATE = 30
+
+
+def _rank_ic_np(f_vals, l_vals):
+    """Compute rank IC (Spearman) using numpy/scipy rankdata."""
+    valid = ~np.isnan(f_vals) & ~np.isnan(l_vals)
+    n = valid.sum()
+    if n < MIN_STOCKS_PER_DATE:
+        return np.nan
+    f_r = rankdata(f_vals[valid])
+    l_r = rankdata(l_vals[valid])
+    f_c = f_r - f_r.mean()
+    l_c = l_r - l_r.mean()
+    denom = np.sqrt(np.dot(f_c, f_c) * np.dot(l_c, l_c))
+    if denom == 0:
+        return np.nan
+    return np.dot(f_c, l_c) / denom
 
 
 # ============================================================================
@@ -424,16 +448,10 @@ class LGBStrategy:
     def load(cls, path: str | Path) -> "LGBStrategy":
         path = Path(path)
         bundle = joblib.load(path)
-
-        # 兼容旧版 bundle（含 boosting_type/drop_rate/l1_loss_horizon 等
-        # 已删参数）：按当前 __init__ 签名过滤 config 键，多余键静默丢弃
-        cfg = bundle["config"]
-        accepted = set(inspect.signature(cls.__init__).parameters) - {"self"}
-        cfg = {k: v for k, v in cfg.items() if k in accepted}
         strategy = cls(
             factor_names=bundle["factor_names"],
             horizons=bundle.get("horizons", (1, 3, 5, 10)),
-            **cfg,
+            **bundle["config"],
         )
         strategy._models = bundle["models"]
         strategy._category_mappings = bundle.get("category_mappings", {})
