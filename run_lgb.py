@@ -8,7 +8,7 @@ before TEST_START stepped back label_buffer trading days, predict the whole
 test period.
 
 Usage:
-    python run_lgb.py                # train all models (20d / 6d / open2d / gap1d)；默认池=env/微盘
+    python run_lgb.py                # train all models (20d / 6d / open2d)；默认池=env/微盘
     python run_lgb.py --model 20d
     python run_lgb.py --pool mainboard_all
 """
@@ -113,16 +113,10 @@ def train_model(
     t0 = time.time()
 
     # ---- factor set: per-model selected list ----
-    # 折模式强制读折专属筛选清单（防筛选泄漏：折筛选不得见过折内及以后数据）
-    if fold:
-        selected_path = (Path(__file__).resolve().parent / "factors" / "folds" / fold
-                         / f"selected_{spec.name}_{model}.json")
-        if not selected_path.exists():
-            raise FileNotFoundError(
-                f"fold {fold} selected list not found: {selected_path}\n"
-                f"Run first: python -m factors.select_factors --model {model} --fold {fold}")
-    else:
-        selected_path = Path(__file__).resolve().parent / "factors" / f"selected_{spec.name}_{model}.json"
+    # 折模式与主窗口同读主清单（2026-09-03 用户裁定：折清单机制退场，
+    # 固定清单折；json 的 train_start/train_end 字段为筛选存档，与折窗无关）
+    selected_path = (Path(__file__).resolve().parent / "factors"
+                     / f"selected_{spec.name}_{model}.json")
     if selected_path.exists():
         selected_data = json.loads(selected_path.read_text())
         use_factors = selected_data["selected_factors"]
@@ -318,10 +312,11 @@ def train_model(
         print(f"  predictions: NONE ({time.time() - t0:.1f}s)")
 
     # ---- persist ----
-    model_path = spec.lgb_model_path(model, fold=fold)
+    model_path = spec.lgb_model_path(model)
     model_path.parent.mkdir(parents=True, exist_ok=True)
     strategy.save(model_path)
-    print(f"  model saved: {model_path}")
+    print(f"  model saved: {model_path}"
+          f"{'（折模式：覆盖主权重，单文件不留档）' if fold else ''}")
 
     pred_path = spec.lgb_predictions_path(model, fold=fold)
     pred_path.parent.mkdir(parents=True, exist_ok=True)
