@@ -53,6 +53,7 @@
 | `factors/folds/` 全部 28 份折清单 json | 折清单机制随筛选器退场 | 见语义变化① |
 | `models/mainboard_all/folds/` 折模型目录（7 折 × 4 = 28 joblib） | 权重单文件纪律：折训练直接覆盖主权重路径，不留档 | 见语义变化③；`pools/spec.py` 的 `lgb_model_path(fold=)` 分支删除（预测/meta 路径的 fold 分支保留）。**微盘 `models/mainboard_microcap/folds/` 属微盘线资产，边界外不动** |
 | **gap1d 主模型全家桶**：`config.MODEL_CONFIGS["gap1d"]` 条目、`selected_{pool}_gap1d.json`、`lgb_gap1d.joblib`、gap1d parquet/meta、折清单 gap1d 份 | **用户裁定（2026-09-03）：gap1d 不算主模型——跳空预测职责归 ML 因子层（gb_gap1d 特征，脚本内自带目标定义，已核实不依赖 MODEL_CONFIGS）**；主模型层遗留实验位无消费方 | 见语义变化⑤；`_leak_check` 断言数 56→42（3 模型×14） |
+| `data/folds/F*/predictions__mainboard_all_*`（旧折预测/meta 缓存，gitignored 盘上文件） | **用户裁定（2026-09-03）：旧折不用兼容**——混合代际历史产物，新基线由简化后重跑产生 | 同目录微盘折缓存属微盘线，边界外不动；`data/fold_cv_report_mainboard_all.json` 由新基线重跑覆写 |
 
 ### 🔧 接缝重写
 
