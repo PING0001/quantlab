@@ -60,7 +60,7 @@ quantlab/
 ├── dataset.py               # ★ 训练装配单点：装载（factors/kline/delist/industry/IsST）+ assemble 束 + training_panel_index/label_far_cross 纯函数 + 训练协议常量
 ├── run_lgb.py               # ★ 训练入口：装配→训练→校准→落盘（三主模型，L1 + 输出校准；折模式权重覆盖主路径）
 ├── fold_cv.py               # 滚动 7 折 CV：每折 ML 因子同步训练→三主模型→泄漏断言→回测（ICIR+收益+夏普汇总）
-├── _leak_check.py           # ★ 主窗口泄漏断言（C1 训练掩码/C2 校准尾段/C3 样本排除/C4 标签方向，42 项=三模型×14；IO 独立构建 + dataset 共享纯函数）
+├── _leak_check.py           # ★ 主窗口泄漏断言（C1 训练掩码/C2 校准尾段/C3 样本排除/C4 标签方向，43 项（三模型×14+1 条模型无关）；IO 独立构建 + dataset 共享纯函数）
 │
 ├── factors/
 │   ├── extra_factors.py     # ★ 公式因子主载体（原生 Polars）；新公式因子加这里
@@ -171,7 +171,7 @@ python -m pools.membership     # 重建池快照（半年度，通常 6/12 月�
 ### 训练与评估
 ```bash
 python run_lgb.py                    # ★ 训练三主模型（约 5 分钟），写 models/{pool}/ + predictions parquet + meta
-python _leak_check.py                # ★ 泄漏断言（42 项，重训后必跑）
+python _leak_check.py                # ★ 泄漏断言（43 项，重训后必跑）
 python -m backtest.run_lgb           # ★ 主回测（开盘市价，融合分+卖出零点）
 python fold_cv.py                    # 7 折全链（含 ML 同步训练，~80-100 分钟）
 python -m factors.spec               # 池注册表自描述（表名/带宽/行数/最新档）
