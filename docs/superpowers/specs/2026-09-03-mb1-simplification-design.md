@@ -54,6 +54,13 @@
 | `models/mainboard_all/folds/` 折模型目录（7 折 × 4 = 28 joblib） | 权重单文件纪律：折训练直接覆盖主权重路径，不留档 | 见语义变化③；`pools/spec.py` 的 `lgb_model_path(fold=)` 分支删除（预测/meta 路径的 fold 分支保留）。**微盘 `models/mainboard_microcap/folds/` 属微盘线资产，边界外不动** |
 | **gap1d 主模型全家桶**：`config.MODEL_CONFIGS["gap1d"]` 条目、`selected_{pool}_gap1d.json`、`lgb_gap1d.joblib`、gap1d parquet/meta、折清单 gap1d 份 | **用户裁定（2026-09-03）：gap1d 不算主模型——跳空预测职责归 ML 因子层（gb_gap1d 特征，脚本内自带目标定义，已核实不依赖 MODEL_CONFIGS）**；主模型层遗留实验位无消费方 | 见语义变化⑤；`_leak_check` 断言数 56→42（3 模型×14） |
 | `data/folds/F*/predictions__mainboard_all_*`（旧折预测/meta 缓存，gitignored 盘上文件） | **用户裁定（2026-09-03）：旧折不用兼容**——混合代际历史产物，新基线由简化后重跑产生 | 同目录微盘折缓存属微盘线，边界外不动；`data/fold_cv_report_mainboard_all.json` 由新基线重跑覆写 |
+| `fold_cv --skip-train` 参数 | 复用旧折产物只重跑回测的机制——"旧折不用兼容"的直接推论 | 随接缝重写一并删除 |
+| `strategies/lgb.py` LGBStrategy.load 旧键兼容过滤 | 2026-08-25 为旧折 bundle 加的 inspect.signature 过滤；旧折 joblib 全删后无旧 bundle 消费方 | load 简化为直载 |
+| `models/mainboard_all/nn_gap1d_state.joblib` | mb1 线 nn 退役（Boost 转向）遗留，无消费方 | 微盘 nn state 为 cron 现役，边界外不动 |
+| `backtest/mainboard_all/folds/`（盘上，gitignored） | 旧折回测产物 | 主窗口 CSV 留待新基线覆写 |
+| `factors/build_gb_4d_open2d.py` + `factors/build_gb_30d_turn5d.py` | **用户裁定（2026-09-03）翻"脚本留存"案**：ML 因子随折同步训练范式下，不入清单的候审构建器永不入折流程 | **DB 列不动**（三档保留）；git 史可恢复 |
+| `docs/mb2_ideas.md` | **用户裁定：mb2 筹备层提前关闭**（唯一条目已执行，裁定史在 memory/json note） | —— |
+| `tmp/` 内容全清 | 回滚件使命完结（相关变更已提交、裁定已记档）：`.mb1_*_backup` 128M、amihud/gb4d/csi252/hvc/openpos 各 backup、已完结 probe 脚本与报告 | 微盘列回补脚本届时按 5 行模板重写（memory 指针同步修正） |
 
 ### 🔧 接缝重写
 
@@ -66,7 +73,9 @@
 
 ### ✅ 保留（承重，不动）
 
-两层因子范式；`extra_factors` + `update`（= "一个全量的公式因子计算函数"，增量+`--full` 双模式是 cron 契约）；`store`（SQL 唯一点）；`integrity`（pull 链依赖，非挖矿）；`build_gb_gap1d`（在册 ML 因子构建器，接缝化 scoped 模式，见接缝重写）；**候审构建器 ×3 原样不动**（`build_gb_4d_open2d`/`build_gb_30d_turn5d`/`build_nn_gap1d`——nn 是 cron 契约）；`run_lgb`（训练函数）；`_leak_check`（泄漏断言，非挖矿）；`backtest/run_lgb`；`forecast_display`（cron）；`pools/`、`data/` 其余、`config`、`dataset`、`strategies` 其余。
+两层因子范式；`extra_factors` + `update`（= "一个全量的公式因子计算函数"，增量+`--full` 双模式是 cron 契约）；`store`（SQL 唯一点）；`integrity`（pull 链依赖，非挖矿）；`build_gb_gap1d`（在册 ML 因子构建器，接缝化 scoped 模式）；`build_nn_gap1d`（cron 契约）；`run_lgb`（训练函数）；`_leak_check`（泄漏断言，非挖矿）；`backtest/run_lgb`；`forecast_display`（cron）；`pools/`、`data/` 其余、`config`、`dataset`、`strategies` 其余。
+
+**三档保留（用户裁定 2026-09-03）**：因子表 7 根"保留列"一律不 DROP（HighVolCrowd_5d/HighVolHeat_10d/gb_4d_open2d/gb_30d_turn5d/nn 稀疏列/CSI_return_252d/SizeSpread_20d——列不进清单不碍训练，删了将来重建要回补）；`SELECTED_FACTORS` 注册表（兜底 + 全量清单单源）；`document/` 参考资料库；`docs/superpowers/` 存档。
 
 **DB 零改动**：判死/候审列（HighVol×2、gb_4d、gb_30d、SizeSpread_20d、nn 稀疏列、CSI_return_252d 等）均为"保留列"终裁在册，本轮一律不 DROP。
 
@@ -77,6 +86,7 @@
 ③ **权重单文件不留档**：折训练直接覆盖主权重（跑完七折后主权重 = F7 折口径，恰为主窗口口径，兼作实盘权重）；折评估证据只剩预测 parquet/meta + 汇总报告。
 ④ **ML 因子折同步**：ML 因子从"手动全局构建的冻结列"改为"折流程内同步训练"（防泄漏规则见目标架构节）；折跑完保留的 ML 权重（F7 截止 2025-05 训练）供实盘推理。
 ⑤ **gap1d 降位**（用户裁定 2026-09-03："那个是 ML 因子"）：主模型收敛为 open2d/6d/20d 三者；跳空预测只在 ML 因子层存在（gb_gap1d）。合并回 main 时主仓训练层随之三模型化——cron 四步与报告（只吃三 parquet 融合）不受影响。
+⑥ **候审层退役 + mb2 筹备层关闭**（用户裁定 2026-09-03）：gb_4d/gb_30d 候审构建器脚本删除（DB 列保留）、nn state（mb1 线）删除、mb2_ideas.md 删除——裁定史以 agent memory 与各 json note 为准；tmp/ 实验件全清。
 
 ## 六原则校对
 
@@ -90,9 +100,9 @@
 ## 实施序
 
 0. 基线提交：会话四件未提交改动先行入库（已完成：c340bd0）
-1. 删除四 py + 产物 json + 折模型目录；`_rank_ic_np` 积木迁移至 `strategies/lgb.py`
+1. 删除：挖矿层 4 py + 候审构建器 ×2 + mb2_ideas.md + 折清单 28 json + 折模型目录 28 joblib + gap1d 全家桶 + nn state（mb1）+ 探针 json ×2 + 盘上旧折缓存/旧折回测 CSV + `tmp/` 内容全清；`_rank_ic_np` 积木迁移至 `strategies/lgb.py`
 2. `build_gb_gap1d` scoped 接缝（--cutoff / 终态权重落盘 / 测试窗终态推理）
-3. `fold_cv` / `run_lgb` 接缝改造（折固定读主清单 + ML 同步训练步 + 权重写主路径 + 报告补 ICIR + leak_checks 调整）
+3. `fold_cv` / `run_lgb` / `strategies/lgb.py` 接缝改造（折固定读主清单 + ML 同步训练步 + 权重写主路径 + 报告补 ICIR + leak_checks 调整 + 删 --skip-train + 删旧键兼容过滤）
 4. 注释与 AGENTS 叙事同步
 5. 冒烟验证：`run_lgb --model all` 重训三模型成功落盘；`fold_cv --folds F7` 单折全链成功（ML 同步训练→三模型→泄漏断言→回测→汇总含 ICIR；覆写主权重属预期）；`_leak_check` 通过；`backtest.run_lgb` 主窗跑通
 6. 新基线记录：**完整七折重跑**出简化后基线报告（固定清单 + ML 折同步口径；每折约 9-12 分钟）；重训后的 IC/主窗数字入 AGENTS 横幅（或标注"简化后基线"）；memory 更新
