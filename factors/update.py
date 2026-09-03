@@ -160,6 +160,13 @@ def _load_index_data(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
             (pl.col("close") / pl.col("close").shift(20) - 1).alias(f"{prefix}_return_20d"),
         ])
         if prefix == "CSI":
+            # CSI_return_252d（2026-09-03 新增，长周期 regime 变量）：252 交易日
+            # 指数回报，窗口语义与 return_20d 完全同构（shift 逐行交易日计数）；
+            # 指数序列 2008 年起，2009-01 前诚实留 NULL（回看不足）
+            long_ret = pl_df.select([
+                pl.col("datetime"),
+                (pl.col("close") / pl.col("close").shift(252) - 1).alias("CSI_return_252d"),
+            ])
             vol = pl_df.select([
                 pl.col("datetime"),
                 (pl.col("close") / pl.col("close").shift(20) - 1)
@@ -167,7 +174,7 @@ def _load_index_data(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
                 pl.col("datetime"),
                 pl.col("close").rolling_std(20, min_samples=1).alias("CSI_volatility_20d")
             ])
-            feats = feats.join(vol, on="datetime", how="left")
+            feats = feats.join(long_ret, on="datetime", how="left").join(vol, on="datetime", how="left")
         r[prefix] = feats
 
     market = r.get("CSI", pl.DataFrame())

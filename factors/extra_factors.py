@@ -233,6 +233,54 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
         _pct_rank("Turnover_3d").alias("Turnover_3d_rank"),
     ])
 
+    # ---- HighVolCrowd_5d（2026-08-28 用户口述 101 系三明治：
+    #      -rank( cov( rank(high), rank(volume), 5 ) )：
+    #      当日横截面秩 → 个股 5 日时序协方差 → 横截面秩取负。
+    #      经济含义：高点排名与量能排名同步抬升 = 放量上攻拥挤，反着做。
+    #      内层秩参考系 = 当日池内成员（与 Return_1d_rank 同语义，按池隔离）。
+    #      协方差用 E[xy]−E[x]E[y] 恒等式（polars 无双列 rolling_cov，
+    #      同 VolPriceCorr_20d 的 vp_cov）。min_samples=5，不足为 NaN。）----
+    def _pct_rank_e(e: pl.Expr) -> pl.Expr:
+        return ((e.rank() - 0.5) / e.count()).over("datetime") - 0.5
+
+    result = result.with_columns([
+        _pct_rank_e(pl.col("high")).alias("_hv_rh"),
+        _pct_rank_e(pl.col("volume")).alias("_hv_rv"),
+    ])
+    result = result.with_columns(
+        (
+            (pl.col("_hv_rh") * pl.col("_hv_rv")).rolling_mean(5, min_samples=5).over("vt_symbol")
+            - pl.col("_hv_rh").rolling_mean(5, min_samples=5).over("vt_symbol")
+            * pl.col("_hv_rv").rolling_mean(5, min_samples=5).over("vt_symbol")
+        ).alias("_hv_cov5")
+    )
+    result = result.with_columns((-_pct_rank_e(pl.col("_hv_cov5"))).alias("HighVolCrowd_5d"))
+
+    # ---- HighVolHeat_10d（2026-08-28 用户口述 101 系：
+    #      (-1 * rank(std(high,10))) * correlation(high, volume, 10)——
+    #      横截面秩(高点10日波动烈度) × 个股10日价量时序相关（乘法交互，
+    #      非"乘积再取秩"）。经济含义：波动放大且高点放量 = 过热反指；
+    #      corr<0（波动伴下跌）时因子转正。corr 用 E[xy]−E[x]E[y] / (σxσy)
+    #      恒等式，零分母 guard 同 VolPriceCorr_20d；min_samples=10。）----
+    result = result.with_columns([
+        pl.col("high").rolling_std(10, min_samples=10).over("vt_symbol").alias("_hhv_std10"),
+        pl.col("volume").rolling_std(10, min_samples=10).over("vt_symbol").alias("_hhv_volstd10"),
+    ])
+    _cov10 = (
+        (pl.col("high") * pl.col("volume")).rolling_mean(10, min_samples=10).over("vt_symbol")
+        - pl.col("high").rolling_mean(10, min_samples=10).over("vt_symbol")
+        * pl.col("volume").rolling_mean(10, min_samples=10).over("vt_symbol")
+    )
+    result = result.with_columns(
+        pl.when((pl.col("_hhv_std10") > 0) & (pl.col("_hhv_volstd10") > 0))
+        .then(_cov10 / (pl.col("_hhv_std10") * pl.col("_hhv_volstd10")))
+        .otherwise(None)
+        .alias("_hhv_corr10")
+    )
+    result = result.with_columns(
+        (-_pct_rank_e(pl.col("_hhv_std10")) * pl.col("_hhv_corr10")).alias("HighVolHeat_10d")
+    )
+
     # ---- LnAge (trading days since list_date) ----
     result = result.with_columns(
         pl.col("list_date").str.strptime(pl.Date, "%Y-%m-%d", strict=False).alias("_list_dt")
@@ -330,7 +378,9 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
 
     # ---- drop intermediate columns and keep only factor columns ----
     intermediate_cols = ["_ret1d", "_tr", "_turnover_1d", "_list_dt", "_age_days",
-                         "_pool_ret", "_lup_grp", "_lup_streak_raw", "_lup_streak"]
+                         "_pool_ret", "_lup_grp", "_lup_streak_raw", "_lup_streak",
+                         "_hv_rh", "_hv_rv", "_hv_cov5",
+                         "_hhv_std10", "_hhv_volstd10", "_hhv_corr10"]
     source_cols = ["open", "high", "low", "close", "volume", "amount", "vwap",
                    "total_mv", "circ_mv", "cap", "list_date", "pct_chg"]
 
