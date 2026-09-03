@@ -39,12 +39,13 @@ class PoolSpec:
     data_since: str
 
     # ---- 路径族（原 config 池路径 helper 迁入；微盘路径逐字节不变）----
-    def model_dir(self, fold: str | None = None) -> Path:
-        d = ROOT / "models" / self.name
-        return d / "folds" / fold if fold else d
+    # 2026-09-03 权重单文件纪律：折训练直接覆盖主权重路径，无折模型目录；
+    # 折预测/meta/回测仍按折分目录（评估证据，非权重）。
+    def model_dir(self) -> Path:
+        return ROOT / "models" / self.name
 
-    def lgb_model_path(self, model: str = "20d", fold: str | None = None) -> Path:
-        return self.model_dir(fold) / f"lgb_{model}.joblib"
+    def lgb_model_path(self, model: str = "20d") -> Path:
+        return self.model_dir() / f"lgb_{model}.joblib"
 
     def lgb_predictions_path(self, model: str = "20d", fold: str | None = None) -> Path:
         if fold:
