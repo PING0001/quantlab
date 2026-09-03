@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """训练装配单点（2026-08-27 多池化重写）。
 
-收编此前五个文件各自复制的装载+过滤链（run_lgb / factors.select_factors /
-factors.mining / _leak_check / factors.baseline_check）：
+收编此前各文件复制的装载+过滤链（2026-09-03 简化后消费方 =
+run_lgb / _leak_check / fold_cv / tmp 临时脚本）：
   - 装载：因子宽表面板（factors/store 单点 SQL）、标签 K 线、退市表、
     行业编码、IsST/次日开盘封板掩码
   - 纯函数：training_panel_index（面板 ∩ 标签非 NaN → date>=train_start →

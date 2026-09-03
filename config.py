@@ -39,8 +39,7 @@ TRACKED_INDICES = [
 ]
 
 # alpha101 全系已于 2026-08-22 移除（DSL 引擎与 vnpy 参考一并删除），
-# 8 个经典表达式以原生 Polars 形式保留在 factors/baseline_check.py 内，
-# 仅作评估器回归基准，不再入模。
+# 8 个经典表达式随挖矿层删除（2026-09-03，git 史可查），不再有基准实现。
 SELECTED_FACTORS = (
     # Momentum (3)
     ["Return_5d", "Return_20d", "Reversal_60d"]
@@ -128,16 +127,8 @@ MODEL_CONFIGS = {
         label_buffer=6,
         horizon="label_6d",         # 预测列: pred_label_6d
     ),
-    # 独立实验模型（2026-08-22 用户要求，暂不接入 score/回测）：
-    # 预测隔夜跳空 open[T+1]/close[T]−1（= median_open 窗口(1,1)+close 锚），
-    # 因子直接复用 6d 清单（selected_*_gap1d.json 为 6d 清单拷贝，不独立筛选）
-    "gap1d": dict(
-        label_window=(1, 1),
-        label_price="open",
-        baseline="close",
-        label_buffer=1,
-        horizon="label_gap1d",      # 预测列: pred_label_gap1d
-    ),
+    # 2026-09-03 用户裁定：gap1d 降位——跳空预测归 ML 因子层（gb_gap1d），
+    # 主模型仅三（open2d/6d/20d）
     # 独立实验模型（2026-08-22 用户要求，暂不接入）：预测 T+2 开盘
     # open[T+2]/open[T+1]−1（= median_open 窗口(2,2)+next_open 锚，与 6d/20d
     # 同锚族；曾用 close 锚 open[T+2]/close[T]−1，IC 0.10~0.15），因子复用 6d 清单
