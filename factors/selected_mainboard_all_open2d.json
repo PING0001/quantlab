@@ -1,7 +1,7 @@
 {
   "pool": "mainboard_all",
   "model": "open2d",
-  "fold": "F4",
+  "fold": null,
   "label_fn": "compute_median_open",
   "label_window": [
     2,
@@ -9,7 +9,7 @@
   ],
   "baseline": "next_open",
   "train_start": "2020-01-01",
-  "train_end": "2024-01-01",
+  "train_end": "2025-06-01",
   "train_start_note": "2026-08-21 用户裁定：筛选(IC+相关度)与训练对齐，均自 2020 起（曾用 2015 长历史口径）",
   "algorithm": "cluster-first: average-linkage on 1-|corr|, best-|IC| per cluster, clusters ranked by rep |IC|",
   "cluster_corr_threshold": 0.7,
@@ -23,7 +23,14 @@
     "AvgAmount_3d",
     "StockIndexCorr_20d",
     "CSI_return_20d",
-    "gb_gap1d"
+    "gb_gap1d",
+    "Volatility_3d",
+    "LimitUpStreakMax_60d",
+    "AmountConc_20d",
+    "OpenPos_mean_20d",
+    "PostHighDrawdown_10d",
+    "Gap_pct",
+    "Amihud_3d"
   ],
   "factor_metrics": {
     "CSI_return_20d": {
@@ -373,5 +380,5 @@
       "corr": -0.8017296435507332
     }
   ],
-  "note": "2026-08-27 用户裁定：直接沿用微盘池现役清单（不做全主板独立筛选）。factor_metrics 为微盘截面口径仅存档；nn_gap1d 列全主板因子表未构建，训练时由 available 过滤自动跳过。 2026-08-27 七折复跑物化：mb1 现役主清单折版（6d=+6 候选后）。 2026-08-28 方案级转向（用户裁定）：nn_gap1d→gb_gap1d。"
+  "note": "2026-08-27 用户裁定：直接沿用微盘池现役清单（不做全主板独立筛选）。factor_metrics 为微盘截面口径仅存档；nn_gap1d 列全主板因子表未构建，训练时由 available 过滤自动跳过。2026-08-28 用户裁定（方案级转向，非一次性）：mb1 方案整体改用 Boost 族模型因子，nn_gap1d → gb_gap1d（XGBoost 全主板列已构建：OOS rank IC 0.1813/1871 日，2020+ 覆盖 87%）。2026-08-28 用户裁定：open2d 先增肥再瘦身——不做隔离备份，直接就地改现役 json 走正式管道，主窗口不折叠测试；agent 按批测报告（2026-08-27）以 |IC| 强度+族覆盖自选 7 个新增：Volatility_3d/LimitUpStreakMax_60d/AmountConc_20d/OpenPos_mean_20d/PostHighDrawdown_10d/Gap_pct/Amihud_3d；前名单 4 named（AvgAmount_3d/StockIndexCorr_20d/CSI_return_20d/gb_gap1d，IC 0.0529）回滚走 git+重训；瘦身后另裁。2026-08-28 用户裁定：就保持现状——增肥 11 named 即 mb1 终态，瘦身议题关闭（折验证未跑，如需另行裁定）。2026-08-28 用户裁定（计划批准 + 终裁）：试入模型因子 gb_4d_open2d（XGBoost 吃 4 日裸 K OHLCV 20 特征，预测 open2d 标签；build OOS rank IC +0.0103/1931 日、max|corr|=0.231 vs gb_gap1d）做 A/B 臂 12 named 快测：test IC 0.0538 vs 基线 0.0558（ΔIC −0.0020 噪声带内零贡献）、组合 +24.30%/1.52/−8.84% 超额 −1.70pp（calib slope 7.31→1.82 彩票污染，参考级）。终裁：因子保留（列留存因子表 + 脚本 factors/build_gb_4d_open2d.py 留存），不入 open2d 组合，现役回归 11 named；A/B 件备份 tmp/gb4d_ab_backup/。"
 }

@@ -1,7 +1,7 @@
 {
   "pool": "mainboard_all",
   "model": "6d",
-  "fold": "F4",
+  "fold": null,
   "label_fn": "compute_median_open",
   "label_window": [
     4,
@@ -9,7 +9,7 @@
   ],
   "baseline": "next_open",
   "train_start": "2020-01-01",
-  "train_end": "2024-01-01",
+  "train_end": "2025-06-01",
   "train_start_note": "2026-08-21 用户裁定：筛选(IC+相关度)与训练对齐，均自 2020 起（曾用 2015 长历史口径）",
   "algorithm": "cluster-first: average-linkage on 1-|corr|, best-|IC| per cluster, clusters ranked by rep |IC|",
   "cluster_corr_threshold": 0.7,
@@ -29,7 +29,6 @@
     "PostHighDrawdown_10d",
     "AmountConc_20d",
     "Gap_pct",
-    "Amihud_3d",
     "Volatility_3d"
   ],
   "factor_metrics": {
@@ -380,5 +379,5 @@
       "corr": -0.8017296435507332
     }
   ],
-  "note": "2026-08-27 用户裁定：直接沿用微盘池现役清单（不做全主板独立筛选）。factor_metrics 为微盘截面口径仅存档；nn_gap1d 列全主板因子表未构建，训练时由 available 过滤自动跳过。2026-08-27 用户裁定（mb1 首次清单变更）：+6 候选（OpenPos_mean_20d/PostHighDrawdown_10d/AmountConc_20d/Gap_pct/Amihud_3d/Volatility_3d）——依据 mb1 批测 + 主窗口单因子 A/B（6d 全员 ΔIC +0.0140~+0.0170、六者互相关 |max|=0.37）；七折验证用户裁定跳过。 2026-08-27 七折复跑物化：mb1 现役主清单折版（6d=+6 候选后）。 2026-08-28 方案级转向（用户裁定）：nn_gap1d→gb_gap1d。"
+  "note": "2026-08-27 用户裁定：直接沿用微盘池现役清单（不做全主板独立筛选）。factor_metrics 为微盘截面口径仅存档；nn_gap1d 列全主板因子表未构建，训练时由 available 过滤自动跳过。2026-08-27 用户裁定（mb1 首次清单变更）：+6 候选（OpenPos_mean_20d/PostHighDrawdown_10d/AmountConc_20d/Gap_pct/Amihud_3d/Volatility_3d）——依据 mb1 批测 + 主窗口单因子 A/B（6d 全员 ΔIC +0.0140~+0.0170、六者互相关 |max|=0.37）；七折验证用户裁定跳过。2026-08-28 用户裁定（方案级转向，非一次性）：mb1 方案整体改用 Boost 族模型因子，nn_gap1d → gb_gap1d（XGBoost 全主板列已构建：OOS rank IC 0.1813/1871 日，2020+ 覆盖 87%）。2026-09-03 用户裁定：6d 清单移除 Amihud_3d——依据主窗口模型树结构审查（在模内仅 9 splits / 0.4% gain / 0 根分裂，近死重；factor_metrics 条目仅存档保留）。"
 }

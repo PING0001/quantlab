@@ -1,7 +1,7 @@
 {
   "pool": "mainboard_all",
   "model": "6d",
-  "fold": "F4",
+  "fold": "F2",
   "label_fn": "compute_median_open",
   "label_window": [
     4,
@@ -9,7 +9,7 @@
   ],
   "baseline": "next_open",
   "train_start": "2020-01-01",
-  "train_end": "2024-01-01",
+  "train_end": "2023-01-01",
   "train_start_note": "2026-08-21 用户裁定：筛选(IC+相关度)与训练对齐，均自 2020 起（曾用 2015 长历史口径）",
   "algorithm": "cluster-first: average-linkage on 1-|corr|, best-|IC| per cluster, clusters ranked by rep |IC|",
   "cluster_corr_threshold": 0.7,

@@ -1,7 +1,7 @@
 {
   "pool": "mainboard_all",
   "model": "20d",
-  "fold": "F4",
+  "fold": null,
   "label_fn": "compute_median_open",
   "label_window": [
     16,
@@ -9,7 +9,7 @@
   ],
   "baseline": "next_open",
   "train_start": "2020-01-01",
-  "train_end": "2024-01-01",
+  "train_end": "2025-06-01",
   "train_start_note": "2026-08-21 用户裁定：筛选(IC+相关度)与训练对齐，均自 2020 起（曾用 2015 长历史口径）",
   "algorithm": "cluster-first: average-linkage on 1-|corr|, best-|IC| per cluster, clusters ranked by rep |IC|",
   "cluster_corr_threshold": 0.7,
@@ -407,5 +407,5 @@
     "n_before": 34,
     "n_after": 32
   },
-  "note": "2026-08-27 用户裁定：直接沿用微盘池现役清单（不做全主板独立筛选）。factor_metrics 为微盘截面口径仅存档；nn_gap1d 列全主板因子表未构建，训练时由 available 过滤自动跳过。 2026-08-27 七折复跑物化：mb1 现役主清单折版（6d=+6 候选后）。"
+  "note": "2026-08-27 用户裁定：直接沿用微盘池现役清单（不做全主板独立筛选）。factor_metrics 为微盘截面口径仅存档；nn_gap1d 列全主板因子表未构建，训练时由 available 过滤自动跳过。"
 }
