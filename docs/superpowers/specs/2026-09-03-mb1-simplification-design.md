@@ -21,8 +21,8 @@
 两层因子范式不变：**公式因子**（唯一计算单源）＋ **机器学习因子**（**随折同步训练**，见下）。常驻入口收敛为：
 
 1. **全量公式因子计算**：`factors.update`（增量 + `--full`，cron 契约路径不变；计算内核 `extra_factors.py` 单源）
-2. **按池训练 + 存权重**：`run_lgb --pool`（四模型 L1 + 输出校准，现状即达标）
-3. **七折流程**：`fold_cv`——每折 **① ML 因子同步训练（防泄漏）→ ② 四主模型训练 → ③ 泄漏断言 → ④ market 回测**，汇总报告含**每模型 test IC/ICIR + 组合收益/夏普**（现状只有回测侧，需补 ICIR）
+2. **按池训练 + 存权重**：`run_lgb --pool`（**三主模型 open2d/6d/20d** L1 + 输出校准；gap1d 降位见语义变化⑤）
+3. **七折流程**：`fold_cv`——每折 **① ML 因子同步训练（防泄漏）→ ② 三主模型训练 → ③ 泄漏断言 → ④ market 回测**，汇总报告含**每模型 test IC/ICIR + 组合收益/夏普**（现状只有回测侧，需补 ICIR）
 4. 其余承重：`factors.store`（SQL 唯一点铁律）、`factors.integrity`（pull 链依赖）、`_leak_check`（泄漏断言）、`backtest.run_lgb`、`forecast_display/generate_lgb.py`（cron 契约）、`pools/`、`data/` 其余、`config`、`dataset`、`strategies` 其余
 
 ### ML 因子随折同步训练（防泄漏规则）
@@ -34,7 +34,7 @@
 
 ### 权重单文件纪律（全模型）
 
-- 四主模型：`models/{pool}/lgb_{m}.joblib` 各一份，**折训练直接覆盖主路径**；`models/{pool}/folds/` 折模型目录机制整体删除。
+- 三主模型：`models/{pool}/lgb_{m}.joblib` 各一份，**折训练直接覆盖主路径**；`models/{pool}/folds/` 折模型目录机制整体删除。
 - ML 因子：`models/{pool}/{ml_factor}.joblib` 各一份，同上。
 - 不留任何权重存档/快照；折评估证据 = 逐折预测 parquet + meta（data/folds/，保留）+ 汇总报告。
 
@@ -52,6 +52,7 @@
 | `factors/ic_probe.py` + `data/ic_probe_{pool}.json` ×2 | 挖矿族探针（Phase F 双池验证用过，已完结；用户已批） | —— |
 | `factors/folds/` 全部 28 份折清单 json | 折清单机制随筛选器退场 | 见语义变化① |
 | `models/mainboard_all/folds/` 折模型目录（7 折 × 4 = 28 joblib） | 权重单文件纪律：折训练直接覆盖主权重路径，不留档 | 见语义变化③；`pools/spec.py` 的 `lgb_model_path(fold=)` 分支删除（预测/meta 路径的 fold 分支保留）。**微盘 `models/mainboard_microcap/folds/` 属微盘线资产，边界外不动** |
+| **gap1d 主模型全家桶**：`config.MODEL_CONFIGS["gap1d"]` 条目、`selected_{pool}_gap1d.json`、`lgb_gap1d.joblib`、gap1d parquet/meta、折清单 gap1d 份 | **用户裁定（2026-09-03）：gap1d 不算主模型——跳空预测职责归 ML 因子层（gb_gap1d 特征，脚本内自带目标定义，已核实不依赖 MODEL_CONFIGS）**；主模型层遗留实验位无消费方 | 见语义变化⑤；`_leak_check` 断言数 56→42（3 模型×14） |
 
 ### 🔧 接缝重写
 
@@ -74,6 +75,7 @@
 ② **baseline 门禁退场**：以后改标签/评估器，回归检查走临时脚本对拍，无正式门禁。
 ③ **权重单文件不留档**：折训练直接覆盖主权重（跑完七折后主权重 = F7 折口径，恰为主窗口口径，兼作实盘权重）；折评估证据只剩预测 parquet/meta + 汇总报告。
 ④ **ML 因子折同步**：ML 因子从"手动全局构建的冻结列"改为"折流程内同步训练"（防泄漏规则见目标架构节）；折跑完保留的 ML 权重（F7 截止 2025-05 训练）供实盘推理。
+⑤ **gap1d 降位**（用户裁定 2026-09-03："那个是 ML 因子"）：主模型收敛为 open2d/6d/20d 三者；跳空预测只在 ML 因子层存在（gb_gap1d）。合并回 main 时主仓训练层随之三模型化——cron 四步与报告（只吃三 parquet 融合）不受影响。
 
 ## 六原则校对
 
@@ -91,7 +93,7 @@
 2. `build_gb_gap1d` scoped 接缝（--cutoff / 终态权重落盘 / 测试窗终态推理）
 3. `fold_cv` / `run_lgb` 接缝改造（折固定读主清单 + ML 同步训练步 + 权重写主路径 + 报告补 ICIR + leak_checks 调整）
 4. 注释与 AGENTS 叙事同步
-5. 冒烟验证：`run_lgb --model all` 重训四模型成功落盘；`fold_cv --folds F7` 单折全链成功（ML 同步训练→四模型→泄漏断言→回测→汇总含 ICIR；覆写主权重属预期）；`_leak_check` 通过；`backtest.run_lgb` 主窗跑通
+5. 冒烟验证：`run_lgb --model all` 重训三模型成功落盘；`fold_cv --folds F7` 单折全链成功（ML 同步训练→三模型→泄漏断言→回测→汇总含 ICIR；覆写主权重属预期）；`_leak_check` 通过；`backtest.run_lgb` 主窗跑通
 6. 新基线记录：**完整七折重跑**出简化后基线报告（固定清单 + ML 折同步口径；每折约 9-12 分钟）；重训后的 IC/主窗数字入 AGENTS 横幅（或标注"简化后基线"）；memory 更新
 
 ## 风险与防护
