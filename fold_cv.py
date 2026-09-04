@@ -36,8 +36,7 @@ from pools.spec import get_pool
 PY = sys.executable
 ROOT = Path(__file__).resolve().parent
 RF = 0.025  # 与 backtest/run_lgb.py 同口径
-# ML 因子列 -> scoped 构建器模块（折同步训练；nn_gap1d 无 scoped 模式，
-# 引用即 fail-fast——本简化边界 = mainboard_all，其清单不含 nn）
+# ML 因子列 -> scoped 构建器模块（折同步训练；无构建器的 ML 因子引用即 fail-fast）
 ML_BUILDERS = {"gb_gap1d": "factors.build_gb_gap1d"}
 
 
@@ -153,8 +152,8 @@ def main():
     for f in ml_cols:
         if f not in ML_BUILDERS:
             raise RuntimeError(
-                f"主清单引用 ML 因子 {f}，但无 scoped 构建器（nn_gap1d 未适配折同步；"
-                f"本简化边界 = mainboard_all）")
+                f"主清单引用 ML 因子 {f}，但无 scoped 构建器"
+                f"（nn_gap1d 已于 2026-09-04 退役；新 ML 因子须自带 scoped 模式）")
 
     print(f"Fold CV: {fids} | pool={spec.name} | exec=market | "
           f"train_start={FOLD_TRAIN_START}（扩张窗口）| ML 同步: {ml_cols or '无'}")

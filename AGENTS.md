@@ -13,13 +13,13 @@ Quantlab 是一个 **A股主板微盘股量化选股系统**（时点池 1-40 �
 ```
 Tushare 数据 → DuckDB 存储（data/pull）
   → 因子管道（factors/update：增量日更 + --full 全量；公式因子 Polars）
-  → 模型因子（factors/build_gb_gap1d：随折同步 scoped；build_nn_gap1d：微盘线）
+  → 模型因子（factors/build_gb_gap1d：全局 OOF 日更 + 随折同步 scoped，双池共用）
   → 回归模型训练（run_lgb.py，三主模型，L1 目标 + 输出校准；清单=人工裁定 json）
   → 融合分 → 回测（backtest/run_lgb.py，开盘市价模拟器内置）→ HTML 预测报告（三级降级）
   → 泄漏断言（_leak_check.py）+ 折 CV（fold_cv.py）
 ```
 
-数据更新标准四步（原 cron 自动化已于 2026-09-04 删除，现手动执行）：`data.pull` → `factors.update` → `factors.build_nn_gap1d --infer-only` → `forecast_display/generate_lgb.py`（fail-fast 顺序，前步失败即停；模块路径是契约，改名需全链核对）。
+数据更新标准四步（原 cron 自动化已于 2026-09-04 删除，现手动执行）：`data.pull` → `factors.update` → `factors.build_gb_gap1d`（全局 OOF，分钟级，刷新全历史+前沿）→ `forecast_display/generate_lgb.py`（fail-fast 顺序，前步失败即停；模块路径是契约，改名需全链核对）。
 
 ## Technology Stack
 
@@ -47,8 +47,7 @@ quantlab/
 │   ├── store.py             # ★ 因子表 SQL 唯一点（铁律）：读写/对账/列操作/staleness_audit；表名一律经 spec
 │   ├── update.py            # ★ 因子管道编排：增量日更（日期+股票级对账）+ --full 全量重建；compute_panel 计算内核
 │   ├── integrity.py         # 完整性校验（硬失败 exit 1 / 软警告；integrity_report_{pool}.json）
-│   ├── build_gb_gap1d.py    # XGBoost 隔夜跳空因子（--pool；--cutoff/--through scoped 折同步，终态权重落 models/{pool}/）
-│   ├── build_nn_gap1d.py    # MLP 隔夜跳空因子（每日 --infer-only 前沿推理；微盘线契约）
+│   ├── build_gb_gap1d.py    # XGBoost 隔夜跳空因子（--pool；全局 OOF 日更 + --cutoff/--through scoped 折同步；双池共用，2026-09-04 起唯一 ML 因子）
 │   └── selected_{pool}_{model}.json # 各池各模型入模清单（mb1：20d 32/6d 10/open2d 11；微盘：20d 32/6d 5/open2d 4）
 │
 ├── strategies/              # 策略库（池无关）
@@ -72,7 +71,7 @@ quantlab/
 │   ├── trading_calendar.py / lock.py / _ts.py / build_industry.py（pull 子进程调用）
 │   └── ashare.duckdb        # DB 实体（勿提交）
 │
-├── models/{pool}/           # lgb_{model}.joblib ×3（单文件不留档，折训练直接覆盖）+ gb_gap1d.joblib（ML 终态权重）+ nn_gap1d_state.joblib（微盘）
+├── models/{pool}/           # lgb_{model}.joblib ×3（单文件不留档，折训练直接覆盖）+ gb_gap1d.joblib（scoped 折同步落盘，全局模式不落盘）
 ├── document/                # 参考资料：llm_factor_mining（300 假设库）/ alpha101 论文 / tushare API 文档
 └── docs/superpowers/        # spec 与 plan
 ```
@@ -112,7 +111,7 @@ quantlab/
 测试集 IC 剔除：① 次日开盘封板观测（`compute_nextopen_limit_mask`，纯比率判断 ±0.05% 容差）② 当日 IsST=1。训练集同样排除。
 
 ### 9. ML 因子（模型因子）
-- **gb_gap1d**（XGBoost，mainboard_all 在册）：随折同步训练，终态权重 `models/{pool}/gb_gap1d.joblib` 供实盘；**nn_gap1d**（MLP）：微盘线契约（冻结模型每日 --infer-only）
+- **gb_gap1d**（XGBoost，双池在册：微盘 6d/open2d + mb1 6d/open2d 各含 1 列）：唯一 ML 因子（nn_gap1d 已 2026-09-04 整体退役删除，微盘清单同日 nn→gb 换血）；随折同步训练（终态权重 `models/{pool}/gb_gap1d.joblib`，训练截止=F7 test_start）；日更 = 全局 OOF 重建（分钟级，2018-12 前缺失由 Boost 容忍）
 - 因子表列所有权：公式因子列归 factors/update；gb_/nn_ 列归各构建脚本；全量重建自动保全他方列
 
 ### 10. DuckDB 单一数据源
@@ -125,7 +124,7 @@ quantlab/
 一律 tmp/ 脚本（gitignored）；积木 = `dataset.load_factors(cols=)`（按需列）+ `strategies.lgb._rank_ic_np` + `factors.store`。纪律：加因子看 train-test 泛化缺口；冗余对全池 max（<0.75 增量/>0.95 冗余）；强因子替换弱因子优先。
 
 ### 13. 已判死清单（勿再提出）
-close 锚 open2d ｜ limit 执行语义（已物理删除）｜ qfq 水平因子 ｜ 显式门控逻辑（门控类非线性关系由模型自学）｜ 模型因子入簇竞争 ｜ ai_gz2000_*（泄漏已删）｜ 长空信号当版本依据 ｜ mf_ 注册表机制 ｜ gap1d 主模型（已降位归 ML 因子层）
+close 锚 open2d ｜ limit 执行语义（已物理删除）｜ qfq 水平因子 ｜ 显式门控逻辑（门控类非线性关系由模型自学）｜ 模型因子入簇竞争 ｜ ai_gz2000_*（泄漏已删）｜ 长空信号当版本依据 ｜ mf_ 注册表机制 ｜ gap1d 主模型（已降位归 ML 因子层）｜ nn_gap1d（MLP 跳空因子，2026-09-04 整体删除，微盘清单已换 gb_gap1d）
 
 ### 14. 数据库表清单
 stock_info/daily_raw/daily_basic/daily_kline(VIEW)/cyq_perf/industry/index_daily/namechange/delist_info/trading_calendar/pending_pulls/macro_daily(shibor)。
@@ -140,7 +139,7 @@ stock_info/daily_raw/daily_basic/daily_kline(VIEW)/cyq_perf/industry/index_daily
 python -m data.pull            # 增量拉取（勿用 --full，2-4 小时）
 python -m factors.update       # 增量因子（--dry-run 预览 / --backfill-stocks 回补）
 python -m factors.update --full   # 全量重建 factor_values（勿轻易运行）
-python -m factors.build_nn_gap1d --infer-only   # nn 因子前沿推理（冻结 MLP，秒级）
+python -m factors.build_gb_gap1d   # gb 因子全局 OOF 重建（~1-3 分钟，刷新全历史+前沿；--pool 可换池）
 python -m factors.integrity    # 独立完整性校验
 python -m pools.membership     # 重建池快照（半年度，通常 6/12 月跑一次）
 ```
@@ -167,7 +166,7 @@ python forecast_display/generate_lgb.py   # L1 完整 / L2 DOWNGRADED / L3 红�
 - **DB 单写者锁**：写库前确认无 `data.pull`/`factors.update` 在跑；membership 在写连接进程内查询必须传 con
 - **勿提交 DuckDB/.env**；**无 notebook**，分析一律 Python 脚本
 - **权重/列名单源**：融合权重以 `config.py`（W2D/W6D/W20D）为权威，backtest 与 forecast_display 同源 import，勿复制常量
-- **四步流水线契约**（data.pull / factors.update / factors.build_nn_gap1d / forecast_display/generate_lgb.py）：顺序与模块路径即生产流程，重排或改名需全链核对（若重建自动调度须同步调度侧）
+- **四步流水线契约**（data.pull / factors.update / factors.build_gb_gap1d / forecast_display/generate_lgb.py）：顺序与模块路径即生产流程，重排或改名需全链核对（若重建自动调度须同步调度侧）
 - **池代码单源 pools/membership**：不新增任何 json 池读取
 - **模型权重单文件不留档**：折训练直接覆盖 models/{pool}/ 主路径，跑完=F7/主窗口口径
 
