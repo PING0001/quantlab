@@ -373,7 +373,7 @@ def compute_non_alpha_factors(df_long: pl.DataFrame) -> pl.DataFrame:
     # 且与 SMA 相关 0.93 准冗余；DB 旧列成孤儿不再计算
 
     # DaysToDelivery / DaysToNextTrading 不在此计算：日历感知版在
-    # compute.py 的 _load_days_to_delivery / _load_days_to_next_trading，
+    # factors/update.py 的 _load_days_to_delivery / _load_days_to_next_trading，
     # 与市场特征同路径按日期合并（compute_panel 全量/增量共路径）
 
     # ---- drop intermediate columns and keep only factor columns ----

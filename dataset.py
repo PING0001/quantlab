@@ -124,7 +124,7 @@ def load_isst_series(con: duckdb.DuckDBPyConnection, spec: PoolSpec) -> pd.Serie
 
 @dataclass
 class TrainingData:
-    """主窗口训练的完整装配束（run_lgb / mining / _leak_check 共用形状）。"""
+    """主窗口训练的完整装配束（run_lgb / _leak_check 共用形状）。"""
     spec: PoolSpec
     factors: pd.DataFrame                       # (date,code) 宽表（含 IsST 列）
     kline: pd.DataFrame                         # open/close 平铺（标签用）

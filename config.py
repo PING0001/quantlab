@@ -3,7 +3,7 @@ Central configuration for quantlab.
 All pool-specific paths are derived from POOL_NAME.
 
 Set QUANTLAB_POOL env var to switch between stock pools:
-    set QUANTLAB_POOL=smallcap_on_mainboard && python run_lgb.py
+    QUANTLAB_POOL=mainboard_all python run_lgb.py
 """
 from __future__ import annotations
 
@@ -17,8 +17,7 @@ POOL_NAME = os.environ.get("QUANTLAB_POOL", "mainboard_microcap")
 log = logging.getLogger("config")
 
 # ---- Database ----
-# QUANTLAB_DB 可覆盖 DB 路径（dev bench worktree 共享主仓 DB 实体，
-# 避免复制 5.9GB；默认仍为本仓 data/ashare.duckdb）
+# QUANTLAB_DB 可覆盖 DB 路径（默认本仓 data/ashare.duckdb）
 DB_PATH = Path(os.environ.get("QUANTLAB_DB") or (ROOT / "data" / "ashare.duckdb"))
 
 # ---- Stock pool ----
@@ -30,7 +29,7 @@ DB_PATH = Path(os.environ.get("QUANTLAB_DB") or (ROOT / "data" / "ashare.duckdb"
 
 # ---- Selected factor set (single source of truth) ----
 
-# 增量维护的指数清单（ts_code, 存储code）：compute.py 的 _load_index_data
+# 增量维护的指数清单（ts_code, 存储code）：factors/update.py 的 _load_index_data
 # 与 data/sources.py 的 index 源共用此定义
 TRACKED_INDICES = [
     ("000985.CSI", "000985"),   # 中证全指
@@ -97,9 +96,10 @@ SELECTED_FACTORS = (
     ["Return_3d", "Volatility_3d", "Amihud_3d", "AvgAmount_3d",
      "ClosePos_mean_3d", "Price_position_5d"]
     +
-    # LLM 挖矿第一批幸存因子 (6, bench 2026-08-22)：300 假设库首测 16 取 7 后
+    # LLM 挖矿第一批幸存因子 (6, 2026-08-22)：300 假设库首测 16 取 7 后
     # 又删 LogClose（qfq 水平因子带 latest_adj 未来信息且与 SMA 冗余 0.93），
-    # 实证见 factors/mining.py batch；涨停次数为 |ret|>=9.5% 近似口径
+    # 实证见 git 史（factors/mining.py，2026-09-03 随挖矿层删除）；
+    # 涨停次数为 |ret|>=9.5% 近似口径
     ["LimitUpCnt_20d", "PostHighDrawdown_10d", "MIN_5d",
      "IntradaySkew_60d", "VolPriceCorr_20d", "OvernightMean_20d"]
     +
