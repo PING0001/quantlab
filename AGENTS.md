@@ -13,13 +13,13 @@ Quantlab 是一个 **A股主板微盘股量化选股系统**（时点池 1-40 �
 ```
 Tushare 数据 → DuckDB 存储（data/pull）
   → 因子管道（factors/update：增量日更 + --full 全量；公式因子 Polars）
-  → 模型因子（factors/build_gb_gap1d：随折同步 scoped；build_nn_gap1d：cron 微盘线）
+  → 模型因子（factors/build_gb_gap1d：随折同步 scoped；build_nn_gap1d：微盘线）
   → 回归模型训练（run_lgb.py，三主模型，L1 目标 + 输出校准；清单=人工裁定 json）
   → 融合分 → 回测（backtest/run_lgb.py，开盘市价模拟器内置）→ HTML 预测报告（三级降级）
   → 泄漏断言（_leak_check.py）+ 折 CV（fold_cv.py）
 ```
 
-夜间流水线（cron automation-596d04c5，每交易日 21:05）四步：`data.pull` → `factors.update` → `factors.build_nn_gap1d --infer-only` → `forecast_display/generate_lgb.py`（fail-fast，模块路径是契约，改名必须同步改 cron）。
+数据更新标准四步（原 cron 自动化已于 2026-09-04 删除，现手动执行）：`data.pull` → `factors.update` → `factors.build_nn_gap1d --infer-only` → `forecast_display/generate_lgb.py`（fail-fast 顺序，前步失败即停；模块路径是契约，改名需全链核对）。
 
 ## Technology Stack
 
@@ -48,7 +48,7 @@ quantlab/
 │   ├── update.py            # ★ 因子管道编排：增量日更（日期+股票级对账）+ --full 全量重建；compute_panel 计算内核
 │   ├── integrity.py         # 完整性校验（硬失败 exit 1 / 软警告；integrity_report_{pool}.json）
 │   ├── build_gb_gap1d.py    # XGBoost 隔夜跳空因子（--pool；--cutoff/--through scoped 折同步，终态权重落 models/{pool}/）
-│   ├── build_nn_gap1d.py    # MLP 隔夜跳空因子（cron 每日 --infer-only；微盘线契约）
+│   ├── build_nn_gap1d.py    # MLP 隔夜跳空因子（每日 --infer-only 前沿推理；微盘线契约）
 │   └── selected_{pool}_{model}.json # 各池各模型入模清单（mb1：20d 32/6d 10/open2d 11；微盘：20d 32/6d 5/open2d 4）
 │
 ├── strategies/              # 策略库（池无关）
@@ -66,7 +66,7 @@ quantlab/
 │   ├── spec.py              # ★ 唯一池注册表：PoolSpec（snap_table/factor_table/band/data_since + 路径族方法）；python -m pools.spec 自描述
 │   └── membership.py        # ★ 池时点化：查询 API（member_mask/union_codes/latest_codes/codes_on/reset_points）+ 快照构建器
 │
-├── data/                    # 摄入层（cron 路径，勿乱动；拉取范围=全部注册池快照并集）
+├── data/                    # 摄入层（流水线首步，勿乱动；拉取范围=全部注册池快照并集）
 │   ├── pull.py              # 统一拉取入口（增量/全量/对账；末尾 integrity 硬失败 exit 1）
 │   ├── sources.py           # 数据源注册表（POOLS 自 spec）
 │   ├── trading_calendar.py / lock.py / _ts.py / build_industry.py（pull 子进程调用）
@@ -105,18 +105,18 @@ quantlab/
 
 ### 7. 股票池时点化与 ST/退市三层防御
 - **池时点化**：沪深300式半年度快照（pool_snapshots 表，`pools/membership.py` 单源：查询 API + 快照构建器）；带宽 **1~40 亿流通市值**（通胀调整带）+ 主板 + 次新排除（上市 <252 交易日）；生效日=6/12 月首个交易日、选样截止=前一月末；基准=半年重置等权指数；宇宙口径与旧版本不可直接比较
-- **现役双池**：`mainboard_microcap`（微盘，生产池，cron 无参默认）与 `mainboard_all`（全 A 主板，bench 验证池）；横截面参考系按池隔离，绝不可共表。池感知入口 = update/integrity/gb/nn/run_lgb/_leak_check/fold_cv/backtest/generate_lgb（均有 `--pool`，缺省 env）；`data/pull`、`strategies/*`、`extra_factors.py` 计算内核、cron 四步路径不感知池（契约：无参=微盘）。产物池命名 selected_{pool}_{model}.json / integrity_report_{pool}.json / fold_cv_report_{pool}.json（跨池互覆写已根治）。池代码一律走 membership（config 无 json 池读取）
+- **现役双池**：`mainboard_microcap`（微盘，生产池，缺省池）与 `mainboard_all`（全 A 主板，bench 验证池）；横截面参考系按池隔离，绝不可共表。池感知入口 = update/integrity/gb/nn/run_lgb/_leak_check/fold_cv/backtest/generate_lgb（均有 `--pool`，缺省 env）；`data/pull`、`strategies/*`、`extra_factors.py` 计算内核、流水线四步路径不感知池（契约：无参=微盘）。产物池命名 selected_{pool}_{model}.json / integrity_report_{pool}.json / fold_cv_report_{pool}.json（跨池互覆写已根治）。池代码一律走 membership（config 无 json 池读取）
 - **ST/退市**（时点口径，三层）：① 日度 IsST 因子（namechange 区间解析，含变级修复）② delist_info（date >= delist_date）③ 训练排斥语义="仅训练"（ST/退市/封板/标签远引用越界不进训练但预测照常输出，回测宇宙不被 T+1 信息条件化；回测候选过滤在模拟器内执行）
 
 ### 8. IC 口径
 测试集 IC 剔除：① 次日开盘封板观测（`compute_nextopen_limit_mask`，纯比率判断 ±0.05% 容差）② 当日 IsST=1。训练集同样排除。
 
 ### 9. ML 因子（模型因子）
-- **gb_gap1d**（XGBoost，mainboard_all 在册）：随折同步训练，终态权重 `models/{pool}/gb_gap1d.joblib` 供实盘；**nn_gap1d**（MLP）：微盘线 cron 契约（冻结模型每日 --infer-only）
+- **gb_gap1d**（XGBoost，mainboard_all 在册）：随折同步训练，终态权重 `models/{pool}/gb_gap1d.joblib` 供实盘；**nn_gap1d**（MLP）：微盘线契约（冻结模型每日 --infer-only）
 - 因子表列所有权：公式因子列归 factors/update；gb_/nn_ 列归各构建脚本；全量重建自动保全他方列
 
 ### 10. DuckDB 单一数据源
-所有行情/因子在 `data/ashare.duckdb`。前复权价格通过 VIEW `daily_kline`（`raw × adj_factor / latest_adj`）。**单写者锁跨进程互斥**：写库前 `ps aux | grep -E 'data\.pull|factors\.update'`，避开工作日 21:05 前后（cron 流水线窗口）。`(code,date)` 行级 INSERT/UPDATE，勿整行替换（增量路径）；date 保持 VARCHAR。**membership 查询在持有写连接的进程内必须传 con**（`union_codes(con=con)`），否则自开只读连接会撞锁。换手率实时算：`amount / NULLIF(circ_mv, 0) / 10`；`total_mv`/`circ_mv` 来自 daily_basic（单位万元）。
+所有行情/因子在 `data/ashare.duckdb`。前复权价格通过 VIEW `daily_kline`（`raw × adj_factor / latest_adj`）。**单写者锁跨进程互斥**：写库前 `ps aux | grep -E 'data\.pull|factors\.update'` 确认无流水线在跑。`(code,date)` 行级 INSERT/UPDATE，勿整行替换（增量路径）；date 保持 VARCHAR。**membership 查询在持有写连接的进程内必须传 con**（`union_codes(con=con)`），否则自开只读连接会撞锁。换手率实时算：`amount / NULLIF(circ_mv, 0) / 10`；`total_mv`/`circ_mv` 来自 daily_basic（单位万元）。
 
 ### 11. 数据窗口裁定
 模型训练/回测/判断只用 2020-01-01 起的交易日；数据装载最早回看 2019-01-01（最长因子回看 ≤1 年 headroom）。单源 `dataset.DATA_FLOOR`，`load_factors/load_kline` 钳制式封顶——2020 前行集本就被 `training_panel_index` 截去，封顶对训练/预测/回测零漂移，纯装载瘦身。
@@ -135,7 +135,7 @@ stock_info/daily_raw/daily_basic/daily_kline(VIEW)/cyq_perf/industry/index_daily
 
 所有命令默认 `mainboard_microcap` 池（env `QUANTLAB_POOL` 或各入口 `--pool` 切换）；解释器用 `.venv/bin/python`（系统 python3 无 duckdb）。
 
-### 数据更新（cron 每交易日 21:05 自动跑）
+### 数据更新（四步流水线，手动执行）
 ```bash
 python -m data.pull            # 增量拉取（勿用 --full，2-4 小时）
 python -m factors.update       # 增量因子（--dry-run 预览 / --backfill-stocks 回补）
@@ -164,10 +164,10 @@ python forecast_display/generate_lgb.py   # L1 完整 / L2 DOWNGRADED / L3 红�
 ## Important Constraints
 
 - **勿启动 `--full` 全量构建**（pull 2-4 小时 13800+ API；factor --full 整表重建）
-- **DB 单写者锁**：写库前确认无 `data.pull`/`factors.update` 在跑；避开工作日 21:05 前后；membership 在写连接进程内查询必须传 con
+- **DB 单写者锁**：写库前确认无 `data.pull`/`factors.update` 在跑；membership 在写连接进程内查询必须传 con
 - **勿提交 DuckDB/.env**；**无 notebook**，分析一律 Python 脚本
 - **权重/列名单源**：融合权重以 `config.py`（W2D/W6D/W20D）为权威，backtest 与 forecast_display 同源 import，勿复制常量
-- **cron 四步模块路径是契约**（data.pull / factors.update / factors.build_nn_gap1d / forecast_display/generate_lgb.py），改名必须同步改 cron
+- **四步流水线契约**（data.pull / factors.update / factors.build_nn_gap1d / forecast_display/generate_lgb.py）：顺序与模块路径即生产流程，重排或改名需全链核对（若重建自动调度须同步调度侧）
 - **池代码单源 pools/membership**：不新增任何 json 池读取
 - **模型权重单文件不留档**：折训练直接覆盖 models/{pool}/ 主路径，跑完=F7/主窗口口径
 
