@@ -23,7 +23,7 @@
     "AvgAmount_3d",
     "StockIndexCorr_20d",
     "CSI_return_20d",
-    "nn_gap1d"
+    "gb_gap1d"
   ],
   "factor_metrics": {
     "CSI_return_20d": {
@@ -373,5 +373,5 @@
       "corr": -0.8017296435507332
     }
   ],
-  "note": "2026-08-24 用户裁定加入 nn_gap1d（MLP 隔夜跳空因子，rank IC 0.198，2021-12 前缺失由 Boost 容忍）"
+  "note": "2026-08-24 用户裁定加入 nn_gap1d（MLP 隔夜跳空因子，rank IC 0.198，2021-12 前缺失由 Boost 容忍）；2026-09-04 用户裁定：nn_gap1d → gb_gap1d（nn 整体退役；微盘 gb 全局 OOF 重建 2026-09-04，rank IC 0.2113/IR 2.59/1876 日，2018-12 前缺失由 Boost 容忍）"
 }
