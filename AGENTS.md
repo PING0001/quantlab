@@ -104,7 +104,7 @@ quantlab/
 
 ### 7. 股票池时点化与 ST/退市三层防御
 - **池时点化**：沪深300式半年度快照（pool_snapshots 表，`pools/membership.py` 单源：查询 API + 快照构建器）；带宽 **1~40 亿流通市值**（通胀调整带）+ 主板 + 次新排除（上市 <252 交易日）；生效日=6/12 月首个交易日、选样截止=前一月末；基准=半年重置等权指数；宇宙口径与旧版本不可直接比较
-- **现役双池**：`mainboard_microcap`（微盘，生产池，缺省池）与 `mainboard_all`（全 A 主板，bench 验证池）；横截面参考系按池隔离，绝不可共表。池感知入口 = update/integrity/gb/nn/run_lgb/_leak_check/fold_cv/backtest/generate_lgb（均有 `--pool`，缺省 env）；`data/pull`、`strategies/*`、`extra_factors.py` 计算内核、流水线四步路径不感知池（契约：无参=微盘）。产物池命名 selected_{pool}_{model}.json / integrity_report_{pool}.json / fold_cv_report_{pool}.json（跨池互覆写已根治）。池代码一律走 membership（config 无 json 池读取）
+- **现役双池**：`mainboard_all`（全 A 主板，**现役主工作线，2026-09-04 用户裁定**）与 `mainboard_microcap`（微盘，**封存不动**——2026-09-04 已换血 gb 并重训但七折未跑，战力仍以 nn 时代口径为准）；横截面参考系按池隔离，绝不可共表。池感知入口 = update/integrity/gb/run_lgb/_leak_check/fold_cv/backtest/generate_lgb（均有 `--pool`，缺省 env=微盘——**做 mb1 必须显式 `--pool mainboard_all` 或设 `QUANTLAB_POOL`**）；`data/pull`、`strategies/*`、`extra_factors.py` 计算内核不感知池。产物池命名 selected_{pool}_{model}.json / integrity_report_{pool}.json / fold_cv_report_{pool}.json（跨池互覆写已根治）。池代码一律走 membership（config 无 json 池读取）
 - **ST/退市**（时点口径，三层）：① 日度 IsST 因子（namechange 区间解析，含变级修复）② delist_info（date >= delist_date）③ 训练排斥语义="仅训练"（ST/退市/封板/标签远引用越界不进训练但预测照常输出，回测宇宙不被 T+1 信息条件化；回测候选过滤在模拟器内执行）
 
 ### 8. IC 口径
