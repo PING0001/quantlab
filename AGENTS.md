@@ -1,6 +1,6 @@
 # Quantlab — AI Agent Instructions
 
-> **🏛 唯一工作区**：`/Users/cui/Projects/quantlab`（`main` 分支）。2026-09-04 用户授权全项目清理后，worktree 与多余分支已全部删除（原 quantlab-dual / quantlab-bench-mainboard-all 已不存在，分支只剩 main），本仓即一切。DB 实体 `data/ashare.duckdb`（5.8GB）与 `.env` 在仓内但勿提交。
+> **🏛 工作区布局**：主仓 `/Users/cui/Projects/quantlab`（`main` 分支）= 现役主线（日常流水线、报告、生产资产）；开发树 `/Users/cui/Projects/quantlab-dev`（`dev` 分支，2026-09-04 建）= 调整与开发用，起点与 main 同步。开发树经符号链接共享主仓实体（`.venv` / `.env` / `data/ashare.duckdb`，DuckDB 同锁域）——**两树勿同时写库**，写库前照旧确认无进程在跑。本地分支：main（主线）+ dev（开发）。DB 实体（5.8GB）与 `.env` 在仓内但勿提交。
 >
 > **架构现役基线（2026-09-03 简化版，七折口径）**：market 平均 **+16.6%/夏普 1.19** vs 半年重置等权基准 +5.6%（超额 **+11.0pp**，5/7 折为正；最差折 F4 −18.2% vs 基准 −16.3%）；模型平均 test IC/ICIR：**20d 0.135/0.99、6d 0.103/0.88、open2d 0.064/0.45**；主窗口（时点池口径）超额 **+3.84%**。
 >
