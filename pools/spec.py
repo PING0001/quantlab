@@ -91,7 +91,7 @@ POOLS: dict[str, PoolSpec] = {
 
 
 def get_pool(pool: str | None = None) -> PoolSpec:
-    """池名 -> PoolSpec。缺省 = config.POOL_NAME（env QUANTLAB_POOL，默认微盘）。"""
+    """池名 -> PoolSpec。缺省 = config.POOL_NAME（env QUANTLAB_POOL，默认 mainboard_all）。"""
     p = pool or POOL_NAME
     if p not in POOLS:
         raise ValueError(f"unknown pool {p!r}, expected one of {sorted(POOLS)}")

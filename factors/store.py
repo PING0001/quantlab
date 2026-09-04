@@ -530,7 +530,7 @@ def _main():
     from pools.spec import get_pool
 
     ap = argparse.ArgumentParser(description="因子表陈旧值审计（抽样重算 vs 存量）")
-    ap.add_argument("--pool", default=None, help="目标池（默认 env/微盘）")
+    ap.add_argument("--pool", default=None, help="目标池（默认 env QUANTLAB_POOL / mainboard_all）")
     ap.add_argument("--n-dates", type=int, default=20, help="抽样交易日数")
     args = ap.parse_args()
     spec = get_pool(args.pool)

@@ -3,7 +3,7 @@ Central configuration for quantlab.
 All pool-specific paths are derived from POOL_NAME.
 
 Set QUANTLAB_POOL env var to switch between stock pools:
-    QUANTLAB_POOL=mainboard_all python run_lgb.py
+    QUANTLAB_POOL=mainboard_microcap python run_lgb.py
 """
 from __future__ import annotations
 
@@ -12,7 +12,8 @@ import logging
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-POOL_NAME = os.environ.get("QUANTLAB_POOL", "mainboard_microcap")
+# 默认池 = mainboard_all（2026-09-04 用户裁定：微盘封存，全 A 主板为现役工作线）
+POOL_NAME = os.environ.get("QUANTLAB_POOL", "mainboard_all")
 
 log = logging.getLogger("config")
 

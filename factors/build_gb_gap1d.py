@@ -23,7 +23,7 @@ mlp_ 前缀保留给深度学习族；列所有权归本脚本。
 IC 0.1912（已归档删除）。
 
 Usage:
-    python -m factors.build_gb_gap1d                     # 默认池（env/微盘）
+    python -m factors.build_gb_gap1d                     # 默认池（env/现役=mainboard_all）
     python -m factors.build_gb_gap1d --pool mainboard_all
 """
 from __future__ import annotations
@@ -145,7 +145,7 @@ def walk_forward_oof(X: pd.DataFrame, y: pd.Series,
 def main():
     ap = argparse.ArgumentParser(description="gb_gap1d 构建XGBoost 隔夜跳空因子")
     ap.add_argument("--pool", default=None,
-                    help="目标池（默认 env QUANTLAB_POOL / 微盘）")
+                    help="目标池（默认 env QUANTLAB_POOL / mainboard_all）")
     ap.add_argument("--cutoff", default=None,
                     help="折同步 scoped 模式：训练截止（折 test_start）；缺省=全局 OOF")
     ap.add_argument("--through", default=None,

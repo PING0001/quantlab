@@ -104,7 +104,7 @@ quantlab/
 
 ### 7. 股票池时点化与 ST/退市三层防御
 - **池时点化**：沪深300式半年度快照（pool_snapshots 表，`pools/membership.py` 单源：查询 API + 快照构建器）；带宽 **1~40 亿流通市值**（通胀调整带）+ 主板 + 次新排除（上市 <252 交易日）；生效日=6/12 月首个交易日、选样截止=前一月末；基准=半年重置等权指数；宇宙口径与旧版本不可直接比较
-- **现役双池**：`mainboard_all`（全 A 主板，**现役主工作线，2026-09-04 用户裁定**）与 `mainboard_microcap`（微盘，**封存不动**——2026-09-04 已换血 gb 并重训但七折未跑，战力仍以 nn 时代口径为准）；横截面参考系按池隔离，绝不可共表。池感知入口 = update/integrity/gb/run_lgb/_leak_check/fold_cv/backtest/generate_lgb（均有 `--pool`，缺省 env=微盘——**做 mb1 必须显式 `--pool mainboard_all` 或设 `QUANTLAB_POOL`**）；`data/pull`、`strategies/*`、`extra_factors.py` 计算内核不感知池。产物池命名 selected_{pool}_{model}.json / integrity_report_{pool}.json / fold_cv_report_{pool}.json（跨池互覆写已根治）。池代码一律走 membership（config 无 json 池读取）
+- **现役双池**：`mainboard_all`（全 A 主板，**现役主工作线与默认池**，2026-09-04 用户裁定）与 `mainboard_microcap`（微盘，**封存不动**——2026-09-04 已换血 gb 并重训但七折未跑，战力仍以 nn 时代口径为准）；横截面参考系按池隔离，绝不可共表。池感知入口 = update/integrity/gb/run_lgb/_leak_check/fold_cv/backtest/generate_lgb（均有 `--pool`，**缺省 = env `QUANTLAB_POOL` / mainboard_all**；操作微盘须显式 `--pool mainboard_microcap`）；`data/pull`、`strategies/*`、`extra_factors.py` 计算内核不感知池。产物池命名 selected_{pool}_{model}.json / integrity_report_{pool}.json / fold_cv_report_{pool}.json（跨池互覆写已根治）。池代码一律走 membership（config 无 json 池读取）
 - **ST/退市**（时点口径，三层）：① 日度 IsST 因子（namechange 区间解析，含变级修复）② delist_info（date >= delist_date）③ 训练排斥语义="仅训练"（ST/退市/封板/标签远引用越界不进训练但预测照常输出，回测宇宙不被 T+1 信息条件化；回测候选过滤在模拟器内执行）
 
 ### 8. IC 口径
@@ -132,7 +132,7 @@ stock_info/daily_raw/daily_basic/daily_kline(VIEW)/cyq_perf/industry/index_daily
 
 ## Common Workflows
 
-所有命令默认 `mainboard_microcap` 池（env `QUANTLAB_POOL` 或各入口 `--pool` 切换）；解释器用 `.venv/bin/python`（系统 python3 无 duckdb）。
+所有命令默认 `mainboard_all` 池（2026-09-04 用户裁定；env `QUANTLAB_POOL` 或各入口 `--pool` 切换）；解释器用 `.venv/bin/python`（系统 python3 无 duckdb）。
 
 ### 数据更新（四步流水线，手动执行）
 ```bash
@@ -151,7 +151,7 @@ python _leak_check.py                # ★ 泄漏断言（43 项，重训后必�
 python -m backtest.run_lgb           # ★ 主回测（开盘市价，融合分+卖出零点）
 python fold_cv.py                    # 7 折全链（含 ML 同步训练，~80-100 分钟）
 python -m pools.spec                 # 池注册表自描述（表名/带宽/行数/最新档）
-# 换池：QUANTLAB_POOL=mainboard_all <命令>  或  <命令> --pool mainboard_all
+# 换池（如操作封存的微盘）：QUANTLAB_POOL=mainboard_microcap <命令>  或  <命令> --pool mainboard_microcap
 ```
 
 ### 预测报告（三级降级，永不 exit 1）
